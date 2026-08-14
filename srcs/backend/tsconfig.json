@@ -1,0 +1,32 @@
+{
+  // Options du compilateur TypeScript pour le backend.
+  "compilerOptions": {
+    // Modules CommonJS : le format attendu par Node cote serveur.
+    "module": "commonjs",
+    // Version JS ciblee a la compilation.
+    "target": "ES2021",
+    // Dossier de sortie des fichiers .js compiles.
+    "outDir": "./dist",
+    // Racine des fichiers source (requis explicitement depuis TS 5.x / TS 7).
+    "rootDir": "./src",
+    // Genere des source maps (debug : relie le JS compile au TS d'origine).
+    "sourceMap": true,
+    // Genere les fichiers de declaration .d.ts (types exportes).
+    "declaration": true,
+    // Facilite l'import de modules CommonJS avec la syntaxe ES.
+    "esModuleInterop": true,
+    // Ne verifie pas le typage interne des librairies (compilation plus rapide).
+    "skipLibCheck": true,
+    // Distingue null/undefined dans les types (securite).
+    "strictNullChecks": true,
+    // Impose une casse coherente des noms de fichiers (evite les bugs Linux/Mac).
+    "forceConsistentCasingInFileNames": true,
+
+    // [CONCEPT: decorateurs] Autorise la syntaxe @Module, @Controller, @Get, @Injectable...
+    // Pourquoi : NestJS repose entierement sur les decorateurs ; sans ce flag, ca ne compile pas.
+    "experimentalDecorators": true,
+    // Emet les metadonnees de types lues par Nest a l'execution (pour l'injection).
+    // Pourquoi : c'est ce qui permet a Nest de savoir QUOI injecter dans un constructeur.
+    "emitDecoratorMetadata": true
+  }
+}

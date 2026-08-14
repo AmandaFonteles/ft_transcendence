@@ -1,0 +1,45 @@
+/* Styles globaux minimalistes, sans dependance, pour une page d'index soignee. */
+
+/* Variables/reglages au niveau racine du document. */
+:root {
+  /* Autorise les themes clair et sombre selon les preferences systeme. */
+  color-scheme: light dark;
+  /* Police systeme : nette, rapide, sans fichier a charger. */
+  font-family: system-ui, sans-serif;
+}
+
+/* Reglages du corps de page. */
+body {
+  /* Supprime la marge par defaut du navigateur. */
+  margin: 0;
+  /* Active une grille pour centrer facilement le contenu. */
+  display: grid;
+  /* Centre le contenu horizontalement et verticalement. */
+  place-items: center;
+  /* Occupe au moins toute la hauteur de l'ecran. */
+  min-height: 100vh;
+}
+
+/* Conteneur de la page. */
+.page {
+  /* Centre le texte. */
+  text-align: center;
+  /* Limite la largeur pour une bonne lisibilite. */
+  max-width: 40rem;
+  /* Espace interieur autour du contenu. */
+  padding: 2rem;
+}
+
+/* Titre principal. */
+.page h1 {
+  /* Grande taille pour la hierarchie visuelle. */
+  font-size: 2.5rem;
+  /* Petit espace sous le titre. */
+  margin-bottom: 0.5rem;
+}
+
+/* Ligne d'etat du backend, legerement attenuee. */
+.status {
+  /* Reduit l'opacite pour un role secondaire. */
+  opacity: 0.8;
+}

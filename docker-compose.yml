@@ -1,0 +1,127 @@
+# =============================================================================
+# docker-compose.yml : l'orchestrateur.
+# Il decrit QUELS conteneurs lancer, comment ils se connectent, ce qui persiste.
+# "docker compose up" lit ce fichier et met toute la pile en route.
+# Regle d'or : tous les services rejoignent le meme reseau prive et se joignent
+# PAR LEUR NOM grace au DNS interne de Docker (backend, frontend, database...).
+# =============================================================================
+
+# Bloc racine listant tous les conteneurs a lancer.
+services:
+
+  # ---------------------------------------------------------------------------
+  # DATABASE : PostgreSQL, via l'image OFFICIELLE (aucun Dockerfile a ecrire).
+  # ---------------------------------------------------------------------------
+  database:
+    # Utilise l'image officielle Postgres, variante alpine (Linux minimal = leger).
+    # Pourquoi l'image officielle : maintenue, sure, rien a construire nous-memes.
+    image: postgres:16-alpine
+    # Injecte le contenu de .env (POSTGRES_USER/PASSWORD/DB) comme variables d'env.
+    # Pourquoi : l'image officielle cree la base et l'utilisateur a partir de ces variables.
+    env_file: .env
+    # Bloc des volumes montes dans ce conteneur.
+    volumes:
+      # Volume NOMME : stocke les donnees HORS du conteneur, dans un espace gere par Docker.
+      # Pourquoi : sans lui, chaque "down" effacerait toute la base ; la il survit aux redemarrages.
+      - postgres_data:/var/lib/postgresql/data
+    # Rattache ce service au reseau prive commun (defini tout en bas).
+    networks: [transcendence]
+    # Bloc "healthcheck" : Docker teste periodiquement si le service repond VRAIMENT.
+    healthcheck:
+      # Commande executee DANS le conteneur ; le service devient "healthy" quand Postgres repond.
+      # Le double $$ empeche compose d'interpreter la variable : c'est le SHELL du conteneur
+      # qui la lit a l'execution, dans ses propres variables d'environnement.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      # Intervalle entre deux tests.
+      interval: 5s
+      # Duree au-dela de laquelle un test est considere en echec.
+      timeout: 3s
+      # Nombre d'echecs consecutifs avant de marquer le service "unhealthy".
+      retries: 5
+    # Redemarre automatiquement le conteneur s'il plante (sauf arret manuel).
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # BACKEND : API NestJS, construite depuis ./srcs/backend/Dockerfile.
+  # ---------------------------------------------------------------------------
+  backend:
+    # Construit l'image a partir du Dockerfile present dans ce dossier.
+    # Pourquoi "build" et pas "image" : c'est notre code, il faut le compiler dans une image.
+    build: ./srcs/backend
+    # Fournit aussi les variables .env au backend (il en aura besoin pour la base plus tard).
+    env_file: .env
+    # Bloc de variables d'environnement supplementaires, propres a ce service.
+    environment:
+      # Force la detection de changements de fichiers par "polling".
+      # Pourquoi : depuis un bind mount, la detection d'evenements est peu fiable sur
+      # macOS/Windows ; le polling rend le rechargement a chaud fiable partout (leger cout CPU).
+      - CHOKIDAR_USEPOLLING=true
+    # Bloc des volumes.
+    volumes:
+      # BIND MOUNT : relie le dossier source de l'hote au /app du conteneur.
+      # Pourquoi : editer un fichier sur ta machine se reflete immediatement dans le conteneur.
+      - ./srcs/backend:/app
+      # Volume ANONYME sur /app/node_modules : LE piege classique Docker + Node.
+      # Pourquoi : sans lui, le bind mount ci-dessus masquerait les node_modules installes
+      # dans l'image par ceux (vides/incompatibles) de l'hote ; l'app planterait ("module not found").
+      - /app/node_modules
+    # Reseau prive commun.
+    networks: [transcendence]
+    # Bloc des dependances de demarrage.
+    depends_on:
+      # Attend que la base soit reellement prete (grace au healthcheck), pas juste "demarree".
+      # Pourquoi : le backend qui se connectera a la base ne doit pas partir trop tot.
+      database:
+        condition: service_healthy
+    # Auto-redemarrage en cas de crash.
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # FRONTEND : serveur de dev React + Vite, depuis ./srcs/frontend/Dockerfile.
+  # ---------------------------------------------------------------------------
+  frontend:
+    # Construit l'image depuis le Dockerfile du dossier frontend.
+    build: ./srcs/frontend
+    # Bloc des volumes (meme logique que le backend).
+    volumes:
+      # Bind mount du code source pour l'edition a chaud.
+      - ./srcs/frontend:/app
+      # Meme "bouclier" node_modules que le backend.
+      - /app/node_modules
+    # Reseau prive commun.
+    networks: [transcendence]
+    # Auto-redemarrage.
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # NGINX : le SEUL service expose a l'hote. Terminaison TLS + reverse proxy.
+  # ---------------------------------------------------------------------------
+  nginx:
+    # Construit l'image nginx (avec certificat + config) depuis son Dockerfile.
+    build: ./srcs/nginx
+    # Bloc des ports publies "hote:conteneur".
+    ports:
+      # Publie le port 80 : il ne sert qu'a rediriger vers HTTPS.
+      - "80:80"
+      # Publie le port 443 : la vraie porte d'entree, en HTTPS.
+      # Pourquoi seul nginx publie des ports : front/back/db restent injoignables depuis
+      # l'exterieur ; seul le HTTPS via nginx est public (l'isolation voulue par le sujet).
+      - "443:443"
+    # Reseau prive commun.
+    networks: [transcendence]
+    # Demarre apres que les conteneurs front et back existent (pour que le DNS les resolve).
+    depends_on: [frontend, backend]
+    # Auto-redemarrage.
+    restart: unless-stopped
+
+# Bloc racine des reseaux.
+networks:
+  # Un unique reseau prive de type "bridge" partage par tous les services.
+  # Pourquoi : ils communiquent entre eux par nom, isoles du reste de la machine.
+  transcendence:
+    driver: bridge
+
+# Bloc racine des volumes nommes.
+volumes:
+  # Declare le volume utilise par la base ci-dessus (sa duree de vie est geree par Docker).
+  postgres_data:

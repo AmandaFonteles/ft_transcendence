@@ -1,0 +1,19 @@
+{
+  // Config specifique aux fichiers d'outillage executes par Node (ici vite.config.ts).
+  "compilerOptions": {
+    // Marque ce projet comme "composite" (necessaire pour etre reference par un autre tsconfig).
+    "composite": true,
+    // Ignore la verification des types des librairies.
+    "skipLibCheck": true,
+    // Modules ESNext.
+    "module": "ESNext",
+    // Resolution adaptee au bundler.
+    "moduleResolution": "bundler",
+    // Autorise les imports par defaut synthetiques.
+    "allowSyntheticDefaultImports": true,
+    // Verifications strictes.
+    "strict": true
+  },
+  // Ce fichier de config ne couvre que vite.config.ts.
+  "include": ["vite.config.ts"]
+}

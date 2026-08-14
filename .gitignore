@@ -1,0 +1,12 @@
+# Ignore le vrai fichier de secrets : il ne doit JAMAIS etre committe.
+.env
+
+# Ignore les dependances installees : elles se regenerent avec npm install.
+# Pourquoi : lourdes, specifiques a la machine, inutiles a versionner.
+**/node_modules
+
+# Ignore les sorties de build : regenerees a la compilation.
+**/dist
+
+# Ignore les certificats auto-signes : generes a la construction de l'image nginx.
+srcs/nginx/certs
