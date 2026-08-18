@@ -1,0 +1,40 @@
+{
+  // Options passees au compilateur TypeScript.
+  "compilerOptions": {
+    // Version de JavaScript ciblee a la compilation.
+    "target": "ES2020",
+    // Initialise les champs de classe comme des proprietes definies (semantique standard).
+    "useDefineForClassFields": true,
+    // Bibliotheques de types disponibles (APIs JS + DOM du navigateur).
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    // Systeme de modules moderne (import/export).
+    "module": "ESNext",
+    // Ne verifie pas le typage interne des librairies (compilation plus rapide).
+    "skipLibCheck": true,
+    // Resolution des modules adaptee a un bundler comme Vite.
+    "moduleResolution": "bundler",
+    // Autorise l'import avec extension .ts explicite (pratique avec un bundler).
+    "allowImportingTsExtensions": true,
+    // Permet d'importer des fichiers .json comme des modules types.
+    "resolveJsonModule": true,
+    // Traite chaque fichier isolement (requis par les bundlers rapides).
+    "isolatedModules": true,
+    // N'emet aucun fichier .js : c'est Vite qui produit le bundle.
+    "noEmit": true,
+    // Transforme le JSX avec le runtime React automatique (pas besoin d'importer React partout).
+    "jsx": "react-jsx",
+    // Active toutes les verifications strictes (securite de typage maximale).
+    // Pourquoi : attrape tot les erreurs, tres apprecie en evaluation 42.
+    "strict": true,
+    // Erreur si une variable locale n'est jamais utilisee.
+    "noUnusedLocals": true,
+    // Erreur si un parametre n'est jamais utilise.
+    "noUnusedParameters": true,
+    // Erreur si un "case" de switch traverse sans break.
+    "noFallthroughCasesInSwitch": true
+  },
+  // Dossiers analyses par ce fichier de config.
+  "include": ["src"],
+  // Reference la config dediee aux fichiers d'outillage (vite.config.ts).
+  "references": [{ "path": "./tsconfig.node.json" }]
+}

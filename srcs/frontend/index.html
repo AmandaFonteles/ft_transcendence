@@ -1,0 +1,20 @@
+<!-- Declare le document comme HTML5. -->
+<!doctype html>
+<!-- Racine du document ; lang="fr" pour l'accessibilite et le SEO. -->
+<html lang="fr">
+  <head>
+    <!-- Encodage des caracteres : UTF-8 gere les accents correctement. -->
+    <meta charset="UTF-8" />
+    <!-- Rend la page responsive (adaptee a la largeur de l'ecran mobile). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Titre affiche dans l'onglet du navigateur. -->
+    <title>ft_transcendence</title>
+  </head>
+  <body>
+    <!-- Div vide dans laquelle React va tout injecter (le point de montage). -->
+    <div id="root"></div>
+    <!-- Charge le point d'entree React ; type="module" active les modules ES. -->
+    <!-- Pourquoi /src/main.tsx : Vite sert ce fichier et resout ses imports. -->
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
