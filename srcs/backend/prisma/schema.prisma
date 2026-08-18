@@ -1,77 +1,22 @@
-// =============================================================================
-// schema.prisma : LA source de verite des donnees.
-// Chaque coequipier ajoutera ici SES modeles en suivant prisma/InstructionsPrisma.md.
-// C'est le fichier partage = point de coordination sensible (discipline de merge).
-// =============================================================================
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Bloc "generator" : configure la GENERATION du Prisma Client (le code type qu'on appelle).
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
 generator client {
-  // Fournisseur du client : la version JavaScript/TypeScript.
-  provider      = "prisma-client-js"
-  // Cibles binaires du moteur de requetes.
-  // "native" = la machine courante ; "linux-musl-openssl-3.0.x" = l'image alpine (musl + OpenSSL 3).
-  // Pourquoi l'expliciter : garantit que le bon moteur est genere pour le conteneur.
-  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
-// Bloc "datasource" : decrit la connexion a la base.
 datasource db {
-  // Type de base de donnees.
   provider = "postgresql"
-  // URL de connexion lue depuis la variable d'environnement (definie dans .env).
-  // Pourquoi env(...) : on ne code jamais les secrets dans le schema (versionne).
-  url      = env("DATABASE_URL")
 }
 
-// [CONCEPT: modele partage] User est le modele CENTRAL du projet : presque tout le
-// reference (auth, membres d'organisation, cartes assignees, messages, notifications,
-// events). Il appartient a l'infra partagee ; chacun y ajoutera SES relations.
-// Voir prisma/InstructionsPrisma.md pour la marche a suivre.
 model User {
-  // --- Identite ---
-
-  // Cle primaire. Convention FIGEE : toujours "id", type String, genere via cuid().
-  // cuid() = identifiant court, unique, non devinable et sur en URL.
-  // Pourquoi pas autoincrement : evite d'exposer des ids sequentiels et facilite
-  // le distribue / le temps reel (pas de collision entre instances).
-  id          String   @id @default(cuid())
-
-  // Email de connexion. @unique => contrainte d'unicite en base
-  // (deux utilisateurs ne peuvent pas partager le meme email).
-  email       String   @unique
-
-  // Handle public court, unique lui aussi. Sert dans les URLs, les mentions, etc.
-  // Un seul mot => pas de @map (le nom de colonne "username" convient tel quel).
-  username    String   @unique
-
-  // Nom affiche dans l'UI (modifiable), distinct du username.
-  // Multi-mot => @map en snake_case (convention figee sur les colonnes).
-  displayName String   @map("display_name")
-
-  // URL d'avatar, OPTIONNELLE. Le "?" rend le champ nullable
-  // (un utilisateur peut ne pas avoir d'avatar).
-  avatarUrl   String?  @map("avatar_url")
-
-  // --- Horodatage (present sur toute entite mutable) ---
-
-  // Date de creation, posee par la base a l'insertion. @map car multi-mot.
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  // Date de derniere modification, mise a jour automatiquement par Prisma a chaque update.
-  updatedAt   DateTime @updatedAt      @map("updated_at")
-
-  // --- Identifiants de connexion : HORS de ce modele ---
-  // Le hash de mot de passe (Argon2) et les comptes OAuth relevent du domaine de Qu.
-  // Ils vivront dans un modele dedie (ex. Credential) relie a User, pas ici :
-  // ce modele reste l'IDENTITE, pas les secrets.
-
-  // --- Relations (ajoutees par l'equipe au fil des modules) ---
-  // NE RIEN mettre ici tant que le modele cible n'existe pas (sinon le schema ne valide pas).
-  // Exemples a venir (voir InstructionsPrisma.md > "Ajouter une relation") :
-  //   ownedBoards Board[]        // quand Ai creera Board
-  //   messages    Message[]      // quand Qu creera Message (chat)
-  //   memberships Membership[]   // quand Am creera Membership (permissions)
-
-  // Convention FIGEE : table en snake_case pluriel.
-  @@map("users")
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  creationDate DateTime @default(now())
+  update       DateTime @updatedAt
 }
