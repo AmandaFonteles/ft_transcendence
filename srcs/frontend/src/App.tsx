@@ -1,44 +1,55 @@
-// [CONCEPT: composant React] Un composant est une fonction qui renvoie de l'UI (JSX).
-// <App/> est toute notre page pour l'instant ; plus tard chacun ajoute ses composants.
+// [CONCEPT: composant React] Page d'index : titre, corps, et un indicateur de la
+// base (le nombre d'utilisateurs) pour VOIR la 4e couche fonctionner.
 
-// Importe deux "hooks" React : useState (etat) et useEffect (effets de bord).
+// Importe les hooks useState (etat) et useEffect (effet de bord).
 import { useEffect, useState } from 'react'
 
-// Exporte le composant racine par defaut.
+// Composant racine.
 export default function App() {
-  // [CONCEPT: useState] Cree une variable d'etat suivie par React : quand elle change,
-  // React re-affiche le composant. Ici elle stocke l'etat du backend, initial "checking...".
+  // Etat pour le statut du backend (initial "checking...").
   const [apiStatus, setApiStatus] = useState('checking...')
+  // Etat pour le nombre d'utilisateurs en base ; null tant qu'on ne l'a pas recu.
+  // <number | null> type l'etat explicitement (nombre une fois charge, sinon null).
+  const [users, setUsers] = useState<number | null>(null)
 
-  // [CONCEPT: useEffect] Execute un effet APRES le rendu. Le tableau vide [] signifie
-  // "une seule fois, au premier affichage". On s'en sert pour appeler le backend.
+  // Effet lance une seule fois au montage ([] = pas de dependance).
   useEffect(() => {
-    // Requete meme-origine : le navigateur est sur https://localhost et nginx route /api
-    // vers le backend. Pourquoi c'est important : aucune config CORS necessaire, et cela
-    // prouve toute la chaine navigateur -> nginx -> NestJS.
+    // Appel meme-origine ; nginx route /api vers le backend, qui interroge PostgreSQL.
     fetch('/api/health')
-      // Convertit la reponse HTTP en objet JavaScript (parse le JSON).
+      // Parse la reponse JSON.
       .then((res) => res.json())
-      // Met a jour l'etat avec le statut renvoye (ex. "ok"), ce qui re-affiche la page.
-      .then((data) => setApiStatus(data.status))
-      // En cas d'erreur reseau/proxy, affiche "unreachable" plutot que de planter.
+      // Met a jour les deux etats depuis la reponse (status + users).
+      .then((data) => {
+        // Statut renvoye par le backend (ex. "ok").
+        setApiStatus(data.status)
+        // Nombre d'utilisateurs lu depuis la base.
+        setUsers(data.users)
+      })
+      // En cas d'echec reseau/proxy, affiche un statut d'erreur plutot que de planter.
       .catch(() => setApiStatus('unreachable'))
   }, [])
 
-  // Renvoie la page d'index demandee : un titre, un corps, un indicateur backend.
+  // Rendu de la page.
   return (
-    // Conteneur principal de la page (balise semantique <main>).
+    // Conteneur principal.
     <main className="page">
-      {/* Titre de la page. */}
+      {/* Titre. */}
       <h1>ft_transcendence</h1>
-      {/* Corps : phrase d'introduction. */}
+      {/* Corps. */}
       <p>
         Base Docker fonctionnelle — prête à recevoir les modules de l'équipe.
       </p>
-      {/* Indicateur vivant : montre que le front atteint le back a travers nginx. */}
+      {/* Indicateur backend. */}
       <p className="status">
         Backend: <strong>{apiStatus}</strong>
       </p>
+      {/* Indicateur base : n'affiche la ligne QUE si users a ete recu (!== null). */}
+      {/* Pourquoi : prouve que le backend a lu une valeur reelle dans PostgreSQL. */}
+      {users !== null && (
+        <p className="status">
+          Utilisateurs en base: <strong>{users}</strong>
+        </p>
+      )}
     </main>
   )
 }

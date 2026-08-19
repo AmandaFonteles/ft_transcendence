@@ -1,22 +1,25 @@
-// [CONCEPT: module NestJS] Un module regroupe du code lie. AppModule est la racine.
-// C'est le carrefour unique ou chaque coequipier enregistrera plus tard son module
-// (AuthModule, ChatModule, BoardsModule...) dans "imports".
+// [CONCEPT: module NestJS] AppModule est la racine et le carrefour d'assemblage.
 
-// Importe le decorateur @Module qui declare un module.
+// Importe le decorateur @Module.
 import { Module } from '@nestjs/common'
-// Importe le controller racine (gestion des routes HTTP).
+// Importe le controller racine.
 import { AppController } from './app.controller'
-// Importe le service racine (la logique).
+// Importe le service racine.
 import { AppService } from './app.service'
+// Importe le module Prisma (infrastructure ORM, @Global).
+import { PrismaModule } from './prisma/prisma.module'
+// Importe le module de feature "users".
+import { UsersModule } from './users/users.module'
 
-// Decore la classe pour la declarer comme module Nest et cabler ses membres.
+// Declare et cable le module racine.
 @Module({
-  // Autres modules importes ; vide pour l'instant (les modules des features viendront ici).
-  imports: [],
-  // Controllers de ce module : ils gerent les requetes entrantes.
+  // On importe PrismaModule (@Global => PrismaService injectable partout) et UsersModule.
+  // Chaque futur module d'equipe (AuthModule, BoardsModule...) s'ajoutera dans cette liste.
+  imports: [PrismaModule, UsersModule],
+  // Controllers de ce module.
   controllers: [AppController],
-  // Providers (services injectables) de ce module : ils portent la logique.
+  // Providers de ce module.
   providers: [AppService]
 })
-// Classe vide : toute la configuration est portee par le decorateur ci-dessus.
+// Classe vide : configuration portee par le decorateur.
 export class AppModule {}
