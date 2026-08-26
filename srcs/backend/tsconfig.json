@@ -7,7 +7,7 @@
     "target": "ES2021",
     // Dossier de sortie des fichiers .js compiles.
     "outDir": "./dist",
-    // Racine des fichiers source (requis explicitement depuis TS 5.x / TS 7).
+    // Racine des fichiers sources (evite l'avertissement TS6059 sur la structure de sortie).
     "rootDir": "./src",
     // Genere des source maps (debug : relie le JS compile au TS d'origine).
     "sourceMap": true,

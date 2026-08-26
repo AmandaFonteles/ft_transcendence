@@ -1,24 +1,31 @@
 # =============================================================================
-# Image backend : Node + NestJS, lancee en mode DEV (watch = redemarrage a chaque save).
+# Image backend : Node + NestJS + Prisma, lancee en mode DEV.
 # =============================================================================
 
 # Part de l'image officielle Node 22 alpine (legere).
 FROM node:22-alpine
 
+# Installe openssl via le gestionnaire de paquets d'Alpine.
+# Pourquoi : le moteur de requetes de Prisma depend d'openssl ; sans lui, on obtient
+# une erreur "Unable to require libquery_engine" au demarrage sur une image alpine.
+RUN apk add --no-cache openssl
+
 # Dossier de travail dans le conteneur.
 WORKDIR /app
 
-# Copie d'abord les manifestes pour profiter du cache de couches (voir frontend).
+# Copie d'abord les manifestes pour profiter du cache de couches.
 COPY package*.json ./
 
-# Installe les dependances NestJS.
+# Installe les dependances (Nest + Prisma CLI + @prisma/client).
 RUN npm install
 
-# Copie le reste du code (recouvert par le bind mount a l'execution).
+# Copie le reste du code (dont prisma/schema.prisma et l'entrypoint).
 COPY . .
 
 # Documente le port de l'API (interne ; nginx le proxifie).
 EXPOSE 3000
 
-# Demarre Nest en mode watch : il recompile et redemarre a chaque changement de fichier.
-CMD ["npm", "run", "start:dev"]
+# Point d'entree du conteneur : notre script de demarrage (generate + db push + start).
+# Pourquoi "sh script" et pas "./script" : evite de dependre du bit d'execution du fichier
+# (il peut se perdre selon l'OS hote) ; sh le lance quoi qu'il arrive.
+ENTRYPOINT ["sh", "docker-entrypoint.sh"]
