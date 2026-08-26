@@ -10,3 +10,4 @@
 
 # Ignore les certificats auto-signes : generes a la construction de l'image nginx.
 srcs/nginx/certs
+*.DS_Store

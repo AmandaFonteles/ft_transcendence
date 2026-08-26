@@ -1,33 +1,54 @@
 // [CONCEPT: controller de feature] UsersController mappe les routes HTTP vers le
 // service. Il ne contient AUCUNE logique : il recoit, delegue, renvoie.
 
-// Importe les decorateurs de routage : @Body (corps de requete), @Controller, @Get, @Post.
-import { Body, Controller, Get, Post } from '@nestjs/common'
-// Importe le service de feature.
+import { Body, Controller, Get, NotFoundException, Patch, Post, UseGuards } from '@nestjs/common'
 import { UsersService } from './users.service'
-// Importe le type d'entree partage.
 import { CreateUserDto } from './dto/create-user.dto'
+import { SelectAvatarDto } from './dto/select-avatar.dto'
+import { AVATAR_PRESETS } from './avatar-presets'
+// AJOUT : necessaires pour proteger la route PATCH /users/me/avatar.
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
+import { CurrentUser } from '../auth/decorators/current-user.decorator'
 
-// '/users' + prefixe global 'api' => toutes les routes ici sont sous /api/users.
 @Controller('users')
 export class UsersController {
-  // Injection du service de feature (on renomme la propriete "users" pour la lisibilite).
   constructor(private readonly users: UsersService) {}
 
-  // Associe la methode a POST /api/users (creation).
   @Post()
-  // @Body() extrait le corps JSON de la requete et le type via CreateUserDto.
-  // ATTENTION : sans ValidationPipe, ce typage est verifie a la COMPILATION seulement,
-  // pas a l'execution. La validation reelle des entrees viendra avec le module de Qu.
   create(@Body() dto: CreateUserDto) {
-    // Delegue au service ; Nest serialise le user cree en JSON (reponse 201 par defaut sur POST).
     return this.users.create(dto)
   }
 
-  // Associe la methode a GET /api/users (liste).
   @Get()
   findAll() {
-    // Delegue au service ; renvoie le tableau JSON des users.
     return this.users.findAll()
+  }
+
+  // AJOUT : route PUBLIQUE (pas de @UseGuards), pas besoin d'etre connecte pour
+  // voir la liste des avatars disponibles. Renvoie simplement le tableau tel quel.
+  @Get('avatar-presets')
+  avatarPresets() {
+    return AVATAR_PRESETS
+  }
+
+  // IMPORTANT : 'avatar-presets' doit rester declare AVANT toute future route
+  // @Get(':id'), sinon Nest interpreterait "avatar-presets" comme une valeur de :id.
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  async me(@CurrentUser() user: { userId: string }) {
+    const found = await this.users.findById(user.userId)
+    if (!found) throw new NotFoundException('utilisateur introuvable')
+    return found
+  }
+
+  // AJOUT : route PROTEGEE (@UseGuards(JwtAuthGuard)) : il faut un access token
+  // valide dans le header Authorization pour l'appeler.
+  @UseGuards(JwtAuthGuard)
+  @Patch('me/avatar')
+  selectAvatar(@CurrentUser() user: { userId: string }, @Body() dto: SelectAvatarDto) {
+    // dto.avatarUrl a DEJA ete verifie par @IsIn(AVATAR_PRESETS) (etape 3) avant
+    // meme d'arriver ici : si la requete est invalide, Nest a repondu 400 en amont.
+    return this.users.updateAvatar(user.userId, dto.avatarUrl)
   }
 }
