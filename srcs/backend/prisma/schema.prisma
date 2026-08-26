@@ -34,11 +34,11 @@ model User {
   // cuid() = identifiant court, unique, non devinable et sur en URL.
   // Pourquoi pas autoincrement : evite d'exposer des ids sequentiels et facilite
   // le distribue / le temps reel (pas de collision entre instances).
-  id          String   @id @default(cuid())
+  id String @id @default(cuid())
 
   // Email de connexion. @unique => contrainte d'unicite en base
   // (deux utilisateurs ne peuvent pas partager le meme email).
-  email       String   @unique
+  email String @unique
 
   // Handle public court, unique lui aussi. Sert dans les URLs, les mentions, etc.
   // Un seul mot => pas de @map (le nom de colonne "username" convient tel quel).
@@ -50,19 +50,19 @@ model User {
 
   // Nom affiche dans l'UI (modifiable), distinct du username.
   // Multi-mot => @map en snake_case (convention figee sur les colonnes).
-  displayName String   @map("display_name")
+  displayName String @map("display_name")
 
   // URL d'avatar, OPTIONNELLE. Le "?" rend le champ nullable
   // (un utilisateur peut ne pas avoir d'avatar).
-  avatarUrl   String?  @map("avatar_url")
+  avatarUrl String? @map("avatar_url")
 
   // --- Horodatage (present sur toute entite mutable) ---
 
   // Date de creation, posee par la base a l'insertion. @map car multi-mot.
-  createdAt   DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
   // Date de derniere modification, mise a jour automatiquement par Prisma a chaque update.
-  updatedAt   DateTime @updatedAt      @map("updated_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // --- Identifiants de connexion : HORS de ce modele ---
   // Le hash de mot de passe (Argon2) et les comptes OAuth relevent du domaine de Qu.
@@ -79,7 +79,9 @@ model User {
   // Exemples a venir (voir InstructionsPrisma.md > "Ajouter une relation") :
   //   ownedBoards Board[]        // quand Ai creera Board
   //   messages    Message[]      // quand Qu creera Message (chat)
-  //   memberships Membership[]   // quand Am creera Membership (permissions)
+  //   memberships Membership[]   // quand Am creera Membership (permissions)//Note Ai : Je crois que ça correspond a mon OrganizationMember pour le coup donc a revoir avec Am
+  //Ajout Ai
+  organizationMembers OrganizationMember[]
 
   // Convention FIGEE : table en snake_case pluriel.
   @@map("users")
@@ -120,4 +122,37 @@ model OAuthAccount {
 
   @@unique([provider, providerId])
   @@map("oauth_accounts")
+}
+
+model Organization {
+  id                  String               @id @default(cuid())
+  name                String
+  description         String?
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  organizationMembers OrganizationMember[]
+
+  @@map("organizations")
+}
+
+enum Role {
+  MEMBER
+  ADMIN
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  role           Role
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  leftAt         DateTime?    @map("left_at")
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  //userId pas unique parce qu'on peut appartenir a poly orga, on utilisera une unicite combinee plus bas
+  userId         String       @map("user_id")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId String       @map("organization_id")
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@map("organization_members")
 }

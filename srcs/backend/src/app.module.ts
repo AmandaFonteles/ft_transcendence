@@ -14,12 +14,14 @@ import { UsersModule } from './users/users.module'
 import { RealtimeModule } from './realtime/realtime.module'
 // Importe le module de feature "auth".
 import { AuthModule } from './auth/auth.module'
+// Importe le module de feature "organizations".
+import { OrganizationsModule } from './organizations/organizations.module';
 
 // Declare et cable le module racine.
 @Module({
   // On importe PrismaModule (@Global => PrismaService injectable partout) et UsersModule.
   // Chaque futur module d'equipe (AuthModule, BoardsModule...) s'ajoutera dans cette liste.
-  imports: [PrismaModule, UsersModule, RealtimeModule, AuthModule],
+  imports: [PrismaModule, UsersModule, RealtimeModule, AuthModule, OrganizationsModule],
   // Controllers de ce module.
   controllers: [AppController],
   // Providers de ce module.
