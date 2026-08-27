@@ -5,8 +5,6 @@ import {
 	Controller, 
 	Get, 
 	Post, 
-	ValidationPipe, 
-	UsePipes, 
 	Param, 
 	Patch, 
 	Delete, 
@@ -18,7 +16,6 @@ import { UpdateOrganizationDto } from './dto/update-organization.dto'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
 
-@UsePipes(new ValidationPipe({whitelist: true, forbidNonWhitelisted: true}))
 @UseGuards(JwtAuthGuard)
 @Controller('organizations')
 export class OrganizationsController {
@@ -31,22 +28,22 @@ export class OrganizationsController {
   }
 
   @Get()
-  findAll() {
-	return this.organizations.findAll()
+  findAll(@CurrentUser() user: { userId: string }) {
+	return this.organizations.findAll(user.userId)
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-	return this.organizations.findOne(id)
+  findOneForMember(@Param('id') id: string, @CurrentUser() user: { userId: string }) {
+	return this.organizations.findOneForMember(id, user.userId)
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() data: UpdateOrganizationDto) {
-	return this.organizations.update(id, data)
+  update(@Param('id') id: string, @CurrentUser() user: { userId: string }, @Body() data: UpdateOrganizationDto) {
+	return this.organizations.update(id, user.userId, data)
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-	return this.organizations.remove(id)
+  remove(@Param('id') id: string, @CurrentUser() user: { userId: string }) {
+	return this.organizations.remove(id, user.userId)
   }
 }
