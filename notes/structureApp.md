@@ -41,7 +41,17 @@ Page par projet :
 
 28/08
 
+Page agenda :
 - Vue au mois de l'agenda
 - Pouvoir changer de couleur
 - Agenda dans le projet uniquement avec les taches du projet + couleurs par personnnes ? Délai tache ?
--
+
+
+Page projet :
+- tag sur la photo d'avatar de l'admin
+- afficher la description optionnelle du projet
+- nombre de taches affichées (à faire defiler)
+- afficher ou non les membres et leurs roles
+- gestion des actionss sur les membres en cliquant directement sur leur avatar.
+- Version admin de la page pour pouvoir modifier le projet (roue d'options disponible que pour l'admin ?)
+- fichiers liés au projet (à la place de membre et roles?)
