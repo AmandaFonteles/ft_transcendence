@@ -1,20 +1,26 @@
-// [CONCEPT: point d'entree React] Ce fichier demarre l'app : il trouve le div
-// #root de index.html et demande a React d'y afficher <App/>.
+// [CONCEPT: point d'entree React] Boot de l'application : monte <App/> dans #root.
 
-// Importe StrictMode : un composant qui active des verifications de dev supplementaires.
+// Verifications supplementaires en developpement.
 import { StrictMode } from 'react'
-// Importe createRoot : l'API moderne de React 18 pour connecter React au DOM.
+// API React 18 de montage dans le DOM.
 import { createRoot } from 'react-dom/client'
-// Importe notre composant racine (la page d'index).
+// [CONCEPT: routeur] BrowserRouter utilise l'historique du navigateur : les URL
+// sont propres (/tableau-de-bord) et la navigation ne recharge pas la page.
+import { BrowserRouter } from 'react-router-dom'
+// Composant racine (table de routage).
 import App from './App'
-// Importe les styles globaux (appliques a toute la page).
-import './index.css'
+// Jetons de design AVANT les composants : les variables doivent exister quand
+// app.css les utilise. Inverser l'ordre laisserait des valeurs indefinies.
+import './styles/tokens.css'
+import './styles/app.css'
 
-// Recupere le div #root, y cree une racine React, et y rend l'application.
-// Le "!" affirme a TypeScript que #root existe (index.html le garantit).
-// Pourquoi StrictMode : detecte tot certains bugs, sans effet en production.
+// Monte l'application. Le "!" affirme a TypeScript que #root existe.
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    {/* Le routeur doit envelopper toute l'app : les composants enfants utilisent
+        Link, NavLink et useParams, qui exigent ce contexte. */}
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
   </StrictMode>
 )

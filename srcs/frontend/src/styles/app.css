@@ -1,0 +1,331 @@
+/* =============================================================================
+   app.css : base + composants partages, construits UNIQUEMENT sur les jetons.
+   Chaque coequipier reutilise ces classes pour que ses ecrans soient coherents
+   avec les autres sans concertation.
+   ============================================================================= */
+
+/* Charge les deux familles retenues (Work Sans = interface, Archivo = donnees). */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Work+Sans:wght@400;500;600&display=swap');
+
+/* --- Base ----------------------------------------------------------------- */
+
+/* Inclut bordures et padding dans la largeur : evite les debordements surprises. */
+*, *::before, *::after { box-sizing: border-box; }
+
+/* Reglages globaux du document. */
+body {
+  /* Supprime la marge par defaut du navigateur. */
+  margin: 0;
+  /* Fond avoine defini dans les jetons. */
+  background: var(--paper);
+  /* Encre prune. */
+  color: var(--ink);
+  /* Police d'interface. */
+  font-family: var(--font-ui);
+  /* Taille de base confortable. */
+  font-size: 15px;
+  /* Interlignage lisible pour de la prose. */
+  line-height: 1.6;
+  /* Reserve la place du chrome fixe (en-tete + pied de page) pour que le contenu
+     ne passe jamais dessous. */
+  padding-top: var(--header-h);
+  padding-bottom: var(--footer-h);
+  /* Lissage des polices sur ecrans Apple. */
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Titres : on retire la marge haute par defaut, source d'espacements incoherents. */
+h1, h2, h3 { margin: 0 0 var(--space-3); font-weight: 600; line-height: 1.25; }
+/* Titre de page. */
+h1 { font-size: 28px; letter-spacing: -0.01em; }
+/* Titre de section. */
+h2 { font-size: 20px; }
+/* Titre de bloc. */
+h3 { font-size: 16px; }
+/* Paragraphes : marge basse uniquement. */
+p { margin: 0 0 var(--space-3); }
+
+/* Liens : couleur de lien, soulignement decale pour la lisibilite. */
+a { color: var(--link); text-decoration: underline; text-underline-offset: 3px; }
+
+/* [CONCEPT: accessibilite] Anneau de focus VISIBLE au clavier.
+   Ne jamais supprimer l'outline sans le remplacer : la navigation au clavier
+   deviendrait impossible a suivre. */
+:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+
+/* Respecte le reglage systeme "reduire les animations". */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+/* --- Chrome fixe : en-tete et pied de page -------------------------------- */
+
+/* En-tete fixe en haut de l'ecran. */
+.app-header {
+  /* Reste visible au defilement (demande dans la structure). */
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  /* Hauteur issue des jetons, partagee avec le padding du body. */
+  height: var(--header-h);
+  /* Surface blanche pour se detacher du fond avoine. */
+  background: var(--surface);
+  /* Filet de separation chaud. */
+  border-bottom: 1px solid var(--rule);
+  /* Dispose logo / navigation / actions sur une ligne. */
+  display: flex; align-items: center; gap: var(--space-4);
+  padding: 0 var(--space-4);
+  /* Passe au-dessus du contenu. */
+  z-index: 20;
+}
+
+/* Pied de page fixe en bas de l'ecran. */
+.app-footer {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: var(--footer-h);
+  background: var(--surface);
+  border-top: 1px solid var(--rule);
+  display: flex; align-items: center; gap: var(--space-4);
+  padding: 0 var(--space-4);
+  /* Texte discret : ce sont des liens secondaires. */
+  font-size: 13px; color: var(--ink-soft);
+  z-index: 20;
+}
+
+/* Liens du pied de page : discrets, sans soulignement permanent. */
+.app-footer a { color: var(--ink-soft); text-decoration: none; }
+.app-footer a:hover { text-decoration: underline; }
+
+/* Logo / retour accueil dans l'en-tete. */
+.brand {
+  font-weight: 600; font-size: 16px; color: var(--ink);
+  text-decoration: none; letter-spacing: -0.01em;
+}
+
+/* Pousse les elements suivants a droite (utilitaire de mise en page). */
+.spacer { margin-left: auto; }
+
+/* --- Conteneur de page ---------------------------------------------------- */
+
+/* Largeur de lecture confortable, centree, avec une respiration verticale. */
+.page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4);
+}
+
+/* --- Boutons (pilules : signature de la direction B) ---------------------- */
+
+/* Base commune a tous les boutons. */
+.btn {
+  /* Herite de la police d'interface (les boutons ne l'heritent pas par defaut). */
+  font-family: inherit;
+  font-size: 14px; font-weight: 500;
+  /* Zone de clic confortable, y compris au doigt. */
+  padding: 9px 18px;
+  /* Pilule pleine. */
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  cursor: pointer;
+  /* Empeche le texte du bouton de passer a la ligne. */
+  white-space: nowrap;
+  /* Transition douce au survol. */
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+/* Bouton principal : encre pleine. UNE SEULE action principale par ecran. */
+.btn-primary { background: var(--action); color: #fff; }
+.btn-primary:hover { background: var(--action-hover); }
+
+/* Bouton secondaire : surface blanche cerclee. */
+.btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--rule); }
+.btn-secondary:hover { border-color: var(--ink-faint); }
+
+/* Bouton discret : sans fond ni bordure, pour "Annuler". */
+.btn-ghost { background: transparent; color: var(--ink-soft); }
+.btn-ghost:hover { background: var(--surface-sunk); }
+
+/* --- Cartes --------------------------------------------------------------- */
+
+/* Carte standard : surface blanche, coins genereux, filet chaud. */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
+  padding: var(--space-4);
+}
+
+/* --- Carte de tache avec ARETE de projet (la signature) ------------------- */
+
+/* Conteneur de la ligne de tache. */
+.task {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
+  padding: var(--space-3);
+  /* Aligne l'arete, le contenu et le badge sur une ligne. */
+  display: flex; align-items: flex-start; gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+/* L'arete coloree : dit a quel PROJET appartient la tache.
+   Sa couleur est fournie en ligne par le composant (var --spine). */
+.task-spine {
+  /* Barre fine. */
+  width: 4px;
+  /* S'etire sur toute la hauteur de la carte. */
+  align-self: stretch;
+  border-radius: 4px;
+  /* Ne se comprime jamais. */
+  flex: none;
+  /* Couleur injectee par le composant React ; sauge par defaut. */
+  background: var(--spine, var(--project-1));
+}
+
+/* Titre de la tache. */
+.task-title { font-weight: 500; font-size: 14.5px; }
+
+/* Metadonnees de la tache (qui, quand). */
+.task-meta {
+  font-size: 12.5px; color: var(--ink-soft);
+  /* Police utilitaire + chiffres tabulaires : les heures s'alignent en colonne.
+     C'est la rigueur de la direction "Horaire" apportee ici. */
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Badges ---------------------------------------------------------------- */
+
+/* Petite pastille d'etat ou de categorie. */
+.badge {
+  font-size: 11.5px; font-weight: 500;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+/* Variante "en retard". */
+.badge-danger { background: var(--danger-bg); color: var(--danger); }
+/* Variante "termine". */
+.badge-success { background: var(--success-bg); color: var(--success); }
+
+/* --- Agenda : les filets de la direction "Horaire" ------------------------ */
+
+/* Bandeau des jours : une colonne par jour, separees par des filets. */
+.agenda-days {
+  display: grid;
+  /* Cinq colonnes egales (lundi a vendredi). */
+  grid-template-columns: repeat(5, 1fr);
+  /* Police utilitaire + chiffres tabulaires pour aligner les quantiemes. */
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px; color: var(--ink-soft);
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: var(--space-4);
+}
+
+/* Cellule d'un jour : filet vertical a gauche, sauf la premiere. */
+.agenda-day { padding: var(--space-2) var(--space-2); border-left: 1px solid var(--rule); }
+.agenda-day:first-child { border-left: 0; }
+
+/* Marqueur du jour courant : STRUCTUREL (encre + trait), pas colore.
+   Pourquoi : les couleurs sont reservees a l'identite des projets ; utiliser une
+   couleur ici la viderait de son sens. */
+.agenda-day.is-today {
+  color: var(--ink); font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--ink);
+}
+
+/* --- Avatars (l'equipe visible en permanence, signature de B) ------------- */
+
+/* Rangee d'avatars qui se chevauchent. */
+.avatars { display: flex; }
+
+/* Pastille d'initiales. */
+.avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 11px; font-weight: 600; color: #fff;
+  /* Chevauchement leger. */
+  margin-left: -6px;
+  /* Liseré blanc qui detache chaque avatar du precedent. */
+  border: 2px solid var(--surface);
+  /* Couleur injectee par le composant. */
+  background: var(--avatar-color, var(--project-2));
+}
+/* Le premier avatar ne se decale pas. */
+.avatar:first-child { margin-left: 0; }
+
+/* --- Etat vide : une invitation a agir, jamais une excuse ----------------- */
+
+/* Bloc affiche quand une liste est vide. */
+.empty {
+  text-align: center;
+  padding: var(--space-6) var(--space-4);
+  color: var(--ink-soft);
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius-card);
+}
+
+/* --- Marqueur de zone a construire par l'equipe --------------------------- */
+
+/* Encadre les emplacements reserves aux modules des coequipiers. */
+.seam {
+  border: 1px dashed var(--ink-faint);
+  border-radius: var(--radius-card);
+  padding: var(--space-4);
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  background: var(--surface-sunk);
+}
+
+/* Etiquette du proprietaire du module. */
+.seam-owner {
+  font-family: var(--font-data);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-faint);
+  display: block;
+  margin-bottom: var(--space-1);
+}
+
+/* --- Navigation de l'en-tete ---------------------------------------------- */
+
+/* Conteneur du menu deroulant. */
+.menu { position: relative; }
+
+/* Panneau du menu, positionne sous son bouton. */
+.menu-panel {
+  position: absolute;
+  top: calc(100% + 8px); right: 0;
+  min-width: 190px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-field);
+  padding: var(--space-1);
+  /* Se place au-dessus du contenu de la page. */
+  z-index: 30;
+}
+
+/* Entree du menu. */
+.menu-item {
+  display: block;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 14px;
+}
+.menu-item:hover { background: var(--surface-sunk); }
+
+/* Etat actif d'un lien de navigation. */
+.menu-item.is-active { font-weight: 500; background: var(--surface-sunk); }
+
+/* --- Responsive ------------------------------------------------------------ */
+
+/* Sur petit ecran, l'agenda passe de 5 colonnes a 2 pour rester lisible. */
+@media (max-width: 640px) {
+  .agenda-days { grid-template-columns: repeat(2, 1fr); }
+  .page { padding: var(--space-5) var(--space-3); }
+}

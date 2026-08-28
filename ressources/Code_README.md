@@ -188,3 +188,57 @@ brancheront :
 | `[SEAM: EVENT BACKBONE]` | Am | Émettre un `activity_event` |
 
 Détails, pièges et questions de défense : `STUDY.md`, section 11.
+
+## Charte visuelle et scaffold frontend
+
+Direction retenue : **« Atelier » (prédominante) fusionnée avec « Horaire »**.
+
+- D'Atelier : base avoine, encre prune, pilules arrondies, avatars visibles, et
+  surtout le **système de couleur par projet** — chaque projet a sa couleur, portée
+  par une arête sur toutes ses tâches.
+- D'Horaire : la rigueur du temps — police utilitaire à **chiffres tabulaires** pour
+  dates et heures, **filets verticaux** sur l'agenda, marqueur du jour courant.
+
+**Arbitrage important** : les couleurs sont réservées à l'identité des projets. Le
+jour courant et les échéances sont donc signalés de façon **structurelle** (trait
+d'encre, chiffres alignés), pas par une couleur — sinon la couleur ne voudrait plus
+rien dire là où les tâches de plusieurs projets se mélangent.
+
+### Fichiers
+
+```
+srcs/frontend/src/
+├── styles/
+│   ├── tokens.css        # LES JETONS : couleurs, espacements, rayons, polices
+│   └── app.css           # base + composants partagés (bâtis sur les jetons)
+├── components/
+│   ├── AppShell.tsx      # ossature : en-tête fixe + contenu + pied de page
+│   ├── Header.tsx        # logo, connexion, menu déroulant
+│   ├── Footer.tsx        # contact, confidentialité
+│   └── TaskRow.tsx       # ligne de tâche avec l'arête de projet (la signature)
+├── pages/                # une page par écran de la structure
+└── App.tsx               # table de routage (carrefour, comme app.module.ts)
+```
+
+### Règle d'équipe
+
+**Personne n'écrit une couleur ou un espacement en dur.** On utilise les variables de
+`tokens.css` (`var(--ink)`, `var(--space-4)`, `var(--project-3)`…). C'est ce qui
+garantit que les écrans de chacun se ressemblent sans concertation. Pour ajouter un
+écran : créer la page dans `pages/`, l'ajouter dans `App.tsx`, et réutiliser les
+classes existantes (`.card`, `.btn`, `.task`, `.badge`, `.seam`).
+
+### Routes
+
+| URL | Écran | Propriétaire |
+|-----|-------|--------------|
+| `/` | Accueil public | Ny |
+| `/connexion` | Connexion / inscription | Qu |
+| `/tableau-de-bord` | Agenda général + projets | Ai |
+| `/projets/nouveau` | Création de projet | Ai |
+| `/projets/:projectId` | Page projet (tâches, chat, rôles) | Ai / Qu / Am |
+| `/equipe` | Utilisateurs, amis, recherche | Qu |
+| `/profil` | Profil personnel | Qu |
+
+Les blocs encadrés en pointillés (`.seam`) marquent visuellement, **dans l'interface
+elle-même**, les emplacements réservés à chaque module.
