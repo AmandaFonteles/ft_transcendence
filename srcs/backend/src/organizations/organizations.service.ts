@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common'
-import { Role } from '@prisma/client'
+import { Role, InvitePolicy } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateOrganizationDto } from './dto/create-organization.dto'
 import { UpdateOrganizationDto } from './dto/update-organization.dto'
@@ -18,7 +18,8 @@ export class OrganizationsService {
     		userId: creatorId,
     		role: Role.ADMIN
   		  }
-		}
+		},
+		invitePolicy: data.invitePolicy
   	  }
 	})
   }
@@ -41,7 +42,7 @@ export class OrganizationsService {
     const organization = await this.prisma.organization.findUnique({ where: { id: id } })
 
     if (!organization) {
-      throw new NotFoundException(`Organization with id ${id} not found`)//fr ?
+      throw new NotFoundException(`Le projet n'a pas été trouvé`)//fr ?
     }
 
     return organization
@@ -54,8 +55,8 @@ export class OrganizationsService {
   }
 
   async update(organizationId: string, requesterUserId: string, data: UpdateOrganizationDto) {
-	if (data.name === undefined && data.description === undefined) {
-	  throw new BadRequestException(`No data provided for update`)
+	if (data.name === undefined && data.description === undefined && data.invitePolicy === undefined) {
+	  throw new BadRequestException(`Aucune donnée fournie pour la mise à jour`)
 	}
     await this.requireAdmin(organizationId, requesterUserId)
     return await this.prisma.organization.update({ where: { id: organizationId }, data: data })
@@ -82,10 +83,10 @@ export class OrganizationsService {
 	await this.findOne(organizationId)
 	const member = await this.findMembershipRecord(organizationId, userId)
 	if (!member) {
-	  throw new NotFoundException(`User with id ${userId} is not a member of organization with id ${organizationId}`)
+	  throw new NotFoundException(`Cet utilisateur n'est pas un membre de ce projet`)
 	}
 	return member
-  }
+  }//utile ?
 
   async findActiveMember(organizationId: string, userId: string) {
     await this.findOne(organizationId)
@@ -105,13 +106,23 @@ export class OrganizationsService {
 	return member
   }//utile ? 
 
+  async checkInvitePolicy(organizationId: string, requesterUserId: string) {
+	const organization = await this.findOne(organizationId)
+	if (organization.invitePolicy === InvitePolicy.ADMIN_ONLY) {
+	  await this.requireAdmin(organizationId, requesterUserId)
+	} else if (organization.invitePolicy === InvitePolicy.ANY_MEMBER) {
+	  await this.requireActiveMember(organizationId, requesterUserId)
+	} else {
+	  throw new BadRequestException(`Politique d'invitation invalide`)
+	}
+  }
+
   async addMember(organizationId: string, targetUserId: string, requesterUserId: string) {
-	await this.findOneForMember(organizationId, requesterUserId)
-	// await this.requireAdmin(organizationId, requesterUserId)
+	await this.checkInvitePolicy(organizationId, requesterUserId)
 	const existingMember = await this.findMembershipRecord(organizationId, targetUserId)
 	if (existingMember) {
 	  if (existingMember.leftAt === null) {
-		throw new BadRequestException(`User with id ${targetUserId} is already an active member of organization with id ${organizationId}`)
+		throw new BadRequestException(`Cet utilisateur est déjà membre actif de ce projet`)
 	  } else {
 		return await this.prisma.organizationMember.update({
 		  where: { userId_organizationId: { userId: targetUserId, organizationId: organizationId } },
@@ -153,21 +164,23 @@ export class OrganizationsService {
     const member = await this.requireActiveMember(organizationId, userId)
 	const activeMembersCount = await this.countActiveMembers(organizationId)
 	if (member.role === Role.ADMIN && await this.countActiveAdmins(organizationId) <= 1 && activeMembersCount > 1) {
-	  throw new BadRequestException(`Cannot leave organization with id ${organizationId} as the last admin`)
+	  throw new BadRequestException(`Impossible de quitter le projet car c'est le dernier administrateur actif et il y a d'autres membres actifs. Veuillez promouvoir un autre membre avant de quitter.`)
 	} 
 	if (activeMembersCount === 1) {
-	  return await this.prisma.organization.delete({ where: { id: organizationId } })
+	  await this.prisma.organization.delete({ where: { id: organizationId } })
+	  return true
 	}
-	return await this.prisma.organizationMember.update({
+	await this.prisma.organizationMember.update({
       where: { userId_organizationId: { userId: userId, organizationId: organizationId } },
       data: { leftAt: new Date(), role: Role.MEMBER }
     })
+	return false
   }
 
   async requireActiveMember(organizationId: string, userId: string) {
 	const member = await this.findActiveMember(organizationId, userId)
 	if (!member) {
-	  throw new ForbiddenException(`User with id ${userId} is not an active member of organization with id ${organizationId}`)
+	  throw new ForbiddenException(`Cette action nécessite d'être un membre actif du projet`)
 	}
 	return member
   }
@@ -175,7 +188,7 @@ export class OrganizationsService {
   async requireAdmin(organizationId: string, userId: string) {
     const member = await this.requireActiveMember(organizationId, userId)
     if (member.role !== Role.ADMIN) {
-      throw new ForbiddenException(`User with id ${userId} is not an admin of organization with id ${organizationId}`)
+      throw new ForbiddenException(`Cette action nécessite d'être administrateur du projet`)
     }
     return member
   }
@@ -184,7 +197,7 @@ export class OrganizationsService {
     await this.requireAdmin(organizationId, requesterUserId)
 	const member = await this.requireActiveMember(organizationId, targetUserId)
 	if (member.role === Role.ADMIN) {
-	  throw new BadRequestException(`User with id ${targetUserId} is already an admin of organization with id ${organizationId}`)
+	  throw new BadRequestException(`Cet utilisateur est déjà administrateur du projet`)
 	}
 	return await this.prisma.organizationMember.update({
 	  where: { userId_organizationId: { userId: targetUserId, organizationId: organizationId } },
@@ -196,10 +209,10 @@ export class OrganizationsService {
 	await this.requireAdmin(organizationId, requesterUserId)
 	const member = await this.requireActiveMember(organizationId, targetUserId)
 	if (member.role !== Role.ADMIN) {
-	  throw new BadRequestException(`User with id ${targetUserId} is not an admin of organization with id ${organizationId}`)
+	  throw new BadRequestException(`Impossible de rétrograder cet utilisateur, il n'est pas administrateur de ce projet`)
 	}
 	if (await this.countActiveAdmins(organizationId) <= 1) {
-	  throw new BadRequestException(`Cannot demote the last admin of organization with id ${organizationId}`)
+	  throw new BadRequestException(`Impossible de rétrograder le dernier administrateur du projet. Veuillez promouvoir un autre membre avant de rétrograder cet administrateur.`)
 	}
 	return await this.prisma.organizationMember.update({
 	  where: { userId_organizationId: { userId: targetUserId, organizationId: organizationId } },
@@ -210,7 +223,7 @@ export class OrganizationsService {
   async removeMember(organizationId: string, targetUserId: string, requesterUserId: string) {
 	await this.requireAdmin(organizationId, requesterUserId)
 	if (targetUserId === requesterUserId) {
-	  throw new BadRequestException(`Admins cannot remove themselves from the organization with id ${organizationId}`)
+	  throw new BadRequestException(`Les administrateurs ne peuvent pas s'expulser eux-mêmes du projet. Veuillez utiliser la fonction "quitter le projet" à la place.`)
 	}
 	return await this.leaveOrganization(organizationId, targetUserId)
   }
@@ -229,7 +242,7 @@ export class OrganizationsService {
 		const activeMembersCount = await this.countActiveMembers(membership.organizationId)
 		const activeAdminsCount = await this.countActiveAdmins(membership.organizationId)
 	  if (activeMembersCount > 1 && activeAdminsCount <= 1) {
-		throw new BadRequestException(`Cannot delete user with id ${userId} as they are the last admin of organization with id ${membership.organizationId}`)
+		throw new BadRequestException(`Impossible de supprimer l'utilisateur car il est le dernier administrateur actif d'un projet et qu'il y a d'autres membres actifs. Veuillez promouvoir un autre membre avant de supprimer l'utilisateur.`)
 	  }
 	  if (activeMembersCount === 1) {
 		organizationIdsToDelete.push(membership.organizationId)

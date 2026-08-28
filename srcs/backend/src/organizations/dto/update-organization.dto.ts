@@ -1,4 +1,5 @@
-import { IsString, IsNotEmpty, IsOptional } from 'class-validator'
+import { IsString, IsNotEmpty, IsOptional, IsEnum } from 'class-validator'
+import {InvitePolicy} from '@prisma/client'
 
 export class UpdateOrganizationDto {
 
@@ -11,4 +12,7 @@ export class UpdateOrganizationDto {
   @IsString()
   description?: string
 
+  @IsOptional()
+  @IsEnum(InvitePolicy)
+  invitePolicy?: InvitePolicy
 }
