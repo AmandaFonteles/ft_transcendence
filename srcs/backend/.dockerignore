@@ -1,0 +1,16 @@
+# =============================================================================
+# .dockerignore : ce que Docker N'ENVOIE PAS dans le contexte de build.
+# But : image plus legere et builds plus rapides.
+# REGLE CRITIQUE : ne JAMAIS ignorer prisma/ . Le "COPY . ." du Dockerfile doit
+# embarquer prisma/schema.prisma ET prisma/migrations/, sinon "migrate deploy"
+# n'aurait aucune migration a appliquer la ou il n'y a pas de bind mount.
+# =============================================================================
+
+# Dependances : reinstallees dans l'image par "npm install".
+node_modules
+
+# Sortie de compilation : regeneree dans le conteneur.
+dist
+
+# Journaux de debogage npm, sans interet dans l'image.
+npm-debug.log

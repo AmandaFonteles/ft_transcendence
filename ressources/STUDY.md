@@ -22,13 +22,13 @@ réseau privé, invisible depuis la machine hôte.
 
 ## 1. Le flux d'une requête (à savoir tracer à l'oral)
 
-**Chargement de la page** `https://localhost/` :
-1. Le navigateur ouvre une connexion TLS avec **nginx** (port 443).
+**Chargement de la page** `https://localhost:8443/` :
+1. Le navigateur ouvre une connexion TLS avec **nginx** (port hôte 8443 -> 443 dans le conteneur).
 2. nginx **déchiffre** le HTTPS (terminaison TLS) et applique `location /`.
 3. Il **proxifie** vers `frontend:5173` (serveur Vite), qui renvoie la page React.
 
 **Vérification du backend** (`fetch('/api/health')` dans `App.tsx`) :
-1. La requête repart vers nginx (même origine `https://localhost`).
+1. La requête repart vers nginx (même origine `https://localhost:8443`).
 2. nginx applique `location /api` et proxifie vers `backend:3000`.
 3. NestJS sert `GET /api/health` (grâce à `setGlobalPrefix('api')`) et renvoie
    `{ "status": "ok" }`.
@@ -153,9 +153,10 @@ Le « ok » est la **preuve visuelle** que toute la chaîne est câblée.
 - **Piège** : le navigateur affiche un avertissement (« non fiable ») → **normal**
   en local, on clique « continuer ». Prod = vrai certificat (Let's Encrypt).
 
-### 3.3 Redirection 80 → 443
+### 3.3 Redirection HTTP → HTTPS
 - **Une phrase** : tout HTTP en clair est renvoyé vers HTTPS.
-- **Snippet** : `return 301 https://$host$request_uri;`
+- **Snippet** : `return 301 https://$host:8443$request_uri;`
+- **Piège** : oublier `:8443` → le navigateur est renvoyé vers un port non publié.
 - **Quand/pourquoi** : aucun trafic non chiffré n'atteint l'application.
 
 ### 3.4 Montée en WebSocket (`map`)
@@ -181,14 +182,14 @@ Le « ok » est la **preuve visuelle** que toute la chaîne est câblée.
 - **Quand/pourquoi** : DX rapide en dev ; `build` produit les fichiers statiques
   pour la prod (servis par nginx plus tard).
 - **Piège** : accéder directement à `:5173` (hors nginx) casse `/api` — toujours
-  passer par `https://localhost`.
+  passer par `https://localhost:8443`.
 
 ### 4.2 `host: true` + HMR à travers nginx
 - **Une phrase** : Vite doit écouter sur 0.0.0.0 et savoir que le socket HMR passe
-  par nginx (443, wss).
+  par nginx (8443, wss).
 - **Snippet** :
   ```ts
-  server: { host: true, hmr: { clientPort: 443, protocol: 'wss' } }
+  server: { host: true, hmr: { clientPort: 8443, protocol: 'wss' } }
   ```
 - **Piège** : sans `host: true`, nginx obtient « connection refused » ; sans le bloc
   `hmr`, le live-reload échoue (mais la page se charge quand même).
@@ -346,8 +347,146 @@ ou le CLI Nest. Voici donc leur explication ici.
 - « module not found » côté front/back → le volume anonyme `/app/node_modules`
   manque, ou il faut rebuild après un changement de `package.json` (`make re`).
 - Page blanche mais logs OK → accepter l'avertissement de certificat ; vérifier
-  qu'on passe par `https://localhost` et non `http://` ou `:5173`.
+  qu'on passe par `https://localhost:8443` et non `http://` ou `:5173`.
 - « Backend: unreachable » → regarder `make logs` du service `backend` ; vérifier
   `location /api` dans `nginx.conf` et `setGlobalPrefix('api')`.
 - Live-reload inactif → vérifier le bloc `hmr` de `vite.config.ts` et
   `CHOKIDAR_USEPOLLING=true` côté backend.
+
+## 9. Ports non privilégiés & Docker rootless
+
+- **Une phrase** : un process non-root ne peut pas se lier aux ports < 1024, donc on
+  publie **8080/8443** au lieu de 80/443.
+- **Snippet** (`docker-compose.yml`) :
+  ```yaml
+  ports:
+    - "8080:80"
+    - "8443:443"
+  ```
+- **Quand/pourquoi** : seul le port **hôte** est contraint ; nginx écoute toujours 443
+  *dans* le conteneur. On garde ces ports même en Docker classique pour un
+  comportement identique sur toutes les machines.
+- **Prérequis rootless** : plages d'UID subordonnés dans `/etc/subuid` / `/etc/subgid`
+  (créées avec root, une fois). Podman exige la même chose ; sans elles → VM.
+- **Piège 42** : le stockage rootless vit dans le home → **quota saturé**. On déplace
+  `data-root` vers `/goinfre` via `~/.config/docker/daemon.json`.
+- **Piège** : driver `vfs` (au lieu d'`overlay2`/`fuse-overlayfs`) duplique chaque
+  couche → disque plein et builds lents. Vérifier `docker info | grep "Storage Driver"`.
+- **Bon effet de bord** : le root du conteneur = ton utilisateur hôte, donc plus de
+  fichiers root-owned créés dans le dépôt par les bind mounts.
+
+## 10. Migrations versionnées (vs `db push`)
+
+- **Une phrase** : chaque changement de schéma devient un fichier SQL horodaté,
+  committé, rejoué **dans l'ordre** — les migrations sont à la base ce que git est au code.
+- **Snippet** (`docker-entrypoint.sh`) :
+  ```sh
+  npx prisma generate        # migrate deploy ne régénère PAS le client
+  npx prisma migrate deploy  # applique les migrations manquantes, ne supprime rien
+  ```
+- **Créer une migration (dev)** : `prisma migrate dev --name <x>` → écrit
+  `prisma/migrations/<horodatage>_<x>/migration.sql`, l'applique, régénère le client.
+- **`_prisma_migrations`** : table interne à PostgreSQL = journal de ce qui a réellement
+  été appliqué **sur cette base**, d'où le fait que `deploy` sache quoi rejouer.
+- **Quand/pourquoi** : reproductibilité (même schéma partout), revue de code (le SQL est
+  lisible en PR), sécurité (plus de suppression silencieuse), et transformations de
+  données possibles (éditer la migration pour préserver les données lors d'un renommage).
+- **Piège** : refaire un `prisma db push` après la bascule → la base diverge de
+  l'historique git. Le script `prisma:push` a été retiré exprès.
+- **Piège** : ignorer `prisma/` dans `.dockerignore` → `migrate deploy` n'aurait aucune
+  migration à appliquer là où il n'y a pas de bind mount.
+- **Shadow database** : `migrate dev` crée/détruit une base temporaire pour valider ;
+  le superutilisateur de l'image officielle Postgres a déjà ce droit.
+
+## 11. Module majeur : WebSocket temps réel
+
+### 11.1 Gateway NestJS
+- **Une phrase** : un *gateway* est à WebSocket ce qu'un controller est à HTTP — il
+  déclare des handlers d'événements au lieu de routes.
+- **Snippet** :
+  ```ts
+  @WebSocketGateway({ path: '/socket.io' })
+  export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
+    @WebSocketServer() private server!: Server
+    @SubscribeMessage(ClientEvents.JOIN_BOARD) async handleJoinBoard(...) {}
+  }
+  ```
+- **Piège** : déclarer le gateway dans `controllers` — il va dans `providers`.
+
+### 11.2 Rooms (salons)
+- **Une phrase** : une room est une étiquette sur des sockets, qui permet de diffuser
+  à un sous-ensemble précis.
+- **Snippet** : `await client.join(boardRoom(boardId))` puis
+  `client.to(room).emit(...)`.
+- **`client.to(room)` vs `server.to(room)`** : le premier **exclut** l'émetteur, le
+  second l'inclut. On exclut l'émetteur car son UI a déjà appliqué le changement en
+  optimiste ; le lui renvoyer provoquerait un scintillement.
+- **Piège** : croire qu'une room protège l'accès. **Non** — c'est un canal de
+  diffusion, pas une autorisation. Le contrôle de permission est à faire explicitement.
+
+### 11.3 Authentification au handshake
+- **Une phrase** : on vérifie l'identité **une fois**, à l'ouverture de la connexion,
+  pas à chaque événement.
+- **Snippet** : `client.handshake.auth` lu dans `handleConnection`, puis
+  `client.disconnect(true)` si invalide.
+- **Pourquoi** : une socket non authentifiée ne doit jamais entrer dans une room.
+
+### 11.4 Le piège de la reconnexion
+- **Une phrase** : après une coupure, Socket.IO reconnecte avec un **nouvel id de
+  socket**, qui n'appartient à **aucune room** — toutes les adhésions sont perdues.
+- **Snippet** (`useBoardRealtime.ts`) :
+  ```ts
+  const onConnect = () => { socket.emit(ClientEvents.JOIN_BOARD, { boardId }) }
+  socket.on('connect', onConnect)   // à CHAQUE connexion, pas seulement la première
+  ```
+- **Piège** : ne rejoindre qu'au montage du composant → après une micro-coupure, le
+  client ne reçoit plus rien, **sans aucune erreur visible**.
+
+### 11.5 Serveur = source de vérité
+- **Une phrase** : on **persiste d'abord**, on **diffuse ensuite**.
+- **Pourquoi** : diffuser sans persister fait diverger les clients de la base — la
+  carte bouge à l'écran puis revient à sa place au rechargement.
+- **Piège** : inverser l'ordre « pour que ce soit plus réactif ». La réactivité se
+  gère côté client avec l'UI optimiste + rollback, pas en trichant côté serveur.
+
+### 11.6 nginx et le WebSocket
+- **Une phrase** : un bloc `location /socket.io` dédié est nécessaire, avec les
+  en-têtes d'upgrade.
+- **Snippet** :
+  ```nginx
+  location /socket.io {
+      proxy_pass http://backend:3000;
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade    $http_upgrade;
+      proxy_set_header Connection $connection_upgrade;
+      proxy_read_timeout 3600s;
+  }
+  ```
+- **Piège n°1** : sans ces en-têtes, **aucune erreur** — Socket.IO bascule
+  silencieusement en long-polling. Ça « marche » mais ce n'est plus du WebSocket.
+  C'est pourquoi le client force `transports: ['websocket']` : on veut l'échec visible.
+- **Piège n°2** : sans `proxy_read_timeout`, nginx coupe la connexion au repos (60s).
+
+### 11.7 Frontières de module
+- **Une phrase** : `RealtimeModule` n'exporte que `PresenceRegistry`, **pas** le gateway.
+- **Pourquoi** : si le chat injectait le gateway, qui injectera les services du chat,
+  on créerait une dépendance circulaire. Règle d'équipe : on **consomme** l'infra
+  temps réel, on ne la pilote pas.
+
+### 11.8 Questions probables (défense)
+- *« Pourquoi la présence est-elle en mémoire et pas en base ? »* → Elle est éphémère ;
+  la persister laisserait des fantômes après un crash. Limite assumée : une seule
+  instance backend (sinon, adaptateur Redis).
+- *« Que se passe-t-il si j'ouvre 3 onglets ? »* → 3 sockets, 1 seul utilisateur
+  affiché (déduplication par `userId`), et le départ n'est annoncé que quand la
+  **dernière** socket part (`hasOtherSocketOnBoard`).
+- *« Pourquoi `position` est une chaîne ? »* → Indexation fractionnaire (LexoRank) :
+  évite les conflits quand deux personnes réordonnent en même temps.
+- *« Comment tu prouves que c'est du vrai temps réel ? »* → Deux onglets côte à côte
+  sur le même tableau : la présence et le déplacement de carte apparaissent
+  instantanément dans l'autre. On vérifie dans l'onglet **Réseau** des devtools que le
+  transport est `websocket` et non `polling`.
+- *« Pourquoi rien ne se connecte pour l'instant ? »* → Le gateway exige une identité
+  authentifiée au handshake. L'infrastructure est prête et testable manuellement ; le
+  branchement réel arrive avec l'auth (Qu) et le tableau (Ai). On a retiré les
+  identités « invitées » et le simulateur : c'était de l'échafaudage, pas du produit.

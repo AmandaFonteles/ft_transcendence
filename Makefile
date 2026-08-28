@@ -53,4 +53,4 @@ fclean: clean
 # Declare ces noms comme "faux fichiers" : ce sont des labels de commandes, pas des
 # fichiers a produire. Pourquoi : si un fichier nomme "up" existait, "make up" serait
 # ignore ; .PHONY garantit que la recette s'execute toujours.
-.PHONY: up down re logs ps clean fclean
+.PHONY: up down re rebuild logs ps clean fclean

@@ -27,9 +27,9 @@ export default defineConfig({
     },
     // Bloc HMR : le canal WebSocket qui pousse les mises a jour a chaud vers le navigateur.
     hmr: {
-      // Port vu par le NAVIGATEUR pour ce socket : 443 (il passe par nginx).
-      // Pourquoi : la page vient de https://localhost (nginx, 443), pas de 5173.
-      clientPort: 443,
+      // Port vu par le NAVIGATEUR pour ce socket : 8443 (le port publie par nginx).
+      // Pourquoi : la page vient de https://localhost:8443, pas de 5173 ni de 443.
+      clientPort: 8443,
       // Protocole du socket cote navigateur : wss (WebSocket securise, via TLS).
       // Pourquoi : sans ce bloc, Vite tenterait 5173 en direct et le live-reload echouerait.
       protocol: 'wss'

@@ -100,13 +100,18 @@ services:
     # Construit l'image nginx (avec certificat + config) depuis son Dockerfile.
     build: ./srcs/nginx
     # Bloc des ports publies "hote:conteneur".
+    # PORTS NON PRIVILEGIES (>= 1024) : obligatoire en Docker ROOTLESS, car un
+    # process non-root ne peut pas se lier aux ports < 1024. On les utilise TOUJOURS
+    # (ils marchent aussi en Docker classique) pour garder un comportement unique
+    # sur toutes les machines de l'equipe.
     ports:
-      # Publie le port 80 : il ne sert qu'a rediriger vers HTTPS.
-      - "80:80"
-      # Publie le port 443 : la vraie porte d'entree, en HTTPS.
+      # 8080 sur l'hote -> 80 dans le conteneur : ne sert qu'a rediriger vers HTTPS.
+      - "8080:80"
+      # 8443 sur l'hote -> 443 dans le conteneur : la vraie porte d'entree, en HTTPS.
+      # nginx continue d'ecouter 443 A L'INTERIEUR du conteneur (seul le port HOTE est contraint).
       # Pourquoi seul nginx publie des ports : front/back/db restent injoignables depuis
       # l'exterieur ; seul le HTTPS via nginx est public (l'isolation voulue par le sujet).
-      - "443:443"
+      - "8443:443"
     # Reseau prive commun.
     networks: [transcendence]
     # Demarre apres que les conteneurs front et back existent (pour que le DNS les resolve).
