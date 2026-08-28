@@ -490,3 +490,56 @@ ou le CLI Nest. Voici donc leur explication ici.
   authentifiée au handshake. L'infrastructure est prête et testable manuellement ; le
   branchement réel arrive avec l'auth (Qu) et le tableau (Ai). On a retiré les
   identités « invitées » et le simulateur : c'était de l'échafaudage, pas du produit.
+
+## 12. Frontend : framework et solution de style
+
+### 12.1 React compte-t-il comme framework ?
+- **Une phrase** : oui — le sujet le dit explicitement, « React est considéré comme un
+  framework dans ce contexte, en raison de son écosystème et de ses patterns
+  architecturaux, même s'il s'agit techniquement d'une bibliothèque ».
+- **Le module** : « Use a framework for both the frontend and backend » (Major) est
+  couvert par **React** en front et **NestJS** en back, tous deux cités par le sujet.
+- **Piège** : jQuery, Lodash et Axios ne sont **pas** des frameworks — le sujet les
+  nomme comme contre-exemples. Savoir le dire à l'évaluateur.
+
+### 12.2 Tailwind v4 : intégration
+- **Une phrase** : depuis la v4, Tailwind s'intègre par un plugin Vite, et le thème se
+  déclare en CSS — plus de `tailwind.config.js` ni de `postcss.config.js`.
+- **Snippet** (`vite.config.ts` puis `styles/theme.css`) :
+  ```ts
+  plugins: [react(), tailwindcss()]
+  ```
+  ```css
+  @import "tailwindcss";
+  @theme { --color-ink: #2E2438; --font-data: 'Archivo', sans-serif; }
+  ```
+- **Pourquoi c'est obligatoire** : le sujet exige une solution de style, et la grille
+  d'évaluation précise que **le CSS pur seul ne suffit pas**. Le correcteur demandera
+  des exemples d'utilisation dans le code.
+- **Ce que fait `@theme`** : chaque variable y génère à la fois une variable CSS
+  (`var(--color-ink)`) et les classes utilitaires (`bg-ink`, `text-ink`, `border-ink`).
+
+### 12.3 Le piège du scan de classes
+- **Une phrase** : Tailwind ne génère que les classes **écrites en toutes lettres**
+  dans le code source.
+- **Snippet** (`lib/projectColors.ts`) :
+  ```ts
+  // NE MARCHE PAS : `bg-project-${n}`
+  export const projectBg = { 1: 'bg-project-1', 2: 'bg-project-2' }  // table explicite
+  ```
+- **Piège** : l'échec est **silencieux** — pas d'erreur, juste une couleur absente.
+  C'est l'erreur Tailwind la plus fréquente.
+
+### 12.4 Décisions de design à savoir justifier
+- **Les couleurs appartiennent aux projets.** Le jour courant et les échéances sont
+  signalés de façon **structurelle** (trait d'encre, chiffres tabulaires), pas par une
+  couleur — sinon la couleur ne voudrait plus rien dire sur l'agenda général, là où
+  les tâches de plusieurs projets se mélangent.
+- **Une seule action principale par écran** (`variant="primary"`).
+- **Accessibilité** : anneau de focus visible jamais supprimé, `aria-label` sur les
+  pastilles de couleur (une couleur seule n'est pas une information accessible),
+  `prefers-reduced-motion` respecté.
+
+### 12.5 Reste à faire (risque de rejet)
+- Les pages **Confidentialité** et **Conditions** doivent contenir un contenu réel :
+  la grille d'évaluation rejette explicitement les pages vides ou placeholder.

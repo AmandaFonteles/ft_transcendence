@@ -5,8 +5,10 @@
 export default function ContactPage() {
   return (
     <>
-      <h1>Contact</h1>
-      <p>Projet réalisé à 42 dans le cadre de ft_transcendence.</p>
+      <h1 className="text-[28px] font-semibold tracking-tight mb-4">Contact</h1>
+      <p className="text-ink-soft max-w-[52ch]">
+        Projet réalisé à 42 dans le cadre de ft_transcendence.
+      </p>
     </>
   )
 }

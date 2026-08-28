@@ -3,39 +3,40 @@
 // La structure prevoit deux vues : utilisateur simple et administrateur.
 // =============================================================================
 
+import Card from '../components/ui/Card'
+import SeamBlock from '../components/ui/SeamBlock'
+import TextField from '../components/ui/TextField'
+import Button from '../components/ui/Button'
+import Avatar from '../components/ui/Avatar'
+
 export default function TeamPage() {
   return (
     <>
-      <h1>Équipe</h1>
+      <h1 className="text-[28px] font-semibold tracking-tight mb-6">Équipe</h1>
 
       {/* Barre de recherche prevue par la structure. */}
-      <input
-        type="search"
-        placeholder="Rechercher une personne"
-        style={{
-          width: '100%', maxWidth: 380, padding: '9px 12px',
-          border: '1px solid var(--rule)', borderRadius: 'var(--radius-field)',
-          font: 'inherit', background: 'var(--surface)', marginBottom: 'var(--space-4)',
-        }}
-      />
+      <div className="max-w-[380px] mb-4">
+        <TextField label="Rechercher" type="search" placeholder="Nom ou adresse e-mail" />
+      </div>
 
-      {/* [SEAM: UTILISATEURS — Qu] Liste reelle depuis GET /api/users, ajout d'amis,
-          ouverture d'une conversation, et vue administrateur (tous les users, droits). */}
-      <div className="seam">
-        <span className="seam-owner">Module utilisateurs · Qu</span>
+      {/* [SEAM: UTILISATEURS — Qu] Liste reelle depuis l'API, ajout d'amis,
+          ouverture d'une conversation, et vue administrateur (droits, projets). */}
+      <SeamBlock owner="Module utilisateurs · Qu">
         Liste des personnes connues, ajout d'amis, ouverture d'un chat, et vue
         administrateur sur les droits et projets de chacun.
-      </div>
+      </SeamBlock>
 
       {/* Apercu de la mise en forme d'une ligne de personne. */}
-      <div className="card" style={{ marginTop: 'var(--space-4)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-        <span className="avatar" style={{ ['--avatar-color' as string]: 'var(--project-2)' }}>QU</span>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 500 }}>Qu</div>
-          <div className="task-meta">Authentification et chat</div>
+      <Card className="mt-4">
+        <div className="flex items-center gap-3">
+          <Avatar initials="QU" color={2} />
+          <div className="flex-1 min-w-0">
+            <div className="font-medium">Qu</div>
+            <div className="font-data text-[12.5px] text-ink-soft">Authentification et chat</div>
+          </div>
+          <Button>Message</Button>
         </div>
-        <button className="btn btn-secondary">Message</button>
-      </div>
+      </Card>
     </>
   )
 }

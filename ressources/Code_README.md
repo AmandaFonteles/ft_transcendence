@@ -204,29 +204,45 @@ jour courant et les échéances sont donc signalés de façon **structurelle** (
 d'encre, chiffres alignés), pas par une couleur — sinon la couleur ne voudrait plus
 rien dire là où les tâches de plusieurs projets se mélangent.
 
+### Solution de style : Tailwind CSS v4
+
+Exigence obligatoire du sujet (« Use a CSS framework or styling solution ») ; la
+grille d'évaluation précise que **le CSS pur seul ne suffit pas**.
+
+Tailwind v4 s'intègre par un **plugin Vite**, pas par PostCSS : il n'y a donc ni
+`postcss.config.js` ni `tailwind.config.js`. Le thème se déclare en CSS, dans le bloc
+`@theme` de `styles/theme.css` — chaque variable y génère à la fois une variable CSS
+et les classes utilitaires correspondantes (`--color-ink` → `bg-ink`, `text-ink`…).
+
 ### Fichiers
 
 ```
 srcs/frontend/src/
-├── styles/
-│   ├── tokens.css        # LES JETONS : couleurs, espacements, rayons, polices
-│   └── app.css           # base + composants partagés (bâtis sur les jetons)
+├── styles/theme.css      # Tailwind + @theme : LA source de vérité visuelle
+├── lib/projectColors.ts  # table de classes des couleurs de projet
 ├── components/
 │   ├── AppShell.tsx      # ossature : en-tête fixe + contenu + pied de page
 │   ├── Header.tsx        # logo, connexion, menu déroulant
 │   ├── Footer.tsx        # contact, confidentialité
-│   └── TaskRow.tsx       # ligne de tâche avec l'arête de projet (la signature)
+│   ├── TaskRow.tsx       # ligne de tâche avec l'arête de projet (la signature)
+│   └── ui/               # 10 composants réutilisables (Button, Card, Badge,
+│                         #   Avatar, AvatarGroup, TextField, EmptyState,
+│                         #   SeamBlock, ProjectDot, PageHeading)
 ├── pages/                # une page par écran de la structure
 └── App.tsx               # table de routage (carrefour, comme app.module.ts)
 ```
 
-### Règle d'équipe
+### Règles d'équipe
 
-**Personne n'écrit une couleur ou un espacement en dur.** On utilise les variables de
-`tokens.css` (`var(--ink)`, `var(--space-4)`, `var(--project-3)`…). C'est ce qui
-garantit que les écrans de chacun se ressemblent sans concertation. Pour ajouter un
-écran : créer la page dans `pages/`, l'ajouter dans `App.tsx`, et réutiliser les
-classes existantes (`.card`, `.btn`, `.task`, `.badge`, `.seam`).
+**Aucune couleur en dur.** On utilise les classes générées par le thème (`bg-paper`,
+`text-ink-soft`, `bg-project-3`) ou les composants de `ui/`. C'est ce qui garantit que
+les écrans de chacun se ressemblent sans concertation.
+
+**Piège Tailwind à connaître.** Tailwind ne génère que les classes qu'il trouve
+**écrites en toutes lettres** dans le code. Une classe construite dynamiquement —
+`` `bg-project-${n}` `` — n'est jamais détectée : la couleur disparaît au rendu, sans
+la moindre erreur. D'où la table de correspondance de `lib/projectColors.ts`, où
+chaque classe est écrite intégralement.
 
 ### Routes
 

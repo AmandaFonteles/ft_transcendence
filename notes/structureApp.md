@@ -37,3 +37,11 @@ Page par projet :
 *pop-up ajout de user sur le projet
 
 +Tout ce qui est notifications (timer, taches à commencer/finir/rendre, etc...)
+
+
+28/08
+
+- Vue au mois de l'agenda
+- Pouvoir changer de couleur
+- Agenda dans le projet uniquement avec les taches du projet + couleurs par personnnes ? Délai tache ?
+-

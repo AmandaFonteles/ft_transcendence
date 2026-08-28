@@ -1,0 +1,116 @@
+/* =============================================================================
+   theme.css : Tailwind + LE THEME du projet.
+   Direction retenue : "Atelier" (chaleur, identite par projet) fusionnee avec
+   "Horaire" (rigueur du temps : chiffres tabulaires, filets, marqueur du jour).
+   ============================================================================= */
+
+/* Charge les deux familles retenues (Work Sans = interface, Archivo = donnees). */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Work+Sans:wght@400;500;600&display=swap');
+
+/* [CONCEPT: Tailwind v4] Une seule ligne remplace les anciennes directives
+   @tailwind base/components/utilities. Elle importe le moteur et les utilitaires. */
+@import "tailwindcss";
+
+/* [CONCEPT: @theme] Le bloc @theme EST notre systeme de jetons. Chaque variable
+   declaree ici fait deux choses a la fois :
+     1. elle existe comme variable CSS (utilisable en var(--color-ink)) ;
+     2. elle GENERE les classes utilitaires correspondantes (bg-ink, text-ink...).
+   C'est la source de verite visuelle : personne n'ecrit une couleur en dur ailleurs. */
+@theme {
+
+  /* --- Neutres : la structure ------------------------------------------- */
+
+  /* Fond de page : avoine chaud (et non blanc pur, qui fatigue l'oeil). */
+  --color-paper: #F2F0EC;
+  /* Surface des cartes et barres, pour se detacher du fond avoine. */
+  --color-surface: #FFFFFF;
+  /* Surface creuse : zones en retrait, survols discrets. */
+  --color-sunk: #EAE7E1;
+  /* Filet de separation : hairline chaude, jamais un gris froid. */
+  --color-rule: #E4E0D8;
+  /* Encre principale : prune profonde (et non noir : plus doux, plus signe). */
+  --color-ink: #2E2438;
+  /* Encre secondaire : textes de support, metadonnees. */
+  --color-ink-soft: #6D6178;
+  /* Encre tres attenuee : placeholders, mentions discretes. */
+  --color-ink-faint: #9A93A3;
+
+  /* --- Action : UNE seule couleur d'action ------------------------------- */
+
+  /* Survol de l'action principale (l'action elle-meme utilise --color-ink).
+     Pourquoi l'encre comme couleur d'action : aucune collision possible avec les
+     couleurs de projet ci-dessous, qui forment un systeme d'identite. */
+  --color-action-hover: #453655;
+  /* Liens et anneaux de focus : prune eclaircie, meme famille que l'encre. */
+  --color-link: #5B4A6B;
+
+  /* --- Signaux fonctionnels (JAMAIS utilises comme couleurs de projet) ---- */
+
+  /* Retard / erreur : rouge brique. Role universel, non ambigu. */
+  --color-danger: #B4453A;
+  /* Fond attenue du signal de retard (badges). */
+  --color-danger-bg: #F7E7E5;
+  /* Termine / valide. */
+  --color-success: #4F7A52;
+  /* Fond attenue du signal de reussite. */
+  --color-success-bg: #E7EFE6;
+
+  /* --- Identite de projet : LA signature de la direction retenue ---------- */
+  /* Chaque projet recoit une de ces couleurs, portee par l'arete de chacune de
+     ses taches. Sur l'agenda general, ou se melangent les taches de plusieurs
+     projets, on sait d'un coup d'oeil a quoi appartient chaque ligne. */
+
+  /* Sauge. */
+  --color-project-1: #6E8B6B;
+  /* Denim. */
+  --color-project-2: #4A6D8C;
+  /* Prune. */
+  --color-project-3: #8A5A7A;
+  /* Safran. */
+  --color-project-4: #D19A3E;
+  /* Sarcelle. */
+  --color-project-5: #3E7F78;
+  /* Rose ancien. */
+  --color-project-6: #B06A72;
+
+  /* --- Typographie ------------------------------------------------------- */
+
+  /* Police d'interface : humaniste, ronde, chaleureuse. Classe : font-ui. */
+  --font-ui: 'Work Sans', system-ui, -apple-system, sans-serif;
+  /* Police utilitaire : dates, heures, compteurs. Classe : font-data.
+     Pourquoi une seconde police : ses chiffres tabulaires alignent les colonnes
+     de l'agenda. C'est la rigueur de "Horaire" apportee dans "Atelier". */
+  --font-data: 'Archivo', system-ui, sans-serif;
+}
+
+/* [CONCEPT: @layer base] Styles de fond appliques aux balises nues. Les placer
+   dans "base" garantit qu'une classe utilitaire ecrite dans un composant les
+   emporte toujours (question de priorite des couches, pas de !important). */
+@layer base {
+
+  /* Reglages globaux du document. */
+  body {
+    /* Fond avoine et encre prune, pris dans le theme ci-dessus. */
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    /* Police d'interface par defaut. */
+    font-family: var(--font-ui);
+    /* Interlignage lisible pour de la prose. */
+    line-height: 1.6;
+    /* Lissage des polices sur ecrans Apple. */
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* [CONCEPT: accessibilite] Anneau de focus VISIBLE au clavier.
+     Ne jamais supprimer l'outline sans le remplacer : la navigation au clavier
+     deviendrait impossible a suivre. */
+  :focus-visible {
+    outline: 2px solid var(--color-link);
+    outline-offset: 2px;
+  }
+}
+
+/* Respecte le reglage systeme "reduire les animations". */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}

@@ -5,46 +5,46 @@
 // a quel projet appartient chaque ligne.
 // =============================================================================
 
-// Forme des donnees attendues par le composant.
+// Table de classes (voir le piege du scan Tailwind dans lib/projectColors.ts).
+import { projectBg, type ProjectColor } from '../lib/projectColors'
+// Badge reutilisable.
+import Badge from './ui/Badge'
+
 export interface TaskRowProps {
   // Intitule de la tache.
   title: string
   // Personne responsable.
   assignee: string
-  // Echeance affichee (texte deja formate).
+  // Echeance deja formatee pour l'affichage.
   due: string
-  // Numero de couleur du projet, de 1 a 6 (voir tokens.css).
-  projectColor: number
-  // Etiquette optionnelle (ex. le nom du projet).
+  // Couleur d'identite du projet auquel appartient la tache.
+  projectColor: ProjectColor
+  // Etiquette optionnelle (nom du projet).
   label?: string
   // Marque la tache comme en retard.
   late?: boolean
 }
 
-// Composant de ligne.
 export default function TaskRow({ title, assignee, due, projectColor, label, late }: TaskRowProps) {
   return (
-    <article className="task">
-      {/* L'arete : sa couleur est injectee en variable CSS locale, ce qui evite
-          d'ecrire une couleur en dur et respecte le systeme de jetons. */}
-      <span
-        className="task-spine"
-        style={{ ['--spine' as string]: `var(--project-${projectColor})` }}
-      />
+    <article className="flex items-start gap-3 bg-surface border border-rule rounded-xl p-3 mb-2">
+      {/* L'arete coloree. self-stretch l'etire sur toute la hauteur de la carte,
+          shrink-0 l'empeche d'etre comprimee par un titre long. */}
+      <span className={`w-1 self-stretch shrink-0 rounded ${projectBg[projectColor]}`} />
 
-      {/* Bloc central : titre + metadonnees. flex:1 lui fait occuper l'espace libre. */}
-      <div style={{ flex: 1 }}>
-        <div className="task-title">{title}</div>
-        {/* Metadonnees en police utilitaire, chiffres tabulaires (rigueur "Horaire"). */}
-        <div className="task-meta">{assignee} · {due}</div>
+      {/* Bloc central. min-w-0 autorise la troncature d'un titre trop long :
+          sans lui, un mot interminable ferait deborder toute la ligne. */}
+      <div className="flex-1 min-w-0">
+        <div className="text-[14.5px] font-medium">{title}</div>
+        {/* Metadonnees : police utilitaire et chiffres tabulaires, pour que les
+            heures s'alignent en colonne d'une ligne a l'autre (rigueur "Horaire"). */}
+        <div className="font-data text-[12.5px] text-ink-soft tabular-nums">
+          {assignee} · {due}
+        </div>
       </div>
 
-      {/* Badge de retard prioritaire, sinon etiquette de projet si fournie. */}
-      {late ? (
-        <span className="badge badge-danger">En retard</span>
-      ) : label ? (
-        <span className="badge" style={{ background: 'var(--surface-sunk)', color: 'var(--ink-soft)' }}>{label}</span>
-      ) : null}
+      {/* Le retard prime sur l'etiquette de projet. */}
+      {late ? <Badge tone="danger">En retard</Badge> : label ? <Badge>{label}</Badge> : null}
     </article>
   )
 }

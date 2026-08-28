@@ -3,15 +3,22 @@
 // Un etat vide est une INVITATION a agir, pas une excuse.
 // =============================================================================
 
-// Lien de retour.
 import { Link } from 'react-router-dom'
+import EmptyState from '../components/ui/EmptyState'
 
 export default function NotFoundPage() {
   return (
-    <div className="empty">
-      <h2>Cette page n'existe pas</h2>
-      <p>Le lien est peut-être obsolète.</p>
-      <Link to="/" className="btn btn-secondary">Retour à l'accueil</Link>
-    </div>
+    <EmptyState
+      title="Cette page n'existe pas"
+      description="Le lien est peut-être obsolète."
+      action={
+        <Link
+          to="/"
+          className="inline-flex items-center rounded-full border border-rule bg-surface px-[18px] py-[9px] text-sm font-medium text-ink no-underline hover:border-ink-faint"
+        >
+          Retour à l'accueil
+        </Link>
+      }
+    />
   )
 }
