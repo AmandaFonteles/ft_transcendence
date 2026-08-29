@@ -170,6 +170,7 @@ export class OrganizationsService {
 	  await this.prisma.organization.delete({ where: { id: organizationId } })
 	  return true
 	}
+	await this.prisma.taskAssignment.deleteMany({ where: { memberId: member.id } })
 	await this.prisma.organizationMember.update({
       where: { userId_organizationId: { userId: userId, organizationId: organizationId } },
       data: { leftAt: new Date(), role: Role.MEMBER }

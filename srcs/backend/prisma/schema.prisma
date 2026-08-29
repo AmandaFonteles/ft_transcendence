@@ -133,10 +133,11 @@ model Organization {
   id                  String               @id @default(cuid())
   name                String
   description         String?
+  invitePolicy        InvitePolicy         @default(ADMIN_ONLY) @map("invite_policy")
   createdAt           DateTime             @default(now()) @map("created_at")
   updatedAt           DateTime             @updatedAt @map("updated_at")
-  invitePolicy        InvitePolicy         @default(ADMIN_ONLY) @map("invite_policy")
   organizationMembers OrganizationMember[]
+  tasks               Task[]
 
   @@map("organizations")
 }
@@ -157,8 +158,53 @@ model OrganizationMember {
   userId         String       @map("user_id")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   organizationId String       @map("organization_id")
+  ownedTasks     Task[]
+  assignedTasks  TaskAssignment[]
 
   @@unique([userId, organizationId])
   @@index([organizationId])
   @@map("organization_members")
+}
+
+enum TaskStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  DONE
+}
+
+model TaskAssignment {
+  id                  String               @id @default(cuid())
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  task                Task                 @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId              String               @map("task_id")
+  member              OrganizationMember   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId            String               @map("member_id")
+
+  @@unique([taskId, memberId])
+  @@index([memberId])
+  @@map("task_assignments")
+}
+
+model Task {
+  id                  String               @id @default(cuid())
+  name                String
+  description         String?
+  status              TaskStatus           @default(NOT_STARTED)
+  startDate           DateTime?            @map("start_date")
+  dueDate             DateTime?            @map("due_date")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId      String               @map("organization_id")
+  owner               OrganizationMember?  @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  ownerId             String?              @map("owner_id")
+  taskAssignments    TaskAssignment[]
+
+  @@index([organizationId])
+  @@index([ownerId])
+  //@@index([startDate])
+  //@@index([dueDate])
+  //@@index([status])
+  @@map("tasks")
 }

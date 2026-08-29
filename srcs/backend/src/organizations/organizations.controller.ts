@@ -15,7 +15,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import { OrganizationsService } from './organizations.service'
 import { CreateOrganizationDto } from './dto/create-organization.dto'
 import { UpdateOrganizationDto } from './dto/update-organization.dto'
-import { AddMemberDto } from './dto/add-member.dto'
+import { AddMemberDto } from './dto/add-member-organization.dto'
 
 @UseGuards(JwtAuthGuard)
 @Controller('organizations')
