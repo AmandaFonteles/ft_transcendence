@@ -6,7 +6,8 @@ import {
 	Param, 
 	Patch, 
 	Delete, 
-	UseGuards 
+	Query,
+	UseGuards
 } from '@nestjs/common'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
@@ -16,6 +17,7 @@ import { UpdateTaskDto } from './dto/update-task.dto'
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto'
 import { TransferTaskOwnerDto } from './dto/transfer-task-owner.dto'
 import { AssignTaskMemberDto } from './dto/assign-task-member.dto'
+import { TaskVisibilityFilterDto } from './dto/task-visibility-filter.dto'
 
 @UseGuards(JwtAuthGuard)
 @Controller('organizations/:organizationId/tasks')
@@ -52,9 +54,10 @@ export class TasksController {
 
 
   @Get()
-  async findAllForOrganization(@Param('organizationId') organizationId: string, @CurrentUser() user: { userId: string }) {
-	return await this.tasksService.findAllForOrganization(organizationId, user.userId)
+  async findAllForOrganization(@Param('organizationId') organizationId: string, @CurrentUser() user: { userId: string }, @Query() filters: TaskVisibilityFilterDto) {
+	return await this.tasksService.findAllForOrganization(organizationId, user.userId, filters)
   }
+  
 
   @Patch(':taskId')
   async update(@Param('organizationId') organizationId: string, @Param('taskId') taskId: string, @CurrentUser() user: { userId: string }, @Body() data: UpdateTaskDto) {

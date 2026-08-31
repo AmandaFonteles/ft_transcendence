@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common'
 import { OrganizationsService } from '../organizations/organizations.service'
 import { Role } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
@@ -7,6 +7,7 @@ import { UpdateTaskDto } from './dto/update-task.dto'
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto'
 import { TransferTaskOwnerDto } from './dto/transfer-task-owner.dto'
 import { AssignTaskMemberDto } from './dto/assign-task-member.dto'
+import { TaskVisibilityFilterDto } from './dto/task-visibility-filter.dto'
 
 @Injectable()
 export class TasksService {
@@ -20,26 +21,58 @@ export class TasksService {
 	return task
   }
 
-  async findOneForMember(taskId: string, organizationId: string, requesterId: string) {
+  async requireTaskVisibleToMember(	taskId: string,	organizationId: string,	requesterId: string) {
 	const task = await this.requireTaskInOrganization(taskId, organizationId)
-	await this.orgaServ.requireActiveMember(organizationId, requesterId)
+	const activeMember = await this.orgaServ.requireActiveMember(organizationId, requesterId)
+	if (activeMember.role !== Role.ADMIN && task.ownerId !== activeMember.id && await this.countAssignments(taskId) > 0 && !await this.findAssignmentRecord(taskId, activeMember.id)) {
+		throw new ForbiddenException('Tâche inaccessible pour ce membre')
+	}
 	return task
+}
+
+  async findOneForMember(taskId: string, organizationId: string, requesterId: string) {
+	return await this.requireTaskVisibleToMember(taskId, organizationId, requesterId)
   }
 
-  async findAllForOrganization(organizationId: string, requesterId: string) {
+  async findAllForOrganization(organizationId: string, requesterId: string, filters: TaskVisibilityFilterDto) {
 	const activeMember = await this.orgaServ.requireActiveMember(organizationId, requesterId)
-	if (activeMember.role == Role.ADMIN) {
+	const activeMemberToShow = await this.orgaServ.requireActiveMembersByUserIds(organizationId, filters.assignedUserIds || [])
+	let showOwned = true
+	let showAssignedTasks = filters.assignedUserIds === undefined || filters.assignedUserIds.length > 0
+	let showUnassigned = true
+	const activeMemberIdsToShow = activeMemberToShow.map(member => member.id)
+	if (filters.owned === false) {
+		showOwned = false
+	}
+	if (filters.unassigned === false) {
+		showUnassigned = false
+	}
+	if (activeMember.role === Role.ADMIN) {
+		if (!filters.assignedUserIds || filters.assignedUserIds.length === 0) {
+			showAssignedTasks = false
+		}
 		return await this.prisma.task.findMany({
-	 	where: { organizationId: organizationId },
+	 	where: { organizationId: organizationId, 
+			OR: [
+				showOwned ? { ownerId: activeMember.id } : undefined,
+				showAssignedTasks ? { taskAssignments: { some: { memberId: { in: activeMemberIdsToShow } } } } : filters.assignedUserIds === undefined? { taskAssignments: { some: {} } } : undefined,
+				showUnassigned ? { taskAssignments: { none: {} } } : undefined
+			].filter(condition => condition !== undefined)
+		},
 	  	orderBy: { name: 'asc' }
 		})
+	}
+	if (filters.assignedUserIds && filters.assignedUserIds.length > 0 && !filters.assignedUserIds.includes(activeMember.userId)) {
+		showAssignedTasks = false
 	}
 	return await this.prisma.task.findMany({
 	  where: { 
 		organizationId: organizationId,
-		taskAssignments: {
-		  some: { memberId: activeMember.id }
-		}
+		OR: [
+			showOwned ? { ownerId: activeMember.id } : undefined,
+			showAssignedTasks ? { taskAssignments: { some: { memberId: activeMember.id } } } : undefined,
+			showUnassigned ? { taskAssignments: { none: {} } } : undefined
+		].filter(condition => condition !== undefined)
 	  },
 	  orderBy: { name: 'asc' }
 	})
@@ -137,8 +170,7 @@ export class TasksService {
   }
 
   async findAssignments(taskId: string, organizationId: string, requesterId: string) {
-	await this.requireTaskInOrganization(taskId, organizationId)
-	await this.orgaServ.requireActiveMember(organizationId, requesterId)
+	await this.requireTaskVisibleToMember(taskId, organizationId, requesterId)
 	return await this.prisma.taskAssignment.findMany({
 	  where: { taskId: taskId },
 	  include: { member: true }

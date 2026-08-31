@@ -186,6 +186,23 @@ export class OrganizationsService {
 	return member
   }
 
+  async requireActiveMembersByUserIds(organizationId: string, memberUserIds: string[]) {
+	const uniqueUserIds = [...new Set(memberUserIds)]
+    const activeMembers = await this.prisma.organizationMember.findMany({
+      where: {
+        organizationId: organizationId,
+        userId: {
+          in: uniqueUserIds
+        },
+        leftAt: null
+      }
+    })
+	if (activeMembers.length !== uniqueUserIds.length) {
+	  throw new NotFoundException(`Un ou plusieurs utilisateurs ne sont pas des membres actifs de ce projet`)
+	}
+    return activeMembers
+  }
+
   async requireAdmin(organizationId: string, userId: string) {
     const member = await this.requireActiveMember(organizationId, userId)
     if (member.role !== Role.ADMIN) {
