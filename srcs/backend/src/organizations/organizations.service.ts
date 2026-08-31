@@ -1,5 +1,10 @@
+<<<<<<< HEAD
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common'
 import { Role, InvitePolicy } from '@prisma/client'
+=======
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
+import { Role } from '@prisma/client'
+>>>>>>> origin/Quentin
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateOrganizationDto } from './dto/create-organization.dto'
 import { UpdateOrganizationDto } from './dto/update-organization.dto'
@@ -18,12 +23,17 @@ export class OrganizationsService {
     		userId: creatorId,
     		role: Role.ADMIN
   		  }
+<<<<<<< HEAD
 		},
 		invitePolicy: data.invitePolicy
+=======
+		}
+>>>>>>> origin/Quentin
   	  }
 	})
   }
 
+<<<<<<< HEAD
   findAll(requesterUserId: string) {
     return this.prisma.organization.findMany({ 
 	  orderBy: { name: 'asc' }, 
@@ -36,17 +46,26 @@ export class OrganizationsService {
 		} 
 	  } 
 	})
+=======
+  findAll() {
+    return this.prisma.organization.findMany({ orderBy: { name: 'asc' } })
+>>>>>>> origin/Quentin
   }
 
   async findOne(id: string) {
     const organization = await this.prisma.organization.findUnique({ where: { id: id } })
 
     if (!organization) {
+<<<<<<< HEAD
       throw new NotFoundException(`Le projet n'a pas été trouvé`)//fr ?
+=======
+      throw new NotFoundException(`Organization with id ${id} not found`)//fr ?
+>>>>>>> origin/Quentin
     }
 
     return organization
   }
+<<<<<<< HEAD
 
   async findOneForMember(organizationId: string, requesterUserId: string) {
     const organization = await this.findOne(organizationId)
@@ -69,6 +88,26 @@ export class OrganizationsService {
 
   async findMembershipRecord(organizationId: string, userId: string) {
      const membershipRecord = await this.prisma.organizationMember.findUnique({
+=======
+  
+  async update(id: string, data: UpdateOrganizationDto) {
+	if (data.name === undefined && data.description === undefined) {
+	  throw new BadRequestException(`No data provided for update`)
+	}
+    await this.findOne(id)
+
+    return await this.prisma.organization.update({ where: { id: id }, data: data })
+  }
+
+  async remove(id: string) {
+	await this.findOne(id)
+	return await this.prisma.organization.delete({ where: { id: id } })
+  }
+
+  async findMember(organizationId: string, userId: string) {
+	await this.findOne(organizationId)
+	const member = await this.prisma.organizationMember.findUnique({
+>>>>>>> origin/Quentin
 	  where: {
 		userId_organizationId: {
 		  userId: userId,
@@ -76,6 +115,7 @@ export class OrganizationsService {
 		}
       }
 	})
+<<<<<<< HEAD
 	return membershipRecord
   }
 
@@ -269,3 +309,11 @@ export class OrganizationsService {
 	return organizationIdsToDelete
   }
 }
+=======
+	if (!member) {
+	  throw new NotFoundException(`User with id ${userId} is not a member of organization with id ${organizationId}`)
+	}
+	return member
+  }
+}
+>>>>>>> origin/Quentin

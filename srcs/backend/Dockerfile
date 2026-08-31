@@ -12,6 +12,11 @@ FROM docker.io/library/node:22-alpine
 # une erreur "Unable to require libquery_engine" au demarrage sur une image alpine.
 RUN apk add --no-cache openssl
 
+# Installe openssl via le gestionnaire de paquets d'Alpine.
+# Pourquoi : le moteur de requetes de Prisma depend d'openssl ; sans lui, on obtient
+# une erreur "Unable to require libquery_engine" au demarrage sur une image alpine.
+RUN apk add --no-cache openssl
+
 # Dossier de travail dans le conteneur.
 WORKDIR /app
 

@@ -32,12 +32,16 @@ async function bootstrap() {
       whitelist: true,
       // forbidNonWhitelisted : au lieu de juste supprimer les champs en trop, rejette
       // carrement la requete en 400. Plus strict, plus explicite pour toi en dev.
+<<<<<<< HEAD
       forbidNonWhitelisted: true,
       //Ajout Aileen:
       // transform : permet à Nest de transformer les données entrantes en instances de 
       // DTO et donc d’exécuter class-transformer.
       // Utile pour les query params, qui sont toujours des strings et doivent être transformés.
       transform: true
+=======
+      forbidNonWhitelisted: true
+>>>>>>> origin/Quentin
     })
   )
 

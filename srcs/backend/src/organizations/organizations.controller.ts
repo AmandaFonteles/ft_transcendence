@@ -5,11 +5,17 @@ import {
 	Controller, 
 	Get, 
 	Post, 
+<<<<<<< HEAD
+=======
+	ValidationPipe, 
+	UsePipes, 
+>>>>>>> origin/Quentin
 	Param, 
 	Patch, 
 	Delete, 
 	UseGuards 
 } from '@nestjs/common'
+<<<<<<< HEAD
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import { OrganizationsService } from './organizations.service'
@@ -17,12 +23,22 @@ import { CreateOrganizationDto } from './dto/create-organization.dto'
 import { UpdateOrganizationDto } from './dto/update-organization.dto'
 import { AddMemberDto } from './dto/add-member-organization.dto'
 
+=======
+import { OrganizationsService } from './organizations.service'
+import { CreateOrganizationDto } from './dto/create-organization.dto'
+import { UpdateOrganizationDto } from './dto/update-organization.dto'
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
+import { CurrentUser } from '../auth/decorators/current-user.decorator'
+
+@UsePipes(new ValidationPipe({whitelist: true, forbidNonWhitelisted: true}))
+>>>>>>> origin/Quentin
 @UseGuards(JwtAuthGuard)
 @Controller('organizations')
 export class OrganizationsController {
   constructor(private readonly organizations: OrganizationsService) {}
 
   @Post()
+<<<<<<< HEAD
   async create(@Body() dto: CreateOrganizationDto, @CurrentUser() user: { userId: string }) {
 	const organization = await this.organizations.create(dto, user.userId)
 	return { 
@@ -85,5 +101,30 @@ export class OrganizationsController {
   async remove(@Param('id') id: string, @CurrentUser() user: { userId: string }) {
 	await this.organizations.remove(id, user.userId)
 	return { message: `Projet supprimé avec succès !` }
+=======
+  create(@Body() dto: CreateOrganizationDto, @CurrentUser() user: { userId: string }) {
+
+	return this.organizations.create(dto, user.userId)
+  }
+
+  @Get()
+  findAll() {
+	return this.organizations.findAll()
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+	return this.organizations.findOne(id)
+  }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() data: UpdateOrganizationDto) {
+	return this.organizations.update(id, data)
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+	return this.organizations.remove(id)
+>>>>>>> origin/Quentin
   }
 }

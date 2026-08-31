@@ -83,6 +83,9 @@ model User {
   //Ajout Ai
   organizationMembers OrganizationMember[]
 
+  // Add friendship
+  //
+
   // Convention FIGEE : table en snake_case pluriel.
   @@map("users")
 }
@@ -103,6 +106,10 @@ model Credential {
   // - references: [id] cible la cle primaire du modele User.
   // - onDelete: Cascade supprime automatiquement ce Credential si le User est supprime.
   user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  //Add 2FA
+  twoFactorSecret  String?  @map("two_factor_secret")
+  twoFactorEnabled Boolean  @default(false) @map("two_factor_enabled")
 
   @@map("credentials")
 }

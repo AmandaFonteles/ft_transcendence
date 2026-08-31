@@ -1,9 +1,18 @@
 // [CONCEPT: service d'auth] AuthService porte TOUTE la logique de securite :
+<<<<<<< HEAD
 // creation de compte (hash du mdp + generation du username), verification au login,
 // emission des JWT, et desormais connexion via OAuth 42.
 
 import {
   ConflictException,
+=======
+// creation de compte, verification au login, emission des JWT, et connexion
+// via OAuth (42, GitHub).
+
+import {
+  ConflictException,
+  ForbiddenException,
+>>>>>>> origin/Quentin
   Injectable,
   UnauthorizedException
 } from '@nestjs/common'
@@ -11,16 +20,31 @@ import { JwtService } from '@nestjs/jwt'
 import { Prisma } from '@prisma/client'
 import { createId } from '@paralleldrive/cuid2'
 import * as argon2 from 'argon2'
+<<<<<<< HEAD
 import { PrismaService } from '../prisma/prisma.service'
 import { LoginDto } from './dto/login.dto'
 import { SignupDto } from './dto/signup.dto'
+=======
+// AJOUT : authenticator genere/verifie les secrets et codes TOTP.
+import { authenticator } from 'otplib'
+// AJOUT : transforme une URI otpauth:// en image QR code (data URL base64).
+import * as QRCode from 'qrcode'
+import { PrismaService } from '../prisma/prisma.service'
+import { LoginDto } from './dto/login.dto'
+import { SignupDto } from './dto/signup.dto'
+// AJOUT
+import { ConfirmTwoFactorDto } from './dto/deuxFA.dto'
+>>>>>>> origin/Quentin
 
 type TokenPair = { accessToken: string; refreshToken: string }
 
 const MAX_USERNAME_ATTEMPTS = 10
 
+<<<<<<< HEAD
 // AJOUT : forme de la reponse JSON renvoyee par 42 sur /v2/me
 // (uniquement les champs qu'on utilise reellement).
+=======
+>>>>>>> origin/Quentin
 type FortyTwoProfile = {
   id: number
   email: string
@@ -29,6 +53,23 @@ type FortyTwoProfile = {
   image?: { link?: string }
 }
 
+<<<<<<< HEAD
+=======
+type GitHubProfile = {
+  id: number
+  login: string
+  name: string | null
+  email: string | null
+  avatar_url: string | null
+}
+
+type GitHubEmail = {
+  email: string
+  primary: boolean
+  verified: boolean
+}
+
+>>>>>>> origin/Quentin
 @Injectable()
 export class AuthService {
   constructor(
@@ -82,7 +123,11 @@ export class AuthService {
     throw new ConflictException('impossible de generer un username unique, reessaie')
   }
 
+<<<<<<< HEAD
   // --- LOGIN ---
+=======
+  // --- LOGIN (MODIFIE : verifie desormais la 2FA si activee) ---
+>>>>>>> origin/Quentin
   async login(dto: LoginDto): Promise<TokenPair> {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
@@ -98,6 +143,28 @@ export class AuthService {
       throw new UnauthorizedException('identifiants invalides')
     }
 
+<<<<<<< HEAD
+=======
+    // AJOUT : si la 2FA est active sur ce compte, le mot de passe correct ne
+    // suffit plus. dto.totpCode doit etre fourni ET valide.
+    if (user.credential.twoFactorEnabled) {
+      if (!dto.totpCode) {
+        // Message distinct du "identifiants invalides" generique : le front a
+        // besoin de savoir PRECISEMENT qu'il doit afficher un champ code,
+        // pas juste "mauvais mot de passe".
+        throw new UnauthorizedException('code 2FA requis')
+      }
+
+      const isCodeValid = authenticator.verify({
+        token: dto.totpCode,
+        secret: user.credential.twoFactorSecret!
+      })
+      if (!isCodeValid) {
+        throw new UnauthorizedException('code 2FA invalide')
+      }
+    }
+
+>>>>>>> origin/Quentin
     return this.issueTokens(user.id)
   }
 
@@ -117,8 +184,81 @@ export class AuthService {
     }
   }
 
+<<<<<<< HEAD
   // --- AJOUT : OAuth 42, etape 1 ---
   // Construit l'URL vers laquelle rediriger le navigateur de l'utilisateur.
+=======
+  // --- AJOUT : 2FA, etape 1 - genere le secret et le QR code ---
+  async generate2FASecret(userId: string): Promise<{ qrCodeDataUrl: string }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { credential: true }
+    })
+
+    // Meme regle que changePassword : pas de Credential => pas de 2FA possible
+    // (la 2FA renforce un mot de passe qui, ici, n'existe pas).
+    if (!user?.credential) {
+      throw new ForbiddenException('ce compte est connecte via OAuth, pas de 2FA disponible')
+    }
+
+    // Genere un secret aleatoire (base32, format standard TOTP).
+    const secret = authenticator.generateSecret()
+
+    // Construit l'URI otpauth://... que les apps d'authentification savent lire.
+    // "issuer" (ft_transcendence) apparait dans l'app comme nom du service ;
+    // "email" identifie le compte pour l'utilisateur qui en aurait plusieurs.
+    const otpauthUri = authenticator.keyuri(user.email, 'ft_transcendence', secret)
+
+    // Stocke le secret DES MAINTENANT, mais twoFactorEnabled reste false :
+    // voir explication dans schema.prisma (etape 2) sur pourquoi ces deux
+    // champs sont separes.
+    await this.prisma.credential.update({
+      where: { userId },
+      data: { twoFactorSecret: secret }
+    })
+
+    // Convertit l'URI en image PNG encodee base64, directement utilisable
+    // dans une balise <img src="..."> cote front.
+    const qrCodeDataUrl = await QRCode.toDataURL(otpauthUri)
+    return { qrCodeDataUrl }
+  }
+
+  // --- AJOUT : 2FA, etape 2 - confirme le premier code et active reellement ---
+  async confirmTwoFactor(userId: string, dto: ConfirmTwoFactorDto): Promise<{ success: boolean }> {
+    const credential = await this.prisma.credential.findUnique({ where: { userId } })
+
+    if (!credential?.twoFactorSecret) {
+      throw new ForbiddenException('aucune activation 2FA en cours, lance generate2FASecret d\'abord')
+    }
+
+    const isValid = authenticator.verify({
+      token: dto.totpCode,
+      secret: credential.twoFactorSecret
+    })
+    if (!isValid) {
+      throw new UnauthorizedException('code invalide')
+    }
+
+    await this.prisma.credential.update({
+      where: { userId },
+      data: { twoFactorEnabled: true }
+    })
+
+    return { success: true }
+  }
+
+  // --- AJOUT : 2FA, desactivation ---
+  async disableTwoFactor(userId: string): Promise<{ success: boolean }> {
+    await this.prisma.credential.update({
+      where: { userId },
+      data: { twoFactorEnabled: false, twoFactorSecret: null }
+    })
+    return { success: true }
+  }
+
+  // --- OAuth 42 ---
+
+>>>>>>> origin/Quentin
   build42AuthorizeUrl(): string {
     const params = new URLSearchParams({
       client_id: process.env.OAUTH_42_CLIENT_ID!,
@@ -129,11 +269,15 @@ export class AuthService {
     return `https://api.intra.42.fr/oauth/authorize?${params.toString()}`
   }
 
+<<<<<<< HEAD
   // --- AJOUT : OAuth 42, etape 2 ---
   // Recoit le "code" temporaire renvoye par 42, l'echange contre un access token 42,
   // recupere le profil, puis cree ou retrouve le User correspondant chez nous.
   async loginWith42(code: string): Promise<TokenPair> {
     // Echange SERVEUR-A-SERVEUR : le client_secret ne transite jamais par le navigateur.
+=======
+  async loginWith42(code: string): Promise<TokenPair> {
+>>>>>>> origin/Quentin
     const tokenRes = await fetch('https://api.intra.42.fr/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -153,26 +297,120 @@ export class AuthService {
     })
     if (!profileRes.ok) throw new UnauthorizedException('profil 42 inaccessible')
     const profile = (await profileRes.json()) as FortyTwoProfile
+<<<<<<< HEAD
     const providerId = String(profile.id)
 
     // Cas 1 : ce compte 42 est deja lie a un de nos users => connexion directe.
     const existingAccount = await this.prisma.oAuthAccount.findUnique({
       where: { provider_providerId: { provider: '42', providerId } }
+=======
+
+    return this.findOrCreateFromOAuth({
+      provider: '42',
+      providerId: String(profile.id),
+      email: profile.email,
+      displayName: profile.usual_full_name ?? profile.login,
+      avatarUrl: profile.image?.link
+    })
+  }
+
+  buildGitHubAuthorizeUrl(): string {
+    const params = new URLSearchParams({
+      client_id: process.env.OAUTH_GITHUB_CLIENT_ID!,
+      redirect_uri: process.env.OAUTH_GITHUB_REDIRECT_URI!,
+      scope: 'read:user user:email'
+    })
+    return `https://github.com/login/oauth/authorize?${params.toString()}`
+  }
+
+  async loginWithGitHub(code: string): Promise<TokenPair> {
+    const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+      body: JSON.stringify({
+        client_id: process.env.OAUTH_GITHUB_CLIENT_ID,
+        client_secret: process.env.OAUTH_GITHUB_CLIENT_SECRET,
+        code,
+        redirect_uri: process.env.OAUTH_GITHUB_REDIRECT_URI
+      })
+    })
+    if (!tokenRes.ok) throw new UnauthorizedException('echange OAuth GitHub echoue')
+    const { access_token } = (await tokenRes.json()) as { access_token: string }
+
+    const githubHeaders = {
+      Authorization: `Bearer ${access_token}`,
+      'User-Agent': 'ft_transcendence-app'
+    }
+
+    const profileRes = await fetch('https://api.github.com/user', { headers: githubHeaders })
+    if (!profileRes.ok) throw new UnauthorizedException('profil GitHub inaccessible')
+    const profile = (await profileRes.json()) as GitHubProfile
+
+    let email = profile.email
+    if (!email) {
+      const emailsRes = await fetch('https://api.github.com/user/emails', {
+        headers: githubHeaders
+      })
+      if (!emailsRes.ok) throw new UnauthorizedException('email GitHub inaccessible')
+      const emails = (await emailsRes.json()) as GitHubEmail[]
+      const primary = emails.find((e) => e.primary && e.verified)
+      if (!primary) {
+        throw new UnauthorizedException('aucun email verifie sur ce compte GitHub')
+      }
+      email = primary.email
+    }
+
+    return this.findOrCreateFromOAuth({
+      provider: 'github',
+      providerId: String(profile.id),
+      email,
+      displayName: profile.name ?? profile.login,
+      avatarUrl: profile.avatar_url ?? undefined
+    })
+  }
+
+  private async findOrCreateFromOAuth(profile: {
+    provider: string
+    providerId: string
+    email: string
+    displayName: string
+    avatarUrl?: string
+  }): Promise<TokenPair> {
+    const existingAccount = await this.prisma.oAuthAccount.findUnique({
+      where: {
+        provider_providerId: { provider: profile.provider, providerId: profile.providerId }
+      }
+>>>>>>> origin/Quentin
     })
     if (existingAccount) {
       return this.issueTokens(existingAccount.userId)
     }
 
+<<<<<<< HEAD
     // Cas 2 : l'email existe deja (compte cree via signup classique) => on LIE
     // ce compte 42 dessus. L'email 42 est verifie par 42, on peut lui faire confiance.
     const existingUser = await this.prisma.user.findUnique({ where: { email: profile.email } })
     if (existingUser) {
       await this.prisma.oAuthAccount.create({
         data: { provider: '42', providerId, userId: existingUser.id }
+=======
+    const existingUser = await this.prisma.user.findUnique({ where: { email: profile.email } })
+    if (existingUser) {
+      await this.prisma.oAuthAccount.create({
+        data: {
+          provider: profile.provider,
+          providerId: profile.providerId,
+          userId: existingUser.id
+        }
+>>>>>>> origin/Quentin
       })
       return this.issueTokens(existingUser.id)
     }
 
+<<<<<<< HEAD
     // Cas 3 : premiere connexion, aucun compte existant => on cree tout,
     // meme logique de generation de username que signup().
     const displayName = profile.usual_full_name ?? profile.login
@@ -180,18 +418,37 @@ export class AuthService {
 
     for (let attempt = 0; attempt < MAX_USERNAME_ATTEMPTS; attempt++) {
       const username = this.buildUsername(displayName, suffix)
+=======
+    let suffix = createId().slice(-5)
+
+    for (let attempt = 0; attempt < MAX_USERNAME_ATTEMPTS; attempt++) {
+      const username = this.buildUsername(profile.displayName, suffix)
+>>>>>>> origin/Quentin
       try {
         const user = await this.prisma.$transaction(async (tx) => {
           const created = await tx.user.create({
             data: {
               email: profile.email,
               username,
+<<<<<<< HEAD
               displayName,
               avatarUrl: profile.image?.link
             }
           })
           await tx.oAuthAccount.create({
             data: { provider: '42', providerId, userId: created.id }
+=======
+              displayName: profile.displayName,
+              avatarUrl: profile.avatarUrl
+            }
+          })
+          await tx.oAuthAccount.create({
+            data: {
+              provider: profile.provider,
+              providerId: profile.providerId,
+              userId: created.id
+            }
+>>>>>>> origin/Quentin
           })
           return created
         })
@@ -211,7 +468,10 @@ export class AuthService {
     throw new ConflictException('impossible de generer un username unique, reessaie')
   }
 
+<<<<<<< HEAD
   // --- Emission des deux tokens ---
+=======
+>>>>>>> origin/Quentin
   private async issueTokens(userId: string): Promise<TokenPair> {
     const payload = { sub: userId }
 
@@ -229,8 +489,11 @@ export class AuthService {
     return { accessToken, refreshToken }
   }
 
+<<<<<<< HEAD
   // --- Generation du username (voir la regle dans schema.prisma) ---
 
+=======
+>>>>>>> origin/Quentin
   private buildUsername(displayName: string, suffix: string): string {
     return `${displayName}#${suffix}`
   }
