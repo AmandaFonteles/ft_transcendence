@@ -131,7 +131,6 @@ ownedBoards Board[]
 
 > Sans ce champ inverse, Prisma refuse de valider : une relation a **toujours** deux côtés.
 
-<<<<<<< HEAD
 ### Étape 3 — Créer la migration (dev)
 
 On ne « pousse » plus le schéma : on **crée une migration versionnée**, qui sera
@@ -155,23 +154,6 @@ git add srcs/backend/prisma/migrations && git commit -m "prisma: add board"
 > Ne jamais utiliser `prisma db push` après le passage aux migrations : ta base
 > divergerait de l'historique git.
 
-=======
-### Étape 3 — Appliquer à la base (dev)
-
-Il suffit de relancer : l'entrypoint régénère le client et pousse le schéma.
-
-```bash
-make re
-```
-
-Ou, sans redémarrer le conteneur :
-
-```bash
-docker compose exec backend npx prisma db push
-docker compose exec backend npx prisma generate
-```
-
->>>>>>> 7104af0 (ADD auth normal, Oauth42)
 ### Étape 4 — Vérifier
 
 ```bash
