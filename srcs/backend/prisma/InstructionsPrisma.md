@@ -131,28 +131,29 @@ ownedBoards Board[]
 
 > Sans ce champ inverse, Prisma refuse de valider : une relation a **toujours** deux côtés.
 
-### Étape 3 — Créer la migration (dev)
+### Étape 3 — Appliquer à la base (dev)
 
-On ne « pousse » plus le schéma : on **crée une migration versionnée**, qui sera
-committée et rejouée à l'identique par tous.
-
-```bash
-docker compose exec backend npx prisma migrate dev --name add_board
-```
-
-Cette commande écrit `prisma/migrations/<horodatage>_add_board/migration.sql`,
-l'applique à ta base et régénère le client.
-
-**Le fichier généré se committe** — c'est lui, l'historique :
+On **pousse** le schéma : Prisma compare la base à `schema.prisma` et applique
+directement la différence.
 
 ```bash
-git add srcs/backend/prisma/migrations && git commit -m "prisma: add board"
+docker compose exec backend npx prisma db push
+docker compose exec backend npx prisma generate
 ```
 
-> Les coéquipiers n'ont ensuite qu'à faire `make up` : l'entrypoint lance
-> `prisma migrate deploy`, qui applique les migrations manquantes dans l'ordre.
-> Ne jamais utiliser `prisma db push` après le passage aux migrations : ta base
-> divergerait de l'historique git.
+Ou simplement `make re` : l'entrypoint refait les deux au démarrage.
+
+> **Ce qui se committe, c'est `schema.prisma`** — c'est lui la source de vérité.
+> Il n'y a pas de dossier `prisma/migrations/` : l'équipe a fait le choix de
+> `db push` (itération rapide, pas de conflits de merge sur les migrations).
+>
+> **Attention** : `db push` peut être destructeur. Renommer un champ supprime
+> l'ancienne colonne **et ses données**, sans confirmation. En développement c'est
+> sans gravité, mais ne compte pas sur la base pour garder tes données de test.
+>
+> Les coéquipiers n'ont ensuite qu'à faire `make up` : l'entrypoint pousse le schéma
+> à jour au démarrage.
+
 
 ### Étape 4 — Vérifier
 
@@ -202,7 +203,8 @@ Côté `User` : `memberships Membership[]`. Côté `Organization` : `memberships
 - [ ] `createdAt` / `updatedAt` présents et mappés (si entité mutable).
 - [ ] Champs multi-mot mappés en snake_case via `@map`.
 - [ ] Chaque relation a ses **deux** côtés, un `onDelete` explicite, un `@@index` sur la FK.
-- [ ] `prisma migrate dev --name <x>` passe **et** le dossier de migration généré est committé.
+- [ ] `prisma db push` passe **et** `prisma generate` regénère sans erreur.
+- [ ] `schema.prisma` est committé (c'est la source de vérité, il n'y a pas de migrations).
 - [ ] Prévenir l'équipe si on touche un modèle partagé (surtout `User`).
 
 ---

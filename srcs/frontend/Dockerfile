@@ -4,7 +4,9 @@
 
 # Part de l'image officielle Node 22, variante alpine (legere).
 # Pourquoi Node : Vite et l'outillage React s'executent sur Node.
-FROM node:22-alpine
+# Nom pleinement qualifie : sous Podman, un nom court declencherait une question
+# interactive sur le registre a utiliser, ce qui casserait le "une seule commande".
+FROM docker.io/library/node:22-alpine
 
 # Definit /app comme dossier de travail : toutes les commandes suivantes s'y executent.
 WORKDIR /app

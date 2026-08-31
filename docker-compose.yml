@@ -13,9 +13,14 @@ services:
   # DATABASE : PostgreSQL, via l'image OFFICIELLE (aucun Dockerfile a ecrire).
   # ---------------------------------------------------------------------------
   database:
-    # Utilise l'image officielle Postgres, variante alpine (Linux minimal = leger).
+    # Image officielle Postgres, variante alpine (Linux minimal = leger).
     # Pourquoi l'image officielle : maintenue, sure, rien a construire nous-memes.
-    image: postgres:16-alpine
+    # NOM PLEINEMENT QUALIFIE ("docker.io/library/...") : indispensable sous Podman,
+    # qui — contrairement a Docker — ne suppose pas Docker Hub par defaut et
+    # demanderait interactivement de choisir un registre. Or le sujet exige un
+    # deploiement en UNE commande, SANS intervention manuelle. Docker accepte aussi
+    # cette forme : un seul fichier fonctionne donc dans les deux environnements.
+    image: docker.io/library/postgres:16-alpine
     # Injecte le contenu de .env (POSTGRES_USER/PASSWORD/DB) comme variables d'env.
     # Pourquoi : l'image officielle cree la base et l'utilisateur a partir de ces variables.
     env_file: .env

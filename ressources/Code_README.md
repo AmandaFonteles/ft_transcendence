@@ -53,75 +53,123 @@ make re     # redémarrage complet
 
 Pour tout comprendre en détail (concepts, pièges, défense), voir **STUDY.md**.
 
-## Docker rootless (machines 42)
+## Exécution sans privilèges (machines 42)
 
-Le projet tourne en **Docker rootless** sans modification : ports non privilégiés,
-aucun besoin de VM ni de Podman.
+Le projet est conçu pour tourner **sans droits root** : ports non privilégiés
+(8080/8443), aucun besoin de VM.
 
-### Vérifier les prérequis (une fois par machine)
+Sur les machines de l'école, c'est **Podman** qui assure ce rôle — il est déjà
+installé et fonctionne en rootless. Inutile donc d'installer un daemon Docker
+rootless : la section ci-dessous décrit ce qui s'applique réellement.
 
-```bash
-grep "^$USER:" /etc/subuid /etc/subgid   # doit renvoyer une ligne dans chaque fichier
-which newuidmap newgidmap                # outils de mapping (paquet uidmap)
-uname -r                                 # 5.11+ recommandé
+
+### Sur les machines de 42 : c'est Podman, pas Docker
+
+Sur les machines de l'école, la commande `docker` est en réalité un **shim vers
+Podman** (`podman-docker`), qui délègue à `podman-compose`. Deux messages le
+révèlent au lancement :
+
+```
+Emulate Docker CLI using podman. Create /etc/containers/nodocker to quiet msg.
+>>>> Executing external compose provider "/usr/bin/podman-compose"
 ```
 
-Ces plages d'UID subordonnés se créent **avec root, une seule fois**. Si elles sont
-absentes, rootless est impossible (Podman a le même prérequis) → repli sur une VM.
+C'est sans gravité — le projet fonctionne — mais deux différences de comportement
+ont dû être traitées.
 
-### Installer (sans privilèges)
+**1. Noms d'images pleinement qualifiés.** Podman ne suppose pas que `postgres:16-alpine`
+vient de Docker Hub : il pose une **question interactive** pour choisir le registre.
+Cela casse l'exigence « déploiement en une seule commande, sans intervention
+manuelle ». Toutes les images sont donc écrites en entier :
 
-```bash
-dockerd-rootless-setuptool.sh install
-export DOCKER_HOST=unix:///run/user/$(id -u)/docker.sock
-loginctl enable-linger $USER    # le daemon survit à la déconnexion
+```yaml
+image: docker.io/library/postgres:16-alpine
 ```
+```dockerfile
+FROM docker.io/library/node:22-alpine
+```
+
+Docker accepte la même syntaxe : **un seul fichier fonctionne dans les deux
+environnements**, aucune version spécifique à maintenir.
+
+**2. Ordre de démarrage.** `podman-compose` ignore souvent
+`depends_on: condition: service_healthy`. Le backend démarrerait alors avant que
+PostgreSQL accepte les connexions. `docker-entrypoint.sh` réessaie donc les
+migrations jusqu'à 30 fois (60 s max) avant d'abandonner — robuste quel que soit
+l'orchestrateur, sans dépendre de son comportement.
+
+**Le message `nodocker`** demande un fichier dans `/etc`, donc les droits root : on
+ne peut pas le faire disparaître sur une machine de l'école. C'est du bruit, sans
+effet sur le fonctionnement.
+
+> Optionnel, si tu veux aussi taper des noms courts en ligne de commande : créer
+> `~/.config/containers/registries.conf` (per-utilisateur, sans root) contenant
+> `unqualified-search-registries = ["docker.io"]`. Les fichiers du projet, eux,
+> restent qualifiés pour ne dépendre d'aucune configuration de machine.
 
 ### Éviter de saturer le quota
 
-En rootless, Docker stocke tout dans `~/.local/share/docker`, donc **dans le quota**.
-Déplacer le stockage vers `/goinfre` (sans quota) via `~/.config/docker/daemon.json` :
+En rootless, les images et volumes sont stockés dans le home, donc **dans le quota**.
+Avec Podman, l'emplacement est `~/.local/share/containers`. On le déplace vers
+`/goinfre` (sans quota) via `~/.config/containers/storage.conf` — fichier
+per-utilisateur, aucun droit root nécessaire :
 
-```json
-{ "data-root": "/goinfre/<login>/docker" }
+```ini
+[storage]
+driver = "overlay"
+graphroot = "/goinfre/<login>/containers/storage"
+runroot = "/run/user/1000/containers"
 ```
 
-`/goinfre` est purgé régulièrement : il faudra parfois refaire un `make up` complet.
+Remplacer `1000` par la sortie de `id -u`. `/goinfre` est purgé régulièrement : il
+faudra parfois refaire un `make` complet.
 
-Vérifier enfin le driver de stockage — `vfs` duplique chaque couche (disque saturé,
-builds lents) :
+Vérifier ensuite le driver de stockage — `vfs` duplique chaque couche au lieu de la
+partager (disque saturé, builds très lents) :
 
 ```bash
-docker info | grep "Storage Driver"      # attendu : overlay2 ou fuse-overlayfs
+podman info | grep -i "graphDriverName"   # attendu : overlay (pas vfs)
 ```
 
-## Migrations Prisma
+> Attention : modifier `storage.conf` invalide le stockage existant. Faire
+> `podman system reset` avant, ou accepter de tout reconstruire.
 
-Le schéma est appliqué via des **migrations versionnées** (fichiers SQL committés),
-pas par `db push`. À chaque `make up`, l'entrypoint lance `prisma migrate deploy`,
-qui applique les migrations manquantes dans l'ordre.
+## Schéma Prisma
 
-### Créer la migration initiale (une seule fois, à faire maintenant)
+Le schéma est appliqué avec **`prisma db push`** (approche déclarative), pas avec des
+migrations versionnées. À chaque `make up`, l'entrypoint compare la base à
+`schema.prisma` et applique directement la différence.
 
-```bash
-make clean     # base vide (les données de dev sont jetables)
-make up        # démarre ; aucune migration à appliquer pour l'instant
-docker compose exec backend npx prisma migrate dev --name init
-git add srcs/backend/prisma/migrations && git commit -m "prisma: initial migration"
-```
+**Choix d'équipe assumé.** Le sujet n'exige pas de migrations : il demande un schéma
+clair et des relations bien définies, ce que `schema.prisma` fournit directement.
+`db push` permet d'itérer vite à quatre sur un schéma partagé, sans conflits de merge
+dans un dossier `prisma/migrations/`.
 
-Entre `make up` et `migrate dev`, la table `users` n'existe pas encore : `/api/health`
-renvoie une erreur transitoire, normale, résolue dès la migration appliquée.
+**Contrepartie à connaître et à savoir dire en soutenance.** `--accept-data-loss`
+autorise les changements destructeurs sans confirmation — indispensable en mode non
+interactif. Renommer un champ **supprime** l'ancienne colonne et ses données. En
+développement c'est sans gravité (les données sont jetables), mais il ne faut pas
+compter sur la base pour conserver quoi que ce soit d'important.
 
 ### Au quotidien
 
+Après avoir édité `prisma/schema.prisma` :
+
 ```bash
-# après avoir édité prisma/schema.prisma
-docker compose exec backend npx prisma migrate dev --name <nom_du_changement>
-# puis committer le dossier de migration généré
+docker compose exec backend npx prisma db push
+docker compose exec backend npx prisma generate
 ```
 
-Voir `../srcs/backend/prisma/InstructionsPrisma.md` pour les conventions complètes.
+Ou simplement `make re` : l'entrypoint refait les deux au démarrage.
+
+### Inspecter la base
+
+```bash
+docker compose exec backend npx prisma studio
+```
+
+Voir `../srcs/backend/prisma/InstructionsPrisma.md` pour les conventions de schéma
+et le gabarit de module NestJS.
 
 ## Module temps réel (WebSocket)
 

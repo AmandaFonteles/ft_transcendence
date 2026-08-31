@@ -366,37 +366,40 @@ ou le CLI Nest. Voici donc leur explication ici.
 - **Quand/pourquoi** : seul le port **hôte** est contraint ; nginx écoute toujours 443
   *dans* le conteneur. On garde ces ports même en Docker classique pour un
   comportement identique sur toutes les machines.
-- **Prérequis rootless** : plages d'UID subordonnés dans `/etc/subuid` / `/etc/subgid`
-  (créées avec root, une fois). Podman exige la même chose ; sans elles → VM.
+- **Sur les machines de 42** : c'est **Podman** qui fournit le rootless (déjà
+  installé, via le shim `podman-docker`). Aucun daemon Docker rootless à installer.
+- **Prérequis** : plages d'UID subordonnés dans `/etc/subuid` / `/etc/subgid` (créées
+  avec root, une fois) — déjà en place à l'école.
 - **Piège 42** : le stockage rootless vit dans le home → **quota saturé**. On déplace
-  `data-root` vers `/goinfre` via `~/.config/docker/daemon.json`.
-- **Piège** : driver `vfs` (au lieu d'`overlay2`/`fuse-overlayfs`) duplique chaque
-  couche → disque plein et builds lents. Vérifier `docker info | grep "Storage Driver"`.
+  `graphroot` vers `/goinfre` via `~/.config/containers/storage.conf`.
+- **Piège** : driver `vfs` (au lieu d'`overlay`) duplique chaque couche → disque plein
+  et builds lents. Vérifier `podman info | grep -i graphDriverName`.
 - **Bon effet de bord** : le root du conteneur = ton utilisateur hôte, donc plus de
   fichiers root-owned créés dans le dépôt par les bind mounts.
 
-## 10. Migrations versionnées (vs `db push`)
+## 10. Application du schéma : `db push`
 
-- **Une phrase** : chaque changement de schéma devient un fichier SQL horodaté,
-  committé, rejoué **dans l'ordre** — les migrations sont à la base ce que git est au code.
+- **Une phrase** : `db push` est **déclaratif** — Prisma compare la base au schéma et
+  applique directement la différence, sans produire de fichier de migration.
 - **Snippet** (`docker-entrypoint.sh`) :
   ```sh
-  npx prisma generate        # migrate deploy ne régénère PAS le client
-  npx prisma migrate deploy  # applique les migrations manquantes, ne supprime rien
+  npx prisma generate                    # regenere le client typé
+  npx prisma db push --accept-data-loss  # synchronise la base avec schema.prisma
   ```
-- **Créer une migration (dev)** : `prisma migrate dev --name <x>` → écrit
-  `prisma/migrations/<horodatage>_<x>/migration.sql`, l'applique, régénère le client.
-- **`_prisma_migrations`** : table interne à PostgreSQL = journal de ce qui a réellement
-  été appliqué **sur cette base**, d'où le fait que `deploy` sache quoi rejouer.
-- **Quand/pourquoi** : reproductibilité (même schéma partout), revue de code (le SQL est
-  lisible en PR), sécurité (plus de suppression silencieuse), et transformations de
-  données possibles (éditer la migration pour préserver les données lors d'un renommage).
-- **Piège** : refaire un `prisma db push` après la bascule → la base diverge de
-  l'historique git. Le script `prisma:push` a été retiré exprès.
-- **Piège** : ignorer `prisma/` dans `.dockerignore` → `migrate deploy` n'aurait aucune
-  migration à appliquer là où il n'y a pas de bind mount.
-- **Shadow database** : `migrate dev` crée/détruit une base temporaire pour valider ;
-  le superutilisateur de l'image officielle Postgres a déjà ce droit.
+- **Choix d'équipe assumé** : le sujet n'exige pas de migrations versionnées ; il
+  demande un schéma clair et des relations bien définies, ce que `schema.prisma`
+  fournit. `db push` évite les conflits de merge à quatre dans `prisma/migrations/`.
+- **Contrepartie** : `--accept-data-loss` autorise les suppressions **silencieuses**
+  (renommer un champ supprime l'ancienne colonne et ses données). Sans ce drapeau,
+  `db push` refuserait en mode non interactif — donc il est nécessaire ici.
+- **À savoir répondre** : *« pourquoi pas de migrations ? »* → itération rapide à
+  quatre, pas d'exigence du sujet, base de dev jetable. *« Et si vous alliez en
+  production ? »* → on passerait à `prisma migrate dev` / `migrate deploy`, qui
+  gardent un historique SQL committé et relisible en revue de code.
+- **Piège** : compter sur la base pour conserver des données de test. Un changement de
+  schéma peut les effacer sans prévenir.
+- **Piège** : ignorer `prisma/` dans `.dockerignore` → plus de `schema.prisma` dans
+  l'image, donc ni `db push` ni `generate` possibles là où il n'y a pas de bind mount.
 
 ## 11. Module majeur : WebSocket temps réel
 
@@ -543,3 +546,26 @@ ou le CLI Nest. Voici donc leur explication ici.
 ### 12.5 Reste à faire (risque de rejet)
 - Les pages **Confidentialité** et **Conditions** doivent contenir un contenu réel :
   la grille d'évaluation rejette explicitement les pages vides ou placeholder.
+
+## 13. Podman sur les machines de 42
+
+- **Une phrase** : à l'école, `docker` est un shim vers **Podman**
+  (`podman-docker` → `podman-compose`) ; le projet tourne sans modification, à deux
+  détails près.
+- **Piège n°1 — registre non qualifié** : Podman ne suppose pas Docker Hub et pose
+  une **question interactive** pour choisir le registre. Cela casse l'exigence
+  « une seule commande sans intervention manuelle ».
+  - **Correctif** : `image: docker.io/library/postgres:16-alpine`, et
+    `FROM docker.io/library/node:22-alpine`. Docker accepte la même forme → un seul
+    fichier pour les deux environnements.
+- **Piège n°2 — ordre de démarrage** : `podman-compose` ignore souvent
+  `depends_on: condition: service_healthy`.
+  - **Correctif** : boucle de reprise dans `docker-entrypoint.sh` (30 tentatives,
+    2 s d'intervalle) autour de `prisma db push`. On ne dépend plus du comportement
+    de l'orchestrateur.
+  - **Pourquoi un plafond** : sans lui, une vraie erreur (schéma invalide, mauvais
+    identifiants) bouclerait indéfiniment sans jamais être signalée.
+- **Message `nodocker`** : demande un fichier dans `/etc` → droits root, impossible
+  à l'école. Bruit sans conséquence.
+- **Question de défense** : « pourquoi les images sont-elles écrites en entier ? »
+  → portabilité Docker/Podman et respect du déploiement non interactif.

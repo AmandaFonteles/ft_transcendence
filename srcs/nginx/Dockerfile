@@ -5,7 +5,9 @@
 
 # Part de l'image officielle nginx, variante alpine (Linux minimal, image legere).
 # Pourquoi alpine : demarrage rapide et petite taille d'image.
-FROM nginx:1.27-alpine
+# Nom pleinement qualifie : sous Podman, un nom court declencherait une question
+# interactive sur le registre a utiliser, ce qui casserait le "une seule commande".
+FROM docker.io/library/nginx:1.27-alpine
 
 # Installe openssl via le gestionnaire de paquets d'Alpine (apk).
 # Pourquoi : on en a besoin pour GENERER un certificat TLS dans l'image.
