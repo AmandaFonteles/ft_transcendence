@@ -44,7 +44,8 @@ export function signup(data: { email: string; password: string; displayName: str
   })
 }
 
-export function login(data: { email: string; password: string }) {
+// MODIFIE : login() accepte maintenant un totpCode optionnel.
+export function login(data: { email: string; password: string; totpCode?: string }) {
   return request<TokenResponse>('/auth/login', {
     method: 'POST',
     body: JSON.stringify(data)
@@ -135,10 +136,4 @@ export function disableTwoFactor(accessToken: string) {
   })
 }
 
-// MODIFIE : login() accepte maintenant un totpCode optionnel.
-export function login(data: { email: string; password: string; totpCode?: string }) {
-  return request<TokenResponse>('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify(data)
-  })
-}
+

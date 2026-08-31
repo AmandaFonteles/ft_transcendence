@@ -5,14 +5,10 @@ import { Body, Controller, Get, NotFoundException, Patch, Post, UseGuards } from
 import { UsersService } from './users.service'
 import { CreateUserDto } from './dto/create-user.dto'
 import { SelectAvatarDto } from './dto/select-avatar.dto'
-<<<<<<< HEAD
-import { AVATAR_PRESETS } from './avatar-presets'
-// AJOUT : necessaires pour proteger la route PATCH /users/me/avatar.
-=======
 import { UpdateProfileDto } from './dto/update-profile.dto'
 import { ChangePasswordDto } from './dto/change-password.dto'
 import { AVATAR_PRESETS } from './avatar-presets'
->>>>>>> origin/Quentin
+// AJOUT : necessaires pour proteger la route PATCH /users/me/avatar.
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
 
@@ -30,22 +26,16 @@ export class UsersController {
     return this.users.findAll()
   }
 
-<<<<<<< HEAD
   // AJOUT : route PUBLIQUE (pas de @UseGuards), pas besoin d'etre connecte pour
   // voir la liste des avatars disponibles. Renvoie simplement le tableau tel quel.
-=======
->>>>>>> origin/Quentin
   @Get('avatar-presets')
   avatarPresets() {
     return AVATAR_PRESETS
   }
 
-<<<<<<< HEAD
   // IMPORTANT : 'avatar-presets' doit rester declare AVANT toute future route
   // @Get(':id'), sinon Nest interpreterait "avatar-presets" comme une valeur de :id.
 
-=======
->>>>>>> origin/Quentin
   @UseGuards(JwtAuthGuard)
   @Get('me')
   async me(@CurrentUser() user: { userId: string }) {
@@ -54,7 +44,6 @@ export class UsersController {
     return found
   }
 
-<<<<<<< HEAD
   // AJOUT : route PROTEGEE (@UseGuards(JwtAuthGuard)) : il faut un access token
   // valide dans le header Authorization pour l'appeler.
   @UseGuards(JwtAuthGuard)
@@ -62,13 +51,6 @@ export class UsersController {
   selectAvatar(@CurrentUser() user: { userId: string }, @Body() dto: SelectAvatarDto) {
     // dto.avatarUrl a DEJA ete verifie par @IsIn(AVATAR_PRESETS) (etape 3) avant
     // meme d'arriver ici : si la requete est invalide, Nest a repondu 400 en amont.
-    return this.users.updateAvatar(user.userId, dto.avatarUrl)
-  }
-}
-=======
-  @UseGuards(JwtAuthGuard)
-  @Patch('me/avatar')
-  selectAvatar(@CurrentUser() user: { userId: string }, @Body() dto: SelectAvatarDto) {
     return this.users.updateAvatar(user.userId, dto.avatarUrl)
   }
 
@@ -87,4 +69,3 @@ export class UsersController {
     return this.users.changePassword(user.userId, dto)
   }
 }
->>>>>>> origin/Quentin

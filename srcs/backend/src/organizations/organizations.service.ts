@@ -1,10 +1,5 @@
-<<<<<<< HEAD
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common'
 import { Role, InvitePolicy } from '@prisma/client'
-=======
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
-import { Role } from '@prisma/client'
->>>>>>> origin/Quentin
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateOrganizationDto } from './dto/create-organization.dto'
 import { UpdateOrganizationDto } from './dto/update-organization.dto'
@@ -23,49 +18,35 @@ export class OrganizationsService {
     		userId: creatorId,
     		role: Role.ADMIN
   		  }
-<<<<<<< HEAD
 		},
 		invitePolicy: data.invitePolicy
-=======
-		}
->>>>>>> origin/Quentin
   	  }
 	})
   }
 
-<<<<<<< HEAD
   findAll(requesterUserId: string) {
-    return this.prisma.organization.findMany({ 
-	  orderBy: { name: 'asc' }, 
-	  where: { 
+    return this.prisma.organization.findMany({
+	  orderBy: { name: 'asc' },
+	  where: {
 		organizationMembers: {
-	      some: { 
-			userId: requesterUserId, 
-	        leftAt: null 
-		  } 
-		} 
-	  } 
+	      some: {
+			userId: requesterUserId,
+	        leftAt: null
+		  }
+		}
+	  }
 	})
-=======
-  findAll() {
-    return this.prisma.organization.findMany({ orderBy: { name: 'asc' } })
->>>>>>> origin/Quentin
   }
 
   async findOne(id: string) {
     const organization = await this.prisma.organization.findUnique({ where: { id: id } })
 
     if (!organization) {
-<<<<<<< HEAD
       throw new NotFoundException(`Le projet n'a pas été trouvé`)//fr ?
-=======
-      throw new NotFoundException(`Organization with id ${id} not found`)//fr ?
->>>>>>> origin/Quentin
     }
 
     return organization
   }
-<<<<<<< HEAD
 
   async findOneForMember(organizationId: string, requesterUserId: string) {
     const organization = await this.findOne(organizationId)
@@ -88,26 +69,6 @@ export class OrganizationsService {
 
   async findMembershipRecord(organizationId: string, userId: string) {
      const membershipRecord = await this.prisma.organizationMember.findUnique({
-=======
-  
-  async update(id: string, data: UpdateOrganizationDto) {
-	if (data.name === undefined && data.description === undefined) {
-	  throw new BadRequestException(`No data provided for update`)
-	}
-    await this.findOne(id)
-
-    return await this.prisma.organization.update({ where: { id: id }, data: data })
-  }
-
-  async remove(id: string) {
-	await this.findOne(id)
-	return await this.prisma.organization.delete({ where: { id: id } })
-  }
-
-  async findMember(organizationId: string, userId: string) {
-	await this.findOne(organizationId)
-	const member = await this.prisma.organizationMember.findUnique({
->>>>>>> origin/Quentin
 	  where: {
 		userId_organizationId: {
 		  userId: userId,
@@ -115,7 +76,6 @@ export class OrganizationsService {
 		}
       }
 	})
-<<<<<<< HEAD
 	return membershipRecord
   }
 
@@ -144,7 +104,7 @@ export class OrganizationsService {
 	  return null
 	}
 	return member
-  }//utile ? 
+  }//utile ?
 
   async checkInvitePolicy(organizationId: string, requesterUserId: string) {
 	const organization = await this.findOne(organizationId)
@@ -205,7 +165,7 @@ export class OrganizationsService {
 	const activeMembersCount = await this.countActiveMembers(organizationId)
 	if (member.role === Role.ADMIN && await this.countActiveAdmins(organizationId) <= 1 && activeMembersCount > 1) {
 	  throw new BadRequestException(`Impossible de quitter le projet car c'est le dernier administrateur actif et il y a d'autres membres actifs. Veuillez promouvoir un autre membre avant de quitter.`)
-	} 
+	}
 	if (activeMembersCount === 1) {
 	  await this.prisma.organization.delete({ where: { id: organizationId } })
 	  return true
@@ -294,9 +254,9 @@ export class OrganizationsService {
 		role: Role.ADMIN
 	  }
 	})
-	
+
 	const organizationIdsToDelete: string[] = []
-	for (const membership of adminMemberships) { 
+	for (const membership of adminMemberships) {
 		const activeMembersCount = await this.countActiveMembers(membership.organizationId)
 		const activeAdminsCount = await this.countActiveAdmins(membership.organizationId)
 	  if (activeMembersCount > 1 && activeAdminsCount <= 1) {
@@ -309,11 +269,3 @@ export class OrganizationsService {
 	return organizationIdsToDelete
   }
 }
-=======
-	if (!member) {
-	  throw new NotFoundException(`User with id ${userId} is not a member of organization with id ${organizationId}`)
-	}
-	return member
-  }
-}
->>>>>>> origin/Quentin

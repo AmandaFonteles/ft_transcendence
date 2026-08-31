@@ -567,8 +567,6 @@ function AuthPanel({ onSuccess }: { onSuccess: (accessToken: string) => Promise<
           </label>
         </div>
 
-<<<<<<< HEAD
-=======
         {/* AJOUT : n'apparait qu'apres le premier essai signalant "code 2FA requis". */}
         {needsTotp && (
           <div>
@@ -585,7 +583,6 @@ function AuthPanel({ onSuccess }: { onSuccess: (accessToken: string) => Promise<
           </div>
         )}
 
->>>>>>> origin/Quentin
         {error && <p className="status" style={{ color: 'crimson' }}>{error}</p>}
 
         <button type="submit" disabled={loading}>

@@ -1,17 +1,6 @@
 // [CONCEPT: service de feature] UsersService porte la logique du domaine "users".
 // Il parle a PostgreSQL via PrismaService (injecte). Le controller, lui, restera mince.
 
-<<<<<<< HEAD
-import { ConflictException, Injectable } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
-import { PrismaService } from '../prisma/prisma.service'
-import { CreateUserDto } from './dto/create-user.dto'
-
-// AJOUT : constante placee ICI, HORS de la classe, juste apres les imports.
-// [CONCEPT: constante partagee] Extrait la liste des champs "publics" d'un User
-// (jamais le credential). Utilisee par findById ET updateAvatar : evite d'ecrire
-// deux fois la meme liste et de risquer qu'elles divergent un jour.
-=======
 import {
   ConflictException,
   ForbiddenException,
@@ -25,7 +14,10 @@ import { CreateUserDto } from './dto/create-user.dto'
 import { UpdateProfileDto } from './dto/update-profile.dto'
 import { ChangePasswordDto } from './dto/change-password.dto'
 
->>>>>>> origin/Quentin
+// AJOUT : constante placee ICI, HORS de la classe, juste apres les imports.
+// [CONCEPT: constante partagee] Extrait la liste des champs "publics" d'un User
+// (jamais le credential). Utilisee par findById ET updateAvatar : evite d'ecrire
+// deux fois la meme liste et de risquer qu'elles divergent un jour.
 const USER_PUBLIC_SELECT = {
   id: true,
   email: true,
@@ -55,7 +47,6 @@ export class UsersService {
     return this.prisma.user.findMany({ orderBy: { createdAt: 'desc' } })
   }
 
-<<<<<<< HEAD
   // [CONCEPT: select vs include] On utilise "select" (liste blanche des champs)
   // plutot que "include" : ca garantit que credential.passwordHash ne sort JAMAIS
   // de cette methode, meme si quelqu'un ajoute une relation plus tard par erreur.
@@ -63,21 +54,13 @@ export class UsersService {
     return this.prisma.user.findUnique({
       where: { id },
       // MODIFIE : on reutilise la constante au lieu de re-taper la liste des champs.
-=======
-  findById(id: string) {
-    return this.prisma.user.findUnique({
-      where: { id },
->>>>>>> origin/Quentin
       select: USER_PUBLIC_SELECT
     })
   }
 
-<<<<<<< HEAD
   // AJOUT : nouvelle methode, a la fin de la classe.
   // Change l'avatar du user connecte. Le controller aura deja verifie via
   // SelectAvatarDto (etape 3) que avatarUrl fait partie des presets autorises.
-=======
->>>>>>> origin/Quentin
   updateAvatar(userId: string, avatarUrl: string) {
     return this.prisma.user.update({
       where: { id: userId },
@@ -85,9 +68,6 @@ export class UsersService {
       select: USER_PUBLIC_SELECT
     })
   }
-<<<<<<< HEAD
-}
-=======
 
   // AJOUT : met a jour displayName et/ou email. dto.email et dto.displayName
   // peuvent etre undefined (DTO tout-optionnel) : Prisma ignore simplement
@@ -145,4 +125,3 @@ export class UsersService {
     return { success: true }
   }
 }
->>>>>>> origin/Quentin

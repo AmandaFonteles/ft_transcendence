@@ -5,9 +5,6 @@ import { OrganizationsService } from './organizations.service'
 @Module({
   controllers: [OrganizationsController],
   providers: [OrganizationsService],
-<<<<<<< HEAD
   exports: [OrganizationsService],
-=======
->>>>>>> origin/Quentin
 })
 export class OrganizationsModule {}
