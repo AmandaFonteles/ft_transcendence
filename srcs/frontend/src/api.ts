@@ -44,12 +44,12 @@ export function signup(data: { email: string; password: string; displayName: str
   })
 }
 
-export function login(data: { email: string; password: string }) {
-  return request<TokenResponse>('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify(data)
-  })
-}
+// export function login(data: { email: string; password: string }) {
+//   return request<TokenResponse>('/auth/login', {
+//     method: 'POST',
+//     body: JSON.stringify(data)
+//   })
+// }
 
 // Utilise le cookie refreshToken (envoye automatiquement par le navigateur)
 // pour obtenir un nouvel access token, sans redemander email/password.
@@ -82,5 +82,63 @@ export function selectAvatar(accessToken: string, avatarUrl: string) {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify({ avatarUrl })
+  })
+}
+
+// AJOUT : modifie displayName et/ou email. Les deux champs sont optionnels dans
+// le body : n'envoie que ce qui a reellement change.
+export function updateProfile(
+  accessToken: string,
+  data: { email?: string; displayName?: string }
+) {
+  return request<AuthUser>('/users/me', {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(data)
+  })
+}
+
+// AJOUT : change le mot de passe. Renvoie juste { success: true }, pas un user.
+export function changePassword(
+  accessToken: string,
+  data: { currentPassword: string; newPassword: string }
+) {
+  return request<{ success: boolean }>('/users/me/password', {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(data)
+  })
+}
+
+// AJOUT : lance l'activation, renvoie le QR code a afficher.
+export function setupTwoFactor(accessToken: string) {
+  return request<{ qrCodeDataUrl: string }>('/auth/2fa/setup', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` }
+  })
+}
+
+// AJOUT : confirme le premier code, active reellement la 2FA.
+export function confirmTwoFactor(accessToken: string, totpCode: string) {
+  return request<{ success: boolean }>('/auth/2fa/confirm', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ totpCode })
+  })
+}
+
+// AJOUT : desactive la 2FA.
+export function disableTwoFactor(accessToken: string) {
+  return request<{ success: boolean }>('/auth/2fa/disable', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` }
+  })
+}
+
+// MODIFIE : login() accepte maintenant un totpCode optionnel.
+export function login(data: { email: string; password: string; totpCode?: string }) {
+  return request<TokenResponse>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(data)
   })
 }
