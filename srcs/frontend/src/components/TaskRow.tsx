@@ -1,50 +1,70 @@
 // =============================================================================
 // TaskRow.tsx : une ligne de tache, avec l'ARETE coloree du projet.
-// C'est la signature de la direction retenue : sur l'agenda general, ou se
-// melangent les taches de plusieurs projets, la couleur dit instantanement
-// a quel projet appartient chaque ligne.
+// Signature de la direction retenue : sur l'agenda general, ou se melangent les
+// taches de plusieurs projets, la couleur dit instantanement a quel projet
+// appartient chaque ligne.
 // =============================================================================
 
-// Table de classes (voir le piege du scan Tailwind dans lib/projectColors.ts).
+import type { Task, TaskStatus } from '../api'
 import { projectBg, type ProjectColor } from '../lib/projectColors'
-// Badge reutilisable.
-import Badge from './ui/Badge'
+import { formatDay, isOverdue } from '../lib/dates'
+import { statusBadge, statusLabel, statusOrder } from '../lib/taskStatus'
 
-export interface TaskRowProps {
-  // Intitule de la tache.
-  title: string
-  // Personne responsable.
-  assignee: string
-  // Echeance deja formatee pour l'affichage.
-  due: string
-  // Couleur d'identite du projet auquel appartient la tache.
+interface TaskRowProps {
+  // La tache telle que renvoyee par l'API.
+  task: Task
+  // Couleur d'identite du projet auquel elle appartient.
   projectColor: ProjectColor
-  // Etiquette optionnelle (nom du projet).
-  label?: string
-  // Marque la tache comme en retard.
-  late?: boolean
+  // Nom du projet, affiche seulement quand plusieurs projets se melangent.
+  projectName?: string
+  // Callback de changement de statut ; absent = statut non modifiable ici.
+  onStatusChange?: (taskId: string, status: TaskStatus) => void
 }
 
-export default function TaskRow({ title, assignee, due, projectColor, label, late }: TaskRowProps) {
+export default function TaskRow({ task, projectColor, projectName, onStatusChange }: TaskRowProps) {
+  // Une tache terminee n'est jamais "en retard", meme si son echeance est passee.
+  const late = task.status !== 'DONE' && isOverdue(task.dueDate)
+
   return (
     <article className="flex items-start gap-3 bg-surface border border-rule rounded-xl p-3 mb-2">
-      {/* L'arete coloree. self-stretch l'etire sur toute la hauteur de la carte,
-          shrink-0 l'empeche d'etre comprimee par un titre long. */}
+      {/* L'arete coloree. self-stretch l'etire sur toute la hauteur, shrink-0
+          l'empeche d'etre comprimee par un titre long. */}
       <span className={`w-1 self-stretch shrink-0 rounded ${projectBg[projectColor]}`} />
 
-      {/* Bloc central. min-w-0 autorise la troncature d'un titre trop long :
-          sans lui, un mot interminable ferait deborder toute la ligne. */}
+      {/* min-w-0 autorise la troncature : sans lui, un mot tres long ferait
+          deborder toute la ligne. */}
       <div className="flex-1 min-w-0">
-        <div className="text-[14.5px] font-medium">{title}</div>
-        {/* Metadonnees : police utilitaire et chiffres tabulaires, pour que les
-            heures s'alignent en colonne d'une ligne a l'autre (rigueur "Horaire"). */}
+        <div className="text-[14.5px] font-medium">{task.name}</div>
+        {/* Metadonnees en police utilitaire et chiffres tabulaires : les dates
+            s'alignent en colonne d'une ligne a l'autre. */}
         <div className="font-data text-[12.5px] text-ink-soft tabular-nums">
-          {assignee} · {due}
+          {projectName && <>{projectName} · </>}
+          échéance {formatDay(task.dueDate)}
         </div>
       </div>
 
-      {/* Le retard prime sur l'etiquette de projet. */}
-      {late ? <Badge tone="danger">En retard</Badge> : label ? <Badge>{label}</Badge> : null}
+      {/* Le retard prime sur l'affichage du statut. */}
+      {late && <span className="inline-block rounded-full px-2.5 py-0.5 text-xs font-medium bg-danger-bg text-danger">En retard</span>}
+
+      {/* Selecteur de statut si l'appelant fournit un callback, sinon simple badge. */}
+      {onStatusChange ? (
+        <select
+          value={task.status}
+          // e.target.value est une chaine : on la retype vers l'union TaskStatus.
+          onChange={(e) => onStatusChange(task.id, e.target.value as TaskStatus)}
+          className={`rounded-full px-2.5 py-1 text-xs font-medium cursor-pointer ${statusBadge[task.status]}`}
+          // Libelle pour les lecteurs d'ecran : le select seul n'est pas explicite.
+          aria-label={`Statut de ${task.name}`}
+        >
+          {statusOrder.map((s) => (
+            <option key={s} value={s}>{statusLabel[s]}</option>
+          ))}
+        </select>
+      ) : (
+        <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadge[task.status]}`}>
+          {statusLabel[task.status]}
+        </span>
+      )}
     </article>
   )
 }

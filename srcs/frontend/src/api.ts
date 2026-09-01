@@ -137,3 +137,188 @@ export function disableTwoFactor(accessToken: string) {
 }
 
 
+// =============================================================================
+// AJOUT NY : projets (Organization) et taches (Task).
+// VOCABULAIRE : le backend nomme "Organization" ce que l'interface appelle
+// "projet". On garde le nom backend dans les types (fidelite a l'API) et on
+// traduit uniquement a l'affichage.
+// =============================================================================
+
+// Politique d'invitation : qui peut ajouter un membre au projet.
+export type InvitePolicy = 'ADMIN_ONLY' | 'ANY_MEMBER'
+
+// Statut d'une tache, tel que defini par l'enum Prisma TaskStatus.
+export type TaskStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'DONE'
+
+// Forme renvoyee par l'API pour un projet (aucun include cote backend :
+// ni membres ni taches ne sont joints, il faut les demander separement).
+export type Organization = {
+  id: string
+  name: string
+  description: string | null
+  invitePolicy: InvitePolicy
+  createdAt: string
+  updatedAt: string
+}
+
+// Forme renvoyee par l'API pour une tache (idem : pas d'include).
+export type Task = {
+  id: string
+  name: string
+  description: string | null
+  status: TaskStatus
+  startDate: string | null
+  dueDate: string | null
+  organizationId: string
+  ownerId: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+// [CONCEPT: routes protegees] Toutes les routes ci-dessous exigent le jeton
+// d'acces. On construit donc l'en-tete Authorization au meme endroit plutot que
+// de le repeter dans chaque fonction.
+function auth(accessToken: string) {
+  return { Authorization: `Bearer ${accessToken}` }
+}
+
+// --- Utilisateurs ------------------------------------------------------------
+
+// Liste tous les utilisateurs connus (page Equipe).
+export function listUsers(accessToken: string) {
+  return request<AuthUser[]>('/users', { headers: auth(accessToken) })
+}
+
+// --- Projets -----------------------------------------------------------------
+
+// Projets dont l'utilisateur courant est membre actif (le backend filtre deja).
+export function listOrganizations(accessToken: string) {
+  return request<Organization[]>('/organizations', { headers: auth(accessToken) })
+}
+
+// Detail d'un projet. Le backend refuse (403) si on n'en est pas membre actif.
+export function getOrganization(accessToken: string, id: string) {
+  return request<Organization>(`/organizations/${id}`, { headers: auth(accessToken) })
+}
+
+// Cree un projet ; le createur en devient automatiquement ADMIN.
+export function createOrganization(
+  accessToken: string,
+  data: { name: string; description?: string; invitePolicy?: InvitePolicy },
+) {
+  return request<Organization>('/organizations', {
+    method: 'POST',
+    headers: auth(accessToken),
+    body: JSON.stringify(data),
+  })
+}
+
+// Modifie un projet. Reserve aux ADMIN (le backend le verifie).
+export function updateOrganization(
+  accessToken: string,
+  id: string,
+  data: { name?: string; description?: string; invitePolicy?: InvitePolicy },
+) {
+  return request<Organization>(`/organizations/${id}`, {
+    method: 'PATCH',
+    headers: auth(accessToken),
+    body: JSON.stringify(data),
+  })
+}
+
+// Ajoute un membre au projet (soumis a la politique d'invitation).
+export function addOrganizationMember(accessToken: string, id: string, userId: string) {
+  return request<unknown>(`/organizations/${id}/members`, {
+    method: 'POST',
+    headers: auth(accessToken),
+    body: JSON.stringify({ userId }),
+  })
+}
+
+// Quitte un projet.
+export function leaveOrganization(accessToken: string, id: string) {
+  return request<unknown>(`/organizations/${id}/members/me`, {
+    method: 'DELETE',
+    headers: auth(accessToken),
+  })
+}
+
+// --- Taches ------------------------------------------------------------------
+// Les taches sont IMBRIQUEES sous un projet : /organizations/:id/tasks
+
+// Liste les taches d'un projet.
+// Filtres optionnels cote backend : owned, unassigned, assignedUserIds.
+// Sans filtre, le backend renvoie ce que l'utilisateur a le droit de voir.
+export function listTasks(
+  accessToken: string,
+  organizationId: string,
+  filters?: { owned?: boolean; unassigned?: boolean; assignedUserIds?: string[] },
+) {
+  // URLSearchParams encode proprement les valeurs (espaces, accents...).
+  const params = new URLSearchParams()
+  if (filters?.owned !== undefined) params.set('owned', String(filters.owned))
+  if (filters?.unassigned !== undefined) params.set('unassigned', String(filters.unassigned))
+  // Le backend attend une liste separee par des virgules (voir le @Transform du DTO).
+  if (filters?.assignedUserIds) params.set('assignedUserIds', filters.assignedUserIds.join(','))
+  const qs = params.toString()
+  return request<Task[]>(`/organizations/${organizationId}/tasks${qs ? `?${qs}` : ''}`, {
+    headers: auth(accessToken),
+  })
+}
+
+// Cree une tache dans un projet.
+// assignToSelf vaut true par defaut cote backend : on l'expose pour pouvoir
+// creer une tache non assignee.
+export function createTask(
+  accessToken: string,
+  organizationId: string,
+  data: {
+    name: string
+    description?: string
+    startDate?: string
+    dueDate?: string
+    assignToSelf?: boolean
+  },
+) {
+  return request<Task>(`/organizations/${organizationId}/tasks`, {
+    method: 'POST',
+    headers: auth(accessToken),
+    body: JSON.stringify(data),
+  })
+}
+
+// Change le statut d'une tache (NOT_STARTED / IN_PROGRESS / DONE).
+export function updateTaskStatus(
+  accessToken: string,
+  organizationId: string,
+  taskId: string,
+  status: TaskStatus,
+) {
+  return request<Task>(`/organizations/${organizationId}/tasks/${taskId}/status`, {
+    method: 'PATCH',
+    headers: auth(accessToken),
+    body: JSON.stringify({ status }),
+  })
+}
+
+// Modifie le contenu d'une tache (nom, description, dates).
+export function updateTask(
+  accessToken: string,
+  organizationId: string,
+  taskId: string,
+  data: { name?: string; description?: string | null; startDate?: string | null; dueDate?: string | null },
+) {
+  return request<Task>(`/organizations/${organizationId}/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: auth(accessToken),
+    body: JSON.stringify(data),
+  })
+}
+
+// Supprime une tache.
+export function deleteTask(accessToken: string, organizationId: string, taskId: string) {
+  return request<unknown>(`/organizations/${organizationId}/tasks/${taskId}`, {
+    method: 'DELETE',
+    headers: auth(accessToken),
+  })
+}

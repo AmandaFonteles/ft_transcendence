@@ -6,17 +6,16 @@
 
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../auth/AuthContext'
 import Card from '../components/ui/Card'
 
 export default function HomePage() {
-  // Statut renvoye par le backend.
+  const { user } = useAuth()
   const [apiStatus, setApiStatus] = useState('vérification…')
-  // Nombre d'utilisateurs en base (null tant qu'inconnu).
   const [users, setUsers] = useState<number | null>(null)
 
-  // Appel unique au montage de la page.
+  // Route publique : pas de jeton necessaire.
   useEffect(() => {
-    // Requete meme-origine : nginx route /api vers NestJS.
     fetch('/api/health')
       .then((res) => res.json())
       .then((data) => { setApiStatus(data.status); setUsers(data.users) })
@@ -35,23 +34,19 @@ export default function HomePage() {
         appartient chaque tâche.
       </p>
 
-      {/* Une seule action principale par ecran (regle de retenue). */}
+      {/* Une seule action principale par ecran ; elle depend de l'etat de session. */}
       <div className="flex gap-2 mb-8">
-        <Link
-          to="/connexion"
-          className="inline-flex items-center rounded-full bg-ink px-[18px] py-[9px] text-sm font-medium text-white no-underline hover:bg-action-hover"
-        >
-          Créer un compte
-        </Link>
-        <Link
-          to="/tableau-de-bord"
-          className="inline-flex items-center rounded-full border border-rule bg-surface px-[18px] py-[9px] text-sm font-medium text-ink no-underline hover:border-ink-faint"
-        >
-          Voir la démo
-        </Link>
+        {user ? (
+          <Link to="/tableau-de-bord" className="inline-flex items-center rounded-full bg-ink px-[18px] py-[9px] text-sm font-medium text-white no-underline hover:bg-action-hover">
+            Ouvrir mon tableau de bord
+          </Link>
+        ) : (
+          <Link to="/connexion" className="inline-flex items-center rounded-full bg-ink px-[18px] py-[9px] text-sm font-medium text-white no-underline hover:bg-action-hover">
+            Créer un compte
+          </Link>
+        )}
       </div>
 
-      {/* Etat technique des couches, utile en developpement et en soutenance. */}
       <Card>
         <h2 className="text-base font-semibold mb-1">État du système</h2>
         <p className="font-data text-[13px] text-ink-soft tabular-nums m-0">

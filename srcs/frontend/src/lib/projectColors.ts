@@ -36,3 +36,16 @@ export const projectText: Record<ProjectColor, string> = {
 
 // Liste des numeros disponibles, pratique pour afficher un selecteur de couleur.
 export const projectColors: ProjectColor[] = [1, 2, 3, 4, 5, 6]
+
+// [CONCEPT: couleur derivee de l'identifiant] Le backend ne stocke PAS de couleur
+// de projet. On en derive donc une, de facon deterministe, a partir du cuid : le
+// meme projet garde toujours la meme couleur, sur toutes les machines, sans
+// aucun stockage. Quand Ai ajoutera un champ "color" au modele Organization, il
+// suffira de remplacer l'appel a cette fonction.
+export function colorForId(id: string): ProjectColor {
+  // Somme des codes de caracteres : suffisant et stable pour une repartition simple.
+  let sum = 0
+  for (let i = 0; i < id.length; i++) sum += id.charCodeAt(i)
+  // Modulo 6 puis +1 pour tomber dans la plage 1..6 des couleurs definies.
+  return ((sum % 6) + 1) as ProjectColor
+}
