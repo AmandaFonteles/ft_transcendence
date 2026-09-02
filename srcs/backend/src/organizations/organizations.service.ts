@@ -268,4 +268,24 @@ export class OrganizationsService {
 	}
 	return organizationIdsToDelete
   }
+
+  async findAllMembers(organizationId: string, requesterId: string) {
+	await this.requireActiveMember(organizationId, requesterId)
+	return await this.prisma.organizationMember.findMany({
+	  where: {
+		organizationId: organizationId,
+		leftAt: null
+	  },
+	  select: {
+		role: true,
+		user: {
+		  select: {
+			id: true,
+			displayName: true,
+			avatarUrl: true
+		  }
+		}
+	  }
+	})
+  }
 }

@@ -47,6 +47,11 @@ export class OrganizationsController {
 	return this.organizations.findOneForMember(id, user.userId)
   }
 
+  @Get(':id/members')
+  findAllMembers(@Param('id') id: string, @CurrentUser() user: { userId: string }) {
+	return this.organizations.findAllMembers(id, user.userId)
+  }
+
   @Patch(':id')
   async update(@Param('id') id: string, @CurrentUser() user: { userId: string }, @Body() data: UpdateOrganizationDto) {
 	await this.organizations.update(id, user.userId, data)
