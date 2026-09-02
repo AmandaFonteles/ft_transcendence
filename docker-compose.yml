@@ -70,6 +70,13 @@ services:
       # Pourquoi : sans lui, le bind mount ci-dessus masquerait les node_modules installes
       # dans l'image par ceux (vides/incompatibles) de l'hote ; l'app planterait ("module not found").
       - /app/node_modules
+      # Volume NOMME pour les FICHIERS TELEVERSES (modele File du schema Prisma).
+      # Monte HORS de /app, volontairement : /app contient le CODE (bind mount, versionne),
+      # ici on stocke des DONNEES UTILISATEUR. Separer les deux rend la frontiere physique
+      # et evite que des televersements atterrissent dans le depot git.
+      # Volume nomme et non bind mount, pour la meme raison que postgres_data : les fichiers
+      # doivent survivre a "make down" sans jamais etre committes.
+      - uploads_data:/var/lib/transcendence/uploads
     # Reseau prive commun.
     networks: [transcendence]
     # Bloc des dependances de demarrage.
@@ -135,3 +142,6 @@ networks:
 volumes:
   # Declare le volume utilise par la base ci-dessus (sa duree de vie est geree par Docker).
   postgres_data:
+  # Fichiers televerses par les utilisateurs (modele File). Sa duree de vie est
+  # independante des conteneurs : un "make down" ne l'efface pas, seul "make clean" le fait.
+  uploads_data:

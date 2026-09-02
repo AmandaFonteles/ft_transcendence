@@ -367,3 +367,57 @@ cd srcs/backend && npm install --package-lock-only
 # 4. Vérifier la cohérence avant de committer.
 npm ci
 ```
+
+## Stockage des fichiers téléversés
+
+Le schéma définit `File` (avec `storagePath @unique`) et `FileAccess`. L'infrastructure
+de stockage est en place ; le module `files/` reste à écrire (lane Ai).
+
+### Ce qui existe
+
+| Élément | Valeur | Où |
+|---|---|---|
+| Volume nommé | `uploads_data` | `docker-compose.yml` |
+| Point de montage | `/var/lib/transcendence/uploads` | service `backend` |
+| Variable de chemin | `UPLOAD_DIR` | `.env` |
+| Limite applicative | `MAX_UPLOAD_SIZE_MB=10` | `.env` |
+| Limite nginx | `client_max_body_size 12m` | `nginx.conf`, bloc `/api` |
+
+**Pourquoi hors de `/app`.** `/app` contient le **code** (bind mount, versionné) ; le
+volume contient des **données utilisateur**. Les monter séparément rend la frontière
+physique et empêche des téléversements d'atterrir dans le dépôt git.
+
+**Pourquoi un volume nommé.** Même raison que `postgres_data` : les fichiers doivent
+survivre à `make down`. Seul `make clean` les efface — il supprime désormais **la base
+et les fichiers**.
+
+**Pourquoi nginx est réglé plus haut que l'application.** La valeur par défaut de nginx
+est 1 Mo : sans `client_max_body_size`, tout fichier plus gros est rejeté par un 413
+**avant** d'atteindre NestJS, qui ne peut alors produire aucun message utile. On règle
+nginx à 12 Mo et l'application à 10 Mo, pour que le refus vienne du backend avec un
+message clair.
+
+### Contrat pour le module `files/` (Ai)
+
+**`storagePath` ne doit jamais contenir le nom d'origine.** Il est `@unique` : générer
+un nom opaque (`cuid()` + extension) et conserver le nom lisible dans `File.name`.
+Trois raisons : pas de collision entre deux fichiers homonymes, pas de traversée de
+chemin (`../../etc/passwd`), et aucune fuite d'information par le nom.
+
+**Les fichiers doivent être servis par le backend, jamais par nginx directement.** Le
+modèle porte une `VisibilityPolicy` (`PRIVATE`, `RESTRICTED`, `ALL_MEMBERS`) et une
+table `FileAccess` : seul le code applicatif peut vérifier ces droits. Servir le volume
+en statique depuis nginx court-circuiterait toute la logique de permissions. C'est
+pourquoi `uploads_data` **n'est pas monté** dans le conteneur nginx.
+
+**Écrire le fichier, puis la ligne en base — et nettoyer si la seconde échoue.** Une
+écriture disque n'est pas transactionnelle : si `prisma.file.create()` échoue après la
+copie, le fichier reste orphelin sur le volume.
+
+**Valider le type réellement, pas seulement l'extension.** `mimeType` fourni par le
+client est déclaratif et falsifiable.
+
+```ts
+// Lecture du chemin, jamais codé en dur.
+const dir = process.env.UPLOAD_DIR ?? '/var/lib/transcendence/uploads'
+```

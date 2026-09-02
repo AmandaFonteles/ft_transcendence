@@ -607,3 +607,44 @@ ou le CLI Nest. Voici donc leur explication ici.
 décision explicite, produisaient des diffs de lockfile énormes à chaque commit, et ne
 garantissaient pas l'alignement CLI/client de Prisma. Le lockfile committé plus
 `npm ci` donnent une installation identique partout.
+
+## 15. Stockage des fichiers téléversés
+
+### 15.1 Volume nommé, monté hors de `/app`
+- **Une phrase** : les fichiers utilisateurs vivent dans un volume nommé
+  `uploads_data`, monté sur `/var/lib/transcendence/uploads`, séparé du code.
+- **Snippet** (`docker-compose.yml`) :
+  ```yaml
+  volumes:
+    - ./srcs/backend:/app                                # code (bind mount)
+    - uploads_data:/var/lib/transcendence/uploads        # données utilisateur
+  ```
+- **Pourquoi séparer** : `/app` est versionné et bind-monté ; y écrire des
+  téléversements les ferait apparaître dans le dépôt git.
+- **Piège** : `make clean` (`down --volumes`) efface désormais **la base ET les
+  fichiers**. Ce n'est plus seulement la base.
+
+### 15.2 `client_max_body_size` — le piège du reverse proxy
+- **Une phrase** : nginx limite les corps de requête à **1 Mo par défaut**.
+- **Snippet** (`nginx.conf`, bloc `/api`) : `client_max_body_size 12m;`
+- **Piège** : sans cette ligne, un fichier de 3 Mo est rejeté par un **413 de nginx**,
+  et NestJS ne voit jamais la requête — donc aucun message d'erreur applicatif. On
+  cherche le bug dans le code alors qu'il est dans le proxy.
+- **Astuce** : régler nginx (12 Mo) **au-dessus** de la limite applicative (10 Mo) pour
+  que le refus vienne du backend, avec un message clair.
+
+### 15.3 Pourquoi nginx ne sert pas les fichiers
+- **Une phrase** : le modèle `File` porte une `VisibilityPolicy` et une table
+  `FileAccess` ; seul le backend peut vérifier ces droits.
+- **Conséquence** : `uploads_data` n'est **pas** monté dans nginx. Servir le dossier en
+  statique donnerait accès à tout fichier dont on devine l'URL, en contournant les
+  permissions.
+- **Question de défense** : *« pourquoi ne pas laisser nginx servir les fichiers, c'est
+  plus rapide ? »* → parce que la vitesse ne vaut rien face à une fuite de fichiers
+  privés ; la vérification d'accès impose de passer par l'application.
+
+### 15.4 `storagePath` opaque
+- **Une phrase** : le chemin de stockage est un identifiant généré, jamais le nom
+  d'origine (conservé, lui, dans `File.name`).
+- **Trois raisons** : pas de collision entre homonymes, pas de traversée de chemin
+  (`../../etc/passwd`), pas de fuite d'information par le nom du fichier.

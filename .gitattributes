@@ -1,0 +1,15 @@
+# =============================================================================
+# .gitattributes : comment git doit traiter certains fichiers.
+# =============================================================================
+
+# Marque les lockfiles comme GENERES.
+# Effet : GitHub replie automatiquement leur diff et ne les compte plus dans les
+# statistiques de langage du depot. Le bruit visuel disparait des pull requests.
+srcs/backend/package-lock.json   linguist-generated=true
+srcs/frontend/package-lock.json  linguist-generated=true
+
+# Interdit a git de tenter une fusion LIGNE A LIGNE des lockfiles.
+# Pourquoi : une fusion textuelle de deux arbres de dependances produit un JSON
+# incoherent, impossible a installer. On REGENERE le lock, on ne le fusionne jamais.
+srcs/backend/package-lock.json   merge=binary
+srcs/frontend/package-lock.json  merge=binary
