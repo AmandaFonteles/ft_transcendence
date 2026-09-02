@@ -46,7 +46,7 @@ model User {
   // [displayName] + "#" + [5 dernier chiffre de cuid]
   // En cas de similarite avec un username deja existant le dernier chiffre du cuid
   // est modifie +1 ou -1 dans les caractere ascii
-  username    String   @unique
+  username String @unique
 
   // Nom affiche dans l'UI (modifiable), distinct du username.
   // Multi-mot => @map en snake_case (convention figee sur les colonnes).
@@ -69,7 +69,7 @@ model User {
   // Ils vivront dans un modele dedie (ex. Credential) relie a User, pas ici :
   // ce modele reste l'IDENTITE, pas les secrets.
   // Ajout du model credential pour le hash du mdp
-  credential  Credential?
+  credential Credential?
 
   // ajout tableau de Oauth pour authentification extern (42, google, etc)
   oauthAccounts OAuthAccount[]
@@ -90,42 +90,41 @@ model User {
   @@map("users")
 }
 
-
 model Credential {
   // cuid du model creer convention
-  id           String @id @default(cuid())
+  id String @id @default(cuid())
 
   // hash du mot de passe
   passwordHash String @map("password_hash")
 
   // pointe sur le cuid du model User
-  userId       String @unique @map("user_id")
+  userId String @unique @map("user_id")
 
   // Relation Prisma avec le modele User.
   // - fields: [userId] pointe sur la cle etrangere locale.
   // - references: [id] cible la cle primaire du modele User.
   // - onDelete: Cascade supprime automatiquement ce Credential si le User est supprime.
-  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   //Add 2FA
-  twoFactorSecret  String?  @map("two_factor_secret")
-  twoFactorEnabled Boolean  @default(false) @map("two_factor_enabled")
+  twoFactorSecret  String? @map("two_factor_secret")
+  twoFactorEnabled Boolean @default(false) @map("two_factor_enabled")
 
   @@map("credentials")
 }
 
 model OAuthAccount {
-  id         String @id @default(cuid())
+  id String @id @default(cuid())
 
-  provider   String
+  provider String
 
   // id utilisateur 42
   providerId String @map("provider_id")
 
-  userId     String @map("user_id")
-  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt  DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@unique([provider, providerId])
   @@map("oauth_accounts")
@@ -145,6 +144,7 @@ model Organization {
   updatedAt           DateTime             @updatedAt @map("updated_at")
   organizationMembers OrganizationMember[]
   tasks               Task[]
+  files               File[]
 
   @@map("organizations")
 }
@@ -155,18 +155,20 @@ enum Role {
 }
 
 model OrganizationMember {
-  id             String       @id @default(cuid())
+  id             String           @id @default(cuid())
   role           Role
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  leftAt         DateTime?    @map("left_at")
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  leftAt         DateTime?        @map("left_at")
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   //userId pas unique parce qu'on peut appartenir a poly orga, on utilisera une unicite combinee plus bas
-  userId         String       @map("user_id")
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  organizationId String       @map("organization_id")
+  userId         String           @map("user_id")
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId String           @map("organization_id")
   ownedTasks     Task[]
   assignedTasks  TaskAssignment[]
+  ownedFiles     File[]
+  fileAccesses   FileAccess[]
 
   @@unique([userId, organizationId])
   @@index([organizationId])
@@ -180,13 +182,13 @@ enum TaskStatus {
 }
 
 model TaskAssignment {
-  id                  String               @id @default(cuid())
-  createdAt           DateTime             @default(now()) @map("created_at")
-  updatedAt           DateTime             @updatedAt @map("updated_at")
-  task                Task                 @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  taskId              String               @map("task_id")
-  member              OrganizationMember   @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  memberId            String               @map("member_id")
+  id        String             @id @default(cuid())
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+  task      Task               @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId    String             @map("task_id")
+  member    OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId  String             @map("member_id")
 
   @@unique([taskId, memberId])
   @@index([memberId])
@@ -194,24 +196,63 @@ model TaskAssignment {
 }
 
 model Task {
-  id                  String               @id @default(cuid())
-  name                String
-  description         String?
-  status              TaskStatus           @default(NOT_STARTED)
-  startDate           DateTime?            @map("start_date")
-  dueDate             DateTime?            @map("due_date")
-  createdAt           DateTime             @default(now()) @map("created_at")
-  updatedAt           DateTime             @updatedAt @map("updated_at")
-  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  organizationId      String               @map("organization_id")
-  owner               OrganizationMember?  @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  ownerId             String?              @map("owner_id")
-  taskAssignments    TaskAssignment[]
+  id              String              @id @default(cuid())
+  name            String
+  description     String?
+  status          TaskStatus          @default(NOT_STARTED)
+  startDate       DateTime?           @map("start_date")
+  dueDate         DateTime?           @map("due_date")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId  String              @map("organization_id")
+  owner           OrganizationMember? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  ownerId         String?             @map("owner_id")
+  taskAssignments TaskAssignment[]
 
   @@index([organizationId])
   @@index([ownerId])
-  //@@index([startDate])
-  //@@index([dueDate])
-  //@@index([status])
   @@map("tasks")
+}
+
+enum VisibilityPolicy {
+  PRIVATE
+  RESTRICTED
+  ALL_MEMBERS
+}
+
+model FileAccess {
+  id        String             @id @default(cuid())
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+  file      File               @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  fileId    String             @map("file_id")
+  member    OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId  String             @map("member_id")
+
+  @@unique([fileId, memberId])
+  @@index([memberId])
+  @@map("file_accesses")
+}
+
+model File {
+  id               String              @id @default(cuid())
+  name             String
+  description      String?
+  mimeType         String              @map("mime_type")
+  size             Int
+  storagePath      String              @unique @map("storage_path")
+  visibilityPolicy VisibilityPolicy    @default(ALL_MEMBERS) @map("visibility_policy")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+  organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId   String              @map("organization_id")
+  owner            OrganizationMember? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  ownerId          String?             @map("owner_id")
+  fileAccesses     FileAccess[]
+
+  @@index([organizationId])
+  @@index([ownerId])
+  //@@index([name])
+  @@map("files")
 }
