@@ -13,11 +13,17 @@ WORKDIR /app
 
 # Copie d'abord SEULEMENT les manifestes (package.json et package-lock.json).
 # Pourquoi separement : Docker met en cache les couches ; tant que package.json ne
-# change pas, il reutilise le cache du "npm install" meme si le code change (rebuild rapide).
+# change pas, il reutilise le cache du "npm ci" meme si le code change (rebuild rapide).
 COPY package*.json ./
 
 # Installe les dependances declarees dans package.json.
-RUN npm install
+# Installe STRICTEMENT ce que decrit package-lock.json.
+# Pourquoi "ci" et non "install" : "install" traite le lockfile comme une SUGGESTION
+# et peut le reecrire ; "ci" le traite comme une LOI. Il supprime node_modules,
+# installe exactement l'arbre fige, et ECHOUE si le lock diverge de package.json.
+# Le build casse donc tot et bruyamment, au lieu de produire silencieusement un
+# arbre different de celui des coequipiers.
+RUN npm ci
 
 # Copie ensuite tout le reste du code source dans l'image.
 # Pourquoi apres l'install : a l'execution, un bind mount recouvre ce code par tes

@@ -184,9 +184,20 @@ function auth(accessToken: string) {
 
 // --- Utilisateurs ------------------------------------------------------------
 
-// Liste tous les utilisateurs connus (page Equipe).
+// [SECURITE] Forme renvoyee par l'annuaire. L'ADRESSE E-MAIL EN EST ABSENTE :
+// le backend ne la renvoie plus (liste blanche de champs dans users.service.findAll).
+// C'est une donnee personnelle dont l'annuaire n'a pas besoin.
+export type PublicUser = {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+  createdAt: string
+}
+
+// Liste les utilisateurs connus (page Equipe). Route PROTEGEE : jeton obligatoire.
 export function listUsers(accessToken: string) {
-  return request<AuthUser[]>('/users', { headers: auth(accessToken) })
+  return request<PublicUser[]>('/users', { headers: auth(accessToken) })
 }
 
 // --- Projets -----------------------------------------------------------------

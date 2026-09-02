@@ -569,3 +569,41 @@ ou le CLI Nest. Voici donc leur explication ici.
   à l'école. Bruit sans conséquence.
 - **Question de défense** : « pourquoi les images sont-elles écrites en entier ? »
   → portabilité Docker/Podman et respect du déploiement non interactif.
+
+## 14. Lockfiles et reproductibilité
+
+### 14.1 `package.json` vs `package-lock.json`
+- **Une phrase** : le premier exprime une **intention** (une plage de versions), le
+  second est un **fait** (la photo exacte de l'arbre installé, dépendances
+  transitives comprises).
+- **Piège** : croire que `^6.2.1` protège des ruptures. Chez nous, il a laissé Prisma
+  dériver de 6.2.1 à 6.19.3 — 17 versions mineures — sans décision.
+
+### 14.2 `npm ci` vs `npm install`
+- **Une phrase** : `install` traite le lockfile comme une suggestion et peut le
+  réécrire ; `ci` le traite comme une loi et **échoue** si le lock diverge.
+- **Snippet** (`Dockerfile`) : `RUN npm ci`
+- **Pourquoi** : build reproductible qui casse tôt, plutôt qu'un build qui diverge en
+  silence de celui des coéquipiers.
+- **Piège** : `npm ci` exige un lockfile **présent et synchronisé**. Sans lui, échec.
+
+### 14.3 Le champ `integrity`
+- **Une phrase** : c'est le hash SHA-512 du tarball ; si un paquet est republié avec
+  du code différent, le hash ne correspond plus et npm refuse d'installer.
+- **Piège** : un lockfile généré hors-ligne ou depuis le cache peut perdre `resolved`
+  et `integrity` → `npm ci` perd sa garantie de sécurité, et chaque coéquipier
+  ré-ajoute/retire ces champs (des centaines de lignes de diff pour rien).
+- **Vérifier** : `grep -c '"integrity"' package-lock.json`
+
+### 14.4 Alignement Prisma
+- **Une phrase** : `prisma` (CLI) et `@prisma/client` doivent porter **exactement** la
+  même version, sinon la génération du client produit des erreurs obscures.
+- **Chez nous** : les deux en `6.19.3`, pinnés sans `^`.
+- **Piège** : rester sur la ligne v6 — la v7 impose une migration ESM, incompatible
+  avec le CommonJS de NestJS.
+
+### 14.5 Question de défense
+*« Pourquoi avoir enlevé les `^` ? »* → Parce qu'ils laissaient l'arbre dériver sans
+décision explicite, produisaient des diffs de lockfile énormes à chaque commit, et ne
+garantissaient pas l'alignement CLI/client de Prisma. Le lockfile committé plus
+`npm ci` donnent une installation identique partout.

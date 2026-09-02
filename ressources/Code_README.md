@@ -306,3 +306,64 @@ chaque classe est écrite intégralement.
 
 Les blocs encadrés en pointillés (`.seam`) marquent visuellement, **dans l'interface
 elle-même**, les emplacements réservés à chaque module.
+
+## Dépendances et lockfiles
+
+Les versions sont **pinnées exactement** (aucun `^` ni `~`) dans les deux
+`package.json`, et les `package-lock.json` sont committés. C'est ce qui garantit que
+tout le monde — et l'évaluateur — installe strictement le même arbre.
+
+### Pourquoi cette discipline
+
+`package.json` exprime une **intention** (`^6.2.1` = « n'importe quel 6.x ≥ 6.2.1 »).
+`package-lock.json` est un **fait** (`6.19.3`). Avec des `^`, chaque `npm install` sur
+une machine sans lock valide réinterroge le registre et prend la version la plus
+récente compatible **à cet instant** : deux personnes qui installent à trois jours
+d'écart n'obtiennent pas le même arbre, d'où des diffs de milliers de lignes.
+
+Constat réel avant remise à plat : **20 paquets avaient dérivé**, dont `@nestjs/*`
+de 10.4.15 à 10.4.22 et Prisma de 6.2.1 à **6.19.3**, sans décision explicite.
+
+> `prisma` (CLI) et `@prisma/client` doivent porter **strictement la même version**.
+> Un décalage produit des erreurs de génération de client très obscures. Les deux
+> sont aujourd'hui en `6.19.3`.
+
+### Règles d'équipe
+
+1. **On ne modifie jamais un lockfile à la main.** C'est un artefact généré.
+2. **`npm install` ne sert qu'à ajouter ou retirer une dépendance.** On committe alors
+   `package.json` **et** `package-lock.json` dans le **même commit** :
+   `chore(backend): add socket.io 4.8.3`.
+3. **Pour simplement installer l'existant : `npm ci`.** Jamais `npm install` « pour voir ».
+4. **Une seule personne par lot de dépendances.** Deux ajouts en parallèle = conflit
+   garanti. On se prévient avant.
+5. **Le lockfile est committé, toujours.** Le mettre dans `.gitignore` rend `npm ci`
+   impossible et détruit la reproductibilité.
+
+### Fichiers de discipline
+
+| Fichier | Rôle |
+|---|---|
+| `.nvmrc` | Version de Node commune (22), alignée sur les images Docker |
+| `srcs/*/.npmrc` | `save-exact=true` : empêche npm de réintroduire des `^` |
+| `.gitattributes` | Replie les diffs de lockfile et **interdit** leur fusion ligne à ligne |
+| `engines` (package.json) | Refuse une version de Node ou npm incompatible |
+
+Les `Dockerfile` utilisent **`npm ci`** et non `npm install` : `ci` traite le lockfile
+comme une loi, supprime `node_modules`, installe exactement l'arbre figé, et **échoue**
+si le lock diverge de `package.json`. Le build casse tôt et bruyamment plutôt que de
+produire en silence un arbre différent.
+
+### Résoudre un conflit sur un lockfile
+
+On ne fusionne jamais ligne à ligne — le résultat serait un JSON incohérent.
+
+```bash
+# 1. Résoudre package.json À LA MAIN (court, lisible) en gardant les deux côtés.
+# 2. Prendre n'importe quelle version du lock : elle sera écrasée.
+git checkout --ours srcs/backend/package-lock.json
+# 3. Régénérer le lock depuis le package.json fusionné (sans toucher node_modules).
+cd srcs/backend && npm install --package-lock-only
+# 4. Vérifier la cohérence avant de committer.
+npm ci
+```

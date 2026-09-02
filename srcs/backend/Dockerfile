@@ -24,7 +24,13 @@ WORKDIR /app
 COPY package*.json ./
 
 # Installe les dependances (Nest + Prisma CLI + @prisma/client).
-RUN npm install
+# Installe STRICTEMENT ce que decrit package-lock.json.
+# Pourquoi "ci" et non "install" : "install" traite le lockfile comme une SUGGESTION
+# et peut le reecrire ; "ci" le traite comme une LOI. Il supprime node_modules,
+# installe exactement l'arbre fige, et ECHOUE si le lock diverge de package.json.
+# Le build casse donc tot et bruyamment, au lieu de produire silencieusement un
+# arbre different de celui des coequipiers.
+RUN npm ci
 
 # Copie le reste du code (dont prisma/schema.prisma et l'entrypoint).
 COPY . .

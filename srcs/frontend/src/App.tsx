@@ -26,6 +26,7 @@ import TeamPage from './pages/TeamPage'
 import ProfilePage from './pages/ProfilePage'
 import ContactPage from './pages/ContactPage'
 import PrivacyPage from './pages/PrivacyPage'
+import TermsPage from './pages/TermsPage'
 import NotFoundPage from './pages/NotFoundPage'
 
 export default function App() {
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="connexion" element={<LoginPage />} />
         <Route path="contact" element={<ContactPage />} />
         <Route path="confidentialite" element={<PrivacyPage />} />
+        <Route path="conditions" element={<TermsPage />} />
 
         {/* --- Pages protegees --- */}
         {/* RequireAuth n'a pas de chemin : il enveloppe les routes ci-dessous et

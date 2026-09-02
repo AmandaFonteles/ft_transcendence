@@ -10,7 +10,6 @@ import {
 import { Prisma } from '@prisma/client'
 import * as argon2 from 'argon2'
 import { PrismaService } from '../prisma/prisma.service'
-import { CreateUserDto } from './dto/create-user.dto'
 import { UpdateProfileDto } from './dto/update-profile.dto'
 import { ChangePasswordDto } from './dto/change-password.dto'
 
@@ -32,19 +31,21 @@ const USER_PUBLIC_SELECT = {
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(data: CreateUserDto) {
-    try {
-      return await this.prisma.user.create({ data })
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('email ou username deja utilise')
-      }
-      throw error
-    }
-  }
-
+  // [CONCEPT: liste blanche de champs] "select" enumere explicitement ce qui sort.
+  // L'ADRESSE E-MAIL EST VOLONTAIREMENT ABSENTE : c'est une donnee personnelle, et
+  // l'annuaire n'a pas besoin d'elle pour fonctionner. Un "findMany()" nu renverrait
+  // tous les champs du modele, e-mail compris, a chaque appel.
   findAll() {
-    return this.prisma.user.findMany({ orderBy: { createdAt: 'desc' } })
+    return this.prisma.user.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        avatarUrl: true,
+        createdAt: true,
+      },
+    })
   }
 
   // [CONCEPT: select vs include] On utilise "select" (liste blanche des champs)

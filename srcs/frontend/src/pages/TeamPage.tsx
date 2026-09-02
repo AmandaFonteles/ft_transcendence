@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { listUsers } from '../api'
-import type { AuthUser } from '../api'
+import type { PublicUser } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import Card from '../components/ui/Card'
 import TextField from '../components/ui/TextField'
@@ -17,7 +17,7 @@ import PageHeading from '../components/ui/PageHeading'
 
 export default function TeamPage() {
   const { accessToken, user: me } = useAuth()
-  const [users, setUsers] = useState<AuthUser[]>([])
+  const [users, setUsers] = useState<PublicUser[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -38,11 +38,12 @@ export default function TeamPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return users
-    // Recherche sur le nom affiche, le username et l'email.
+    // Recherche sur le nom affiche et l'identifiant public uniquement.
+    // L'e-mail n'est volontairement plus exposé par l'API : on ne peut donc plus
+    // chercher dessus, et c'est voulu (donnee personnelle).
     return users.filter((u) =>
       u.displayName.toLowerCase().includes(q) ||
-      u.username.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q),
+      u.username.toLowerCase().includes(q),
     )
   }, [users, query])
 
@@ -58,7 +59,7 @@ export default function TeamPage() {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Nom, identifiant ou e-mail"
+          placeholder="Nom ou identifiant"
         />
       </div>
 

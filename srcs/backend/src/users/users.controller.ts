@@ -1,9 +1,8 @@
 // [CONCEPT: controller de feature] UsersController mappe les routes HTTP vers le
 // service. Il ne contient AUCUNE logique : il recoit, delegue, renvoie.
 
-import { Body, Controller, Get, NotFoundException, Patch, Post, UseGuards } from '@nestjs/common'
+import { Body, Controller, Get, NotFoundException, Patch, UseGuards } from '@nestjs/common'
 import { UsersService } from './users.service'
-import { CreateUserDto } from './dto/create-user.dto'
 import { SelectAvatarDto } from './dto/select-avatar.dto'
 import { UpdateProfileDto } from './dto/update-profile.dto'
 import { ChangePasswordDto } from './dto/change-password.dto'
@@ -16,11 +15,10 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator'
 export class UsersController {
   constructor(private readonly users: UsersService) {}
 
-  @Post()
-  create(@Body() dto: CreateUserDto) {
-    return this.users.create(dto)
-  }
-
+  // [SECURITE] Route PROTEGEE : l'annuaire n'est pas public.
+  // Avant : aucune garde -> un simple `curl https://.../api/users` renvoyait TOUS
+  // les utilisateurs, adresses e-mail comprises, sans etre connecte.
+  @UseGuards(JwtAuthGuard)
   @Get()
   findAll() {
     return this.users.findAll()
