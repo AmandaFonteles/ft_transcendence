@@ -27,10 +27,7 @@ export class TasksController {
   @Post()
   async create(@Param('organizationId') organizationId: string, @CurrentUser() user: { userId: string }, @Body() data: CreateTaskDto) {
 	const task = await this.tasksService.create(data, organizationId, user.userId)
-	return { 
-		message: `Tâche créée avec succès !`,
-		taskId: task.id
-	}
+	return task
   }
 
   @Post(':taskId/assignments')
@@ -39,7 +36,7 @@ export class TasksController {
 	return { 
 		message: `Membre assigné avec succès !`,
 		taskId: taskId
-	}
+	}//Faudra probablement faire le meme retour que pour la creation de tache, avec l'objet complet de l'assignation.
   }
 
   @Get(':taskId')
@@ -65,7 +62,7 @@ export class TasksController {
 	return { 
 		message: `Mise à jour réussie !`,
 		taskId: taskId
-	}
+	}//idem
   }
 
   @Patch(':taskId/status')
@@ -80,7 +77,7 @@ export class TasksController {
 		message: `Propriété transférée avec succès !`,
 		taskId: taskId
 	}
-  }
+  }//idem
 
   @Delete(':taskId/assignments/:memberUserId')
   async removeAssignment(@Param('organizationId') organizationId: string, @Param('taskId') taskId: string, @Param('memberUserId') memberUserId: string, @CurrentUser() user: { userId: string }) {
@@ -88,7 +85,7 @@ export class TasksController {
 	return { 
 		message: `Assignation supprimée avec succès !`,
 		taskId: taskId
-	}
+	}//idem
   }
 
   @Delete(':taskId')
@@ -97,6 +94,6 @@ export class TasksController {
 	return { 
 		message: `Tâche supprimée avec succès !`,
 		taskId: taskId
-	}
+	}//idem
   }
 }

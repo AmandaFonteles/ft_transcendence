@@ -37,7 +37,7 @@ export default function ProjectCreatePage() {
         invitePolicy,
       })
       // Redirige vers le projet cree : l'utilisateur enchaine directement.
-      navigate(`/projets/${org.id}`)
+      navigate(`/projets/${org.organizationId}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'erreur inconnue')
     } finally {

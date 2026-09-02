@@ -40,9 +40,8 @@ export class OrganizationsService {
 
   async findOne(id: string) {
     const organization = await this.prisma.organization.findUnique({ where: { id: id } })
-
     if (!organization) {
-      throw new NotFoundException(`Le projet n'a pas été trouvé`)//fr ?
+      throw new NotFoundException(`Le projet n'a pas été trouvé`)
     }
 
     return organization
