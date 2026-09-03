@@ -18,6 +18,8 @@ import { AuthModule } from './auth/auth.module'
 import { OrganizationsModule } from './organizations/organizations.module';
 // Importe le module de feature "tasks".
 import { TasksModule } from './tasks/tasks.module';
+// Importe le module de feature "files".
+import { FilesModule } from './files/files.module';
 
 import { FriendshipModule } from './friendship/friendship.module';
 
@@ -30,7 +32,7 @@ import { MetricsModule } from './metrics/metrics.module';
 @Module({
   // On importe PrismaModule (@Global => PrismaService injectable partout) et UsersModule.
   // Chaque futur module d'equipe (AuthModule, BoardsModule...) s'ajoutera dans cette liste.
-  imports: [PrismaModule, UsersModule, RealtimeModule, AuthModule, OrganizationsModule, TasksModule, FriendshipModule , ChatModule, MetricsModule],
+  imports: [PrismaModule, UsersModule, RealtimeModule, AuthModule, OrganizationsModule, TasksModule, FilesModule, FriendshipModule , ChatModule, MetricsModule],
   // Controllers de ce module.
   controllers: [AppController],
   // Providers de ce module.

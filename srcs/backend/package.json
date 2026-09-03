@@ -30,11 +30,13 @@
     "qrcode": "1.5.4",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
-    "socket.io": "4.8.3"
+    "socket.io": "4.8.3",
+    "wasmagic": "1.0.10"
   },
   "devDependencies": {
     "@nestjs/cli": "10.4.9",
     "@types/cookie-parser": "1.4.10",
+    "@types/multer": "2.2.0",
     "@types/node": "22.20.1",
     "@types/passport-jwt": "4.0.1",
     "@types/qrcode": "1.5.6",

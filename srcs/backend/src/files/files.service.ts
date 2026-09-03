@@ -1,0 +1,134 @@
+import { Injectable, InternalServerErrorException, BadRequestException, PayloadTooLargeException, OnModuleInit, NotFoundException, ForbiddenException } from '@nestjs/common'
+// import { Role } from '@prisma/client'
+import { PrismaService } from '../prisma/prisma.service'
+import { OrganizationsService } from '../organizations/organizations.service'
+import { mkdir,writeFile, unlink } from 'fs/promises'
+import { join, extname } from 'path'
+import { CreateFileDto } from './dto/create-file.dto'
+import { WASMagic } from 'wasmagic'
+import { randomUUID } from 'crypto'
+
+@Injectable()
+export class FilesService implements OnModuleInit {
+  private magic: WASMagic
+  
+  constructor(private readonly prisma: PrismaService, private readonly orgaServ: OrganizationsService) {}
+
+  async onModuleInit() {
+    this.magic = await WASMagic.create()
+  }
+
+  private async createOrganizationFolder(organizationId: string) {
+	const uploadDir = process.env.UPLOAD_DIR
+	if (uploadDir === undefined) {
+	  throw new InternalServerErrorException(`La variable d'environnement UPLOAD_DIR n'est pas définie`)
+	}
+	const organizationPath = join(uploadDir, 'organizations', organizationId)
+	try {
+		await mkdir(organizationPath, { recursive: true })
+	} catch {
+		throw new InternalServerErrorException(`Impossible de créer le dossier contenant les fichiers du projet`)
+	}
+	return organizationPath
+  }
+
+  async uploadFile(data: CreateFileDto, organizationId: string, requesterId: string, file: Express.Multer.File) {
+	if (!file) {
+		throw new BadRequestException(`Aucun fichier n'a été fourni`)
+	}
+	if (file.size > 10 * 1024 * 1024) {
+		throw new PayloadTooLargeException(`Le fichier est trop lourd`)
+	}
+	const allowedFileTypes : Record<string, string[]> =  {
+  		'image/jpeg': ['.jpg', '.jpeg'],
+  		'image/png': ['.png'],
+  		'image/webp': ['.webp'],
+  		'application/pdf': ['.pdf'],
+		'text/plain': ['.txt'],
+		'application/msword': ['.doc'],
+		'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+
+		'application/vnd.ms-excel': ['.xls'],
+		'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+
+		'application/vnd.ms-powerpoint': ['.ppt'],
+		'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx']
+	}
+	const fileExtension = extname(file.originalname).toLowerCase()
+	if (!allowedFileTypes[file.mimetype]?.includes(fileExtension)) {
+		throw new BadRequestException(`Type de fichier non autorisé`)
+	}
+	const detectedMimeType = this.magic.detect(file.buffer)
+	if (detectedMimeType !== file.mimetype) {
+		throw new BadRequestException(`Le type MIME du fichier ne correspond pas à son contenu`)
+	}
+	const member = await this.orgaServ.requireActiveMember(organizationId, requesterId)
+	const organizationPath = await this.createOrganizationFolder(organizationId)
+	const generatedFileName = `${randomUUID()}${fileExtension}`
+	const storagePath = join('organizations', organizationId, generatedFileName)
+	const filePath = join(organizationPath, generatedFileName)
+	try {
+	  await writeFile(filePath, file.buffer)
+	} catch {
+	  throw new InternalServerErrorException(`Impossible d'enregistrer le fichier sur le disque`)
+	}
+	try {
+	  const uploadedFile = await this.prisma.file.create({
+	  	data: {
+	  	  name: file.originalname,
+	  	  description: data.description,
+	  	  visibilityPolicy: data.visibilityPolicy,
+	  	  mimeType: file.mimetype,
+	  	  size: file.size,
+	  	  storagePath: storagePath,
+	  	  organizationId: organizationId,
+	  	  ownerId: member.id
+	  	}
+	  })
+	  return uploadedFile
+	} catch {
+	  try {
+		await unlink(filePath)
+	  } catch {
+		// If the file deletion fails, we do not throw an exception to avoid masking the original error
+	  }
+	  throw new InternalServerErrorException(`Impossible d'enregistrer le fichier dans la base de données`)
+	}
+  }
+
+  async findFileById(fileId: string, requesterId: string, organizationId: string) {
+	const file = await this.prisma.file.findUnique({
+	  where: {
+		id: fileId,
+		organizationId: organizationId
+	  }
+	})
+	if (!file) {
+	  throw new NotFoundException(`Le fichier ${fileId} n'existe pas`)
+	}
+	const member = await this.orgaServ.requireActiveMember(file.organizationId, requesterId)
+	if (member.role === 'ADMIN') {
+	  return file
+	}
+	if (file.ownerId === member.id) {
+	  return file
+	}
+	if (file.visibilityPolicy === 'ALL_MEMBERS') {
+	  return file
+	}
+	if (file.visibilityPolicy === 'RESTRICTED') {
+	  const fileAccess = await this.prisma.fileAccess.findUnique({
+		where: {
+		  fileId_memberId: {
+			fileId: fileId,
+			memberId: member.id
+		  }
+		}
+	  })
+	  if (fileAccess) {
+	    return file
+	   }
+	}
+	throw new ForbiddenException(`Accès au fichier refusé`)
+  }
+}
