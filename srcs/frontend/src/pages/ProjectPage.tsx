@@ -5,11 +5,13 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { createTask, getOrganization, listTasks, updateTaskStatus } from '../api'
+import { createTask, getOrganization, listOrganizationMembers, listTasks, updateTaskStatus } from '../api'
 import type { Organization, Task, TaskStatus } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import TaskRow from '../components/TaskRow'
-import PageHeading from '../components/ui/PageHeading'
+import TaskDetail from '../components/TaskDetail'
+import MembersSection from '../components/MembersSection'
+import ProjectSettings from '../components/ProjectSettings'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import TextField from '../components/ui/TextField'
@@ -22,7 +24,7 @@ import ChatPanel from '../components/ChatPanel'
 export default function ProjectPage() {
   // Identifiant du projet, extrait de l'URL /projets/:projectId.
   const { projectId } = useParams<{ projectId: string }>()
-  const { accessToken } = useAuth()
+  const { accessToken, user } = useAuth()
 
   const [org, setOrg] = useState<Organization | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
@@ -33,6 +35,12 @@ export default function ProjectPage() {
   const [creating, setCreating] = useState(false)
   // Filtre "mes tâches" / "toutes" prevu par la structure.
   const [onlyMine, setOnlyMine] = useState(false)
+  // Tache ouverte dans le panneau de detail (null = aucun panneau).
+  const [openTask, setOpenTask] = useState<Task | null>(null)
+  // L'utilisateur courant est-il administrateur de CE projet ?
+  const [iAmAdmin, setIAmAdmin] = useState(false)
+  // Panneau de modification du projet ouvert ?
+  const [editingProject, setEditingProject] = useState(false)
 
   // Charge le projet et ses taches. Relance si le filtre change, car le backend
   // sait filtrer lui-meme (parametre owned).
@@ -63,6 +71,26 @@ export default function ProjectPage() {
     return () => { cancelled = true }
   }, [accessToken, projectId, onlyMine])
 
+  // Determine si l'utilisateur courant est administrateur du projet.
+  // [CONCEPT: effet distinct] On ne le range pas dans le chargement principal :
+  // celui-ci se relance a chaque changement du filtre "mes taches", alors que le
+  // role, lui, ne bouge pas. Deux effets, deux rythmes.
+  useEffect(() => {
+    if (!accessToken || !projectId || !user) return
+    let cancelled = false
+    listOrganizationMembers(accessToken, projectId)
+      .then((members) => {
+        if (cancelled) return
+        const me = members.find((m) => m.user.id === user.id)
+        setIAmAdmin(me?.role === 'ADMIN')
+      })
+      // Echec silencieux : on retombe sur "pas administrateur", donc l'action de
+      // modification n'est simplement pas proposee. Le backend reste de toute
+      // facon le seul garant du droit.
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [accessToken, projectId, user])
+
   // Change le statut d'une tache.
   async function handleStatus(taskId: string, status: TaskStatus) {
     if (!accessToken || !projectId) return
@@ -72,6 +100,13 @@ export default function ProjectPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'erreur inconnue')
     }
+  }
+
+  // Applique une tache modifiee a la liste ET au panneau ouvert, pour que le
+  // detail reste synchronise avec ce qui vient d'etre enregistre.
+  function applyUpdate(updated: Task) {
+    setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+    setOpenTask(updated)
   }
 
   // Ajoute une tache creee au formulaire en tete de liste.
@@ -88,18 +123,46 @@ export default function ProjectPage() {
 
   return (
     <>
-      <PageHeading
-        title={org.name}
-        subtitle={`${tasks.length} tâche${tasks.length > 1 ? 's' : ''}`}
-        actions={
-          <div className="flex items-center gap-3">
-            <ProjectDot color={color} label={org.name} />
-            <Button variant="primary" onClick={() => setCreating((v) => !v)}>
-              {creating ? 'Annuler' : 'Créer une tâche'}
-            </Button>
-          </div>
-        }
-      />
+      {/* En-tete du projet. Le NOM est cliquable pour les administrateurs : c'est
+          l'endroit ou l'on s'attend a agir sur le projet lui-meme. Pour les
+          membres non administrateurs, il reste un simple titre. */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="flex-1 min-w-0">
+          {iAmAdmin ? (
+            <button
+              onClick={() => setEditingProject(true)}
+              title="Modifier le projet"
+              // group : permet de reveler l'icone de modification au survol du
+              // bouton entier, et pas seulement de l'icone elle-meme.
+              className="group flex items-center gap-2 text-left cursor-pointer max-w-full"
+            >
+              <h1 className="text-[28px] font-semibold tracking-tight leading-tight truncate group-hover:text-link">
+                {org.name}
+              </h1>
+              {/* Indice visuel discret : sans lui, rien ne signale que le titre
+                  est cliquable. aria-hidden car le title du bouton porte deja
+                  l'information pour les lecteurs d'ecran. */}
+              <span className="text-ink-faint opacity-0 group-hover:opacity-100 shrink-0" aria-hidden="true">
+                ✎
+              </span>
+            </button>
+          ) : (
+            <h1 className="text-[28px] font-semibold tracking-tight leading-tight truncate">
+              {org.name}
+            </h1>
+          )}
+          <p className="font-data text-[13px] text-ink-soft tabular-nums mt-0.5">
+            {tasks.length} tâche{tasks.length > 1 ? 's' : ''}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 shrink-0">
+          <ProjectDot color={color} label={org.name} />
+          <Button variant="primary" onClick={() => setCreating((v) => !v)}>
+            {creating ? 'Annuler' : 'Créer une tâche'}
+          </Button>
+        </div>
+      </div>
 
       {/* Description optionnelle du projet (demandee dans la structure du 28/08). */}
       {org.description && <p className="text-ink-soft max-w-[62ch] mb-6">{org.description}</p>}
@@ -129,13 +192,14 @@ export default function ProjectPage() {
         <EmptyState
           title="Aucune tâche"
           description={onlyMine ? 'Aucune tâche ne vous appartient dans ce projet.' : 'Créez la première tâche du projet.'}
+          illustration="tasks"
         />
       ) : (
         // max-h + overflow : la liste defile au lieu d'allonger la page a l'infini
         // (demande du 28/08 : "nombre de taches affichees, a faire defiler").
         <div className="max-h-[420px] overflow-y-auto pr-1">
           {tasks.map((t) => (
-            <TaskRow key={t.id} task={t} projectColor={color} onStatusChange={handleStatus} />
+            <TaskRow key={t.id} task={t} projectColor={color} onStatusChange={handleStatus} onOpen={setOpenTask} />
           ))}
         </div>
       )}
@@ -143,21 +207,41 @@ export default function ProjectPage() {
       {/* --- Modules non encore disponibles ---------------------------------- */}
 
       <h2 className="text-xl font-semibold mt-8 mb-3">Membres et rôles</h2>
-      <SeamBlock owner="Module organisations · Ai">
-        Le backend gère déjà les rôles (ADMIN / MEMBER), l'ajout, la promotion et
-        l'exclusion de membres. Il manque une route de <em>lecture</em> :
-        <code className="mx-1">GET /organizations/:id/members</code>. Dès qu'elle
-        existera, cette section affichera les avatars, les rôles, le tag admin et
-        les actions au clic sur un avatar.
-      </SeamBlock>
+      {/* Section reelle : la route GET /organizations/:id/members existe desormais. */}
+      {projectId && accessToken && (
+        <MembersSection organizationId={projectId} accessToken={accessToken} />
+      )}
 
       <h2 className="text-xl font-semibold mt-8 mb-3">Discussion</h2>
       {projectId && <ChatPanel organizationId={projectId} />}
 
       <h2 className="text-xl font-semibold mt-8 mb-3">Fichiers</h2>
-      <SeamBlock owner="Module fichiers · à attribuer">
-        Documents liés au projet. Aucune route backend n'existe encore.
+      <SeamBlock owner="Module fichiers · Ai">
+        Documents liés au projet. Le schéma définit déjà <code>File</code> et
+        <code className="mx-1">FileAccess</code>, et le volume de stockage
+        (<code>uploads_data</code>) est en place. Il reste à écrire le module.
       </SeamBlock>
+
+      {/* Panneau de modification du projet, monte a la demande. */}
+      {editingProject && accessToken && (
+        <ProjectSettings
+          organization={org}
+          accessToken={accessToken}
+          onClose={() => setEditingProject(false)}
+          onUpdated={setOrg}
+        />
+      )}
+
+      {/* Panneau de detail, monte uniquement quand une tache est ouverte. */}
+      {openTask && accessToken && (
+        <TaskDetail
+          task={openTask}
+          accessToken={accessToken}
+          onClose={() => setOpenTask(null)}
+          onUpdated={applyUpdate}
+          onDeleted={(id) => setTasks((prev) => prev.filter((t) => t.id !== id))}
+        />
+      )}
     </>
   )
 }

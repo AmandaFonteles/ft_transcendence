@@ -20,7 +20,7 @@ export default function TermsPage() {
 
       <LegalSection title="Objet du service">
         <p>
-          Cette application permet de créer des projets, d'y inviter des membres, d'y
+          <strong>Aqan</strong> permet de créer des projets, d'y inviter des membres, d'y
           gérer des tâches avec des dates et des statuts, et de consulter un agenda
           partagé. Elle est développée par des étudiants de l'école 42 dans le cadre du
           projet <em>ft_transcendence</em>, à des fins strictement pédagogiques.

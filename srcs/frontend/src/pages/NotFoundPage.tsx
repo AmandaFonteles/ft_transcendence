@@ -9,6 +9,7 @@ import EmptyState from '../components/ui/EmptyState'
 export default function NotFoundPage() {
   return (
     <EmptyState
+      illustration="search"
       title="Cette page n'existe pas"
       description="Le lien est peut-être obsolète."
       action={

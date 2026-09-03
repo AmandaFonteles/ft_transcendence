@@ -19,7 +19,7 @@ export default function Footer() {
         Conditions d'utilisation
       </Link>
       {/* Pousse la mention a droite. */}
-      <span className="ml-auto">42 · ft_transcendence</span>
+      <span className="ml-auto">42 · Aqan</span>
     </footer>
   )
 }

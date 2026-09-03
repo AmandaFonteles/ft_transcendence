@@ -24,16 +24,6 @@ export const projectBg: Record<ProjectColor, string> = {
   6: 'bg-project-6',
 }
 
-// Classes de TEXTE, si un jour on veut colorer un libelle de projet.
-export const projectText: Record<ProjectColor, string> = {
-  1: 'text-project-1',
-  2: 'text-project-2',
-  3: 'text-project-3',
-  4: 'text-project-4',
-  5: 'text-project-5',
-  6: 'text-project-6',
-}
-
 // Liste des numeros disponibles, pratique pour afficher un selecteur de couleur.
 export const projectColors: ProjectColor[] = [1, 2, 3, 4, 5, 6]
 

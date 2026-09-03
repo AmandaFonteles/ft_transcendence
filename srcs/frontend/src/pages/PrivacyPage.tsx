@@ -22,8 +22,8 @@ export default function PrivacyPage() {
 
       <LegalSection title="Qui sommes-nous">
         <p>
-          Cette application est un projet étudiant réalisé à l'école 42 dans le cadre
-          de <em>ft_transcendence</em>. Elle permet à des équipes d'organiser des
+          <strong>Aqan</strong> est un projet étudiant réalisé à l'école 42 dans le
+          cadre de <em>ft_transcendence</em>. Elle permet à des équipes d'organiser des
           projets, des tâches et un agenda partagé. Elle n'a aucune finalité
           commerciale et n'est pas destinée à un usage en production.
         </p>

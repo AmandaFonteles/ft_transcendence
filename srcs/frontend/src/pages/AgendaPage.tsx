@@ -1,23 +1,67 @@
 // =============================================================================
-// AgendaPage.tsx : agenda en VUE MOIS (demande de la structure du 28/08).
-// Les taches viennent de tous les projets ; la couleur de l'arete indique le
-// projet d'origine, ce qui permet de lire un mois melange d'un coup d'oeil.
+// AgendaPage.tsx : agenda en VUE MOIS.
+//
+// Une tache apparait a sa DATE DE DEBUT et a son ECHEANCE, sous forme d'une
+// pastille coloree par son projet. Les deux reperes se distinguent par leur
+// marqueur : ▸ pour le debut, ◆ pour l'echeance — le meme langage visuel que les
+// lignes de taches, pour qu'il n'y ait rien de nouveau a apprendre.
+//
+// Une tache dont les deux dates tombent le meme jour n'apparait qu'UNE fois, avec
+// les deux marqueurs : la dupliquer dans la meme case n'apprendrait rien.
 // =============================================================================
 
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { listOrganizations, listTasks } from '../api'
 import type { Organization, Task } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import PageHeading from '../components/ui/PageHeading'
 import Button from '../components/ui/Button'
+import FilterChips from '../components/ui/FilterChips'
+import type { FilterOption } from '../components/ui/FilterChips'
 import { colorForId, projectBg } from '../lib/projectColors'
 import { dayKey, monthGrid } from '../lib/dates'
 
 // Entetes de colonnes : la semaine commence le lundi (usage francais).
 const weekdays = ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim']
 
+// Nombre d'entrees affichees par case avant de basculer sur un compteur.
+// Au-dela, la cellule deviendrait illisible.
+const MAX_PER_DAY = 3
+
+// Ce qu'une entree de calendrier represente : le debut d'une tache, son echeance,
+// ou les deux quand elles tombent le meme jour.
+type EntryKind = 'start' | 'due' | 'both'
+
+interface DayEntry {
+  task: Task
+  kind: EntryKind
+}
+
+// Marqueur affiche devant le nom. Repris tel quel des lignes de taches : ▸ evoque
+// un demarrage, ◆ une echeance. Aucun nouveau symbole a apprendre.
+const kindMarker: Record<EntryKind, string> = {
+  start: '▸',
+  due: '◆',
+  both: '▸◆',
+}
+
+// Libelle lu par les lecteurs d'ecran : un symbole seul n'est pas une information
+// accessible.
+const kindLabel: Record<EntryKind, string> = {
+  start: 'début',
+  due: 'échéance',
+  both: 'début et échéance',
+}
+
+// Ordre de tri dans une case : le debut avant l'echeance.
+const kindOrder: Record<EntryKind, number> = { start: 0, both: 1, due: 2 }
+
 export default function AgendaPage() {
   const { accessToken } = useAuth()
+  // Permet d'ouvrir la page d'un projet au clic sur une de ses taches.
+  const navigate = useNavigate()
+
   const [orgs, setOrgs] = useState<Organization[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
@@ -40,44 +84,80 @@ export default function AgendaPage() {
         const organizations = await listOrganizations(accessToken!)
         if (cancelled) return
         setOrgs(organizations)
+        // Les taches sont imbriquees sous un projet : un appel par projet, lances
+        // en parallele plutot que l'un apres l'autre.
         const perOrg = await Promise.all(organizations.map((o) => listTasks(accessToken!, o.id)))
         if (cancelled) return
         setTasks(perOrg.flat())
       } catch {
-        // Silencieux : un agenda vide est preferable a un ecran d'erreur bloquant.
+        // Silencieux : un agenda vide vaut mieux qu'un ecran d'erreur bloquant.
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
 
     load()
+    // Ignore les reponses tardives si le composant est demonte entre-temps.
     return () => { cancelled = true }
   }, [accessToken])
 
+  // Options du filtre : "Tous" en tete, puis un projet par option avec sa pastille.
+  const filterOptions: FilterOption[] = useMemo(() => [
+    { value: null, label: 'Tous les projets' },
+    ...orgs.map((o) => ({
+      value: o.id,
+      label: o.name,
+      // La pastille rappelle la couleur d'identite du projet dans le filtre lui-meme.
+      adornment: <span className={`inline-block size-2 rounded-full ${projectBg[colorForId(o.id)]}`} />,
+    })),
+  ], [orgs])
+
   // [CONCEPT: useMemo] Regroupe les taches par jour. Le calcul ne se refait que si
-  // les taches ou le filtre changent, pas a chaque rendu (par exemple au survol).
+  // les taches ou le filtre changent, pas a chaque rendu.
+  //
+  // Une meme tache peut produire DEUX entrees : une a son debut, une a son
+  // echeance. On les distingue par "kind" pour pouvoir afficher le bon marqueur.
   const byDay = useMemo(() => {
-    const map = new Map<string, Task[]>()
+    const map = new Map<string, DayEntry[]>()
+
+    // Ajoute une entree dans la case du jour donne.
+    const push = (key: string, entry: DayEntry) => {
+      const list = map.get(key) ?? []
+      list.push(entry)
+      map.set(key, list)
+    }
+
     for (const t of tasks) {
-      // Une tache sans echeance n'apparait pas dans le calendrier.
-      if (!t.dueDate) continue
       // Applique le filtre projet.
       if (filterOrg && t.organizationId !== filterOrg) continue
-      const key = dayKey(t.dueDate)
-      // Cree le tableau du jour s'il n'existe pas encore.
-      const list = map.get(key) ?? []
-      list.push(t)
-      map.set(key, list)
+
+      const startKey = t.startDate ? dayKey(t.startDate) : null
+      const dueKey = t.dueDate ? dayKey(t.dueDate) : null
+
+      // Debut et echeance le meme jour : une seule entree, deux marqueurs.
+      // Sans ce cas, la tache apparaitrait deux fois dans la meme case.
+      if (startKey && dueKey && startKey === dueKey) {
+        push(startKey, { task: t, kind: 'both' })
+        continue
+      }
+      if (startKey) push(startKey, { task: t, kind: 'start' })
+      if (dueKey) push(dueKey, { task: t, kind: 'due' })
+    }
+
+    // Dans une case, le debut se lit avant l'echeance : c'est l'ordre du temps.
+    for (const list of map.values()) {
+      list.sort((a, b) => kindOrder[a.kind] - kindOrder[b.kind])
     }
     return map
   }, [tasks, filterOrg])
 
-  // Les 42 cases du mois affiche.
+  // Les 42 cases du mois affiche (6 semaines de 7 jours).
   const grid = monthGrid(cursor.year, cursor.month)
   // Cle du jour courant, pour le marquer.
   const todayKey = dayKey(new Date())
   // Libelle du mois, en francais.
-  const monthLabel = new Date(cursor.year, cursor.month).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+  const monthLabel = new Date(cursor.year, cursor.month)
+    .toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
 
   // Recule d'un mois (le constructeur Date gere le passage a l'annee precedente).
   const prevMonth = () => setCursor((c) => {
@@ -96,8 +176,6 @@ export default function AgendaPage() {
     <>
       <PageHeading
         title="Agenda"
-        // first-letter:uppercase : toLocaleDateString renvoie "mars 2026" en
-        // minuscule ; on capitalise a l'affichage plutot qu'en manipulant la chaine.
         subtitle={monthLabel}
         actions={
           <div className="flex items-center gap-2">
@@ -107,28 +185,15 @@ export default function AgendaPage() {
         }
       />
 
-      {/* Filtre par projet : "l'agenda du projet uniquement" demande le 28/08. */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <button
-          onClick={() => setFilterOrg(null)}
-          className={`rounded-full px-3 py-1 text-[13px] cursor-pointer border ${
-            filterOrg === null ? 'bg-ink text-white border-transparent' : 'bg-surface text-ink-soft border-rule'
-          }`}
-        >
-          Tous les projets
-        </button>
-        {orgs.map((o) => (
-          <button
-            key={o.id}
-            onClick={() => setFilterOrg(o.id)}
-            className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] cursor-pointer border ${
-              filterOrg === o.id ? 'bg-ink text-white border-transparent' : 'bg-surface text-ink-soft border-rule'
-            }`}
-          >
-            <span className={`inline-block size-2 rounded-full ${projectBg[colorForId(o.id)]}`} />
-            {o.name}
-          </button>
-        ))}
+      {/* FILTRE PAR PROJET. Composant dedie (FilterChips) et non des boutons
+          arrondis : "Tous les projets" ressemblait a une action de creation. */}
+      <div className="mb-4">
+        <FilterChips
+          label="Filtrer par projet"
+          value={filterOrg}
+          onChange={setFilterOrg}
+          options={filterOptions}
+        />
       </div>
 
       {/* Entetes des jours de la semaine. */}
@@ -142,7 +207,7 @@ export default function AgendaPage() {
       <div className="grid grid-cols-7 border-l border-rule">
         {grid.map((d) => {
           const key = dayKey(d)
-          const dayTasks = byDay.get(key) ?? []
+          const dayEntries = byDay.get(key) ?? []
           // Les jours des mois voisins sont attenues pour rester lisibles sans
           // attirer l'attention.
           const outside = d.getMonth() !== cursor.month
@@ -156,24 +221,41 @@ export default function AgendaPage() {
               {/* Numero du jour. Le jour courant est marque en encre pleine —
                   structurel, jamais colore : les couleurs restent aux projets. */}
               <div className={`font-data text-[12px] tabular-nums mb-1 ${
-                isToday ? 'inline-flex items-center justify-center size-5 rounded-full bg-ink text-white' :
-                outside ? 'text-ink-faint' : 'text-ink-soft'
+                isToday
+                  ? 'inline-flex items-center justify-center size-5 rounded-full bg-ink text-white'
+                  : outside ? 'text-ink-faint' : 'text-ink-soft'
               }`}>
                 {d.getDate()}
               </div>
 
-              {/* Jusqu'a trois taches affichees, puis un compteur. */}
-              {dayTasks.slice(0, 3).map((t) => (
-                <div key={t.id} className="flex items-center gap-1 mb-0.5">
-                  <span className={`inline-block w-1 h-3 rounded shrink-0 ${projectBg[colorForId(t.organizationId)]}`} />
-                  {/* truncate coupe proprement un nom trop long pour la cellule. */}
-                  <span className={`text-[11px] truncate ${t.status === 'DONE' ? 'line-through text-ink-faint' : 'text-ink'}`}>
-                    {t.name}
+              {/* Jusqu'a trois entrees affichees, puis un compteur. */}
+              {dayEntries.slice(0, MAX_PER_DAY).map((e) => (
+                // CLIC SUR UNE TACHE -> page de son projet. C'est le chemin le plus
+                // court entre "je vois quelque chose dans l'agenda" et "j'agis dessus".
+                <button
+                  // La cle combine tache ET nature : une meme tache apparait a deux
+                  // dates, deux entrees distinctes ne peuvent pas partager une cle.
+                  key={`${e.task.id}-${e.kind}`}
+                  onClick={() => navigate(`/projets/${e.task.organizationId}`)}
+                  title={`${e.task.name} — ${kindLabel[e.kind]} — ouvrir le projet`}
+                  className="flex items-center gap-1 mb-0.5 w-full text-left cursor-pointer rounded hover:bg-sunk px-0.5"
+                >
+                  <span className={`inline-block w-1 h-3 rounded shrink-0 ${projectBg[colorForId(e.task.organizationId)]}`} />
+                  {/* Marqueur de nature. aria-hidden : le symbole est decoratif,
+                      l'information est portee par le title du bouton. */}
+                  <span className="font-data text-[9px] text-ink-faint shrink-0" aria-hidden="true">
+                    {kindMarker[e.kind]}
                   </span>
-                </div>
+                  {/* truncate coupe proprement un nom trop long pour la cellule. */}
+                  <span className={`text-[11px] truncate ${e.task.status === 'DONE' ? 'line-through text-ink-faint' : 'text-ink'}`}>
+                    {e.task.name}
+                  </span>
+                </button>
               ))}
-              {dayTasks.length > 3 && (
-                <div className="font-data text-[10.5px] text-ink-faint">+{dayTasks.length - 3}</div>
+              {dayEntries.length > MAX_PER_DAY && (
+                <div className="font-data text-[10.5px] text-ink-faint">
+                  +{dayEntries.length - MAX_PER_DAY}
+                </div>
               )}
             </div>
           )

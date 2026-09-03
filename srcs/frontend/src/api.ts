@@ -213,12 +213,20 @@ export function getOrganization(accessToken: string, id: string) {
   return request<Organization>(`/organizations/${id}`, { headers: auth(accessToken) })
 }
 
+// [CONCEPT: reponse-enveloppe] Plusieurs routes ne renvoient PAS l'entite mais un
+// accuse de reception : { message, xxxId }. Il faut typer ce qu'elles renvoient
+// VRAIMENT, sinon le code lit des champs inexistants (undefined silencieux).
+export type CreatedOrganization = { message: string; organizationId: string }
+export type Ack = { message: string }
+export type TaskAck = { message: string; taskId: string }
+
 // Cree un projet ; le createur en devient automatiquement ADMIN.
+// Renvoie { message, organizationId } et non l'objet Organization complet.
 export function createOrganization(
   accessToken: string,
   data: { name: string; description?: string; invitePolicy?: InvitePolicy },
 ) {
-  return request<Organization>('/organizations', {
+  return request<CreatedOrganization>('/organizations', {
     method: 'POST',
     headers: auth(accessToken),
     body: JSON.stringify(data),
@@ -231,7 +239,7 @@ export function updateOrganization(
   id: string,
   data: { name?: string; description?: string; invitePolicy?: InvitePolicy },
 ) {
-  return request<Organization>(`/organizations/${id}`, {
+  return request<Ack>(`/organizations/${id}`, {
     method: 'PATCH',
     headers: auth(accessToken),
     body: JSON.stringify(data),
@@ -240,7 +248,7 @@ export function updateOrganization(
 
 // Ajoute un membre au projet (soumis a la politique d'invitation).
 export function addOrganizationMember(accessToken: string, id: string, userId: string) {
-  return request<unknown>(`/organizations/${id}/members`, {
+  return request<Ack>(`/organizations/${id}/members`, {
     method: 'POST',
     headers: auth(accessToken),
     body: JSON.stringify({ userId }),
@@ -249,7 +257,7 @@ export function addOrganizationMember(accessToken: string, id: string, userId: s
 
 // Quitte un projet.
 export function leaveOrganization(accessToken: string, id: string) {
-  return request<unknown>(`/organizations/${id}/members/me`, {
+  return request<Ack>(`/organizations/${id}/members/me`, {
     method: 'DELETE',
     headers: auth(accessToken),
   })
@@ -314,13 +322,15 @@ export function updateTaskStatus(
 }
 
 // Modifie le contenu d'une tache (nom, description, dates).
+// ATTENTION : renvoie { message, taskId }, PAS la tache mise a jour.
+// L'appelant doit donc relire la tache avec getTask() s'il veut l'objet a jour.
 export function updateTask(
   accessToken: string,
   organizationId: string,
   taskId: string,
   data: { name?: string; description?: string | null; startDate?: string | null; dueDate?: string | null },
 ) {
-  return request<Task>(`/organizations/${organizationId}/tasks/${taskId}`, {
+  return request<TaskAck>(`/organizations/${organizationId}/tasks/${taskId}`, {
     method: 'PATCH',
     headers: auth(accessToken),
     body: JSON.stringify(data),
@@ -329,7 +339,7 @@ export function updateTask(
 
 // Supprime une tache.
 export function deleteTask(accessToken: string, organizationId: string, taskId: string) {
-  return request<unknown>(`/organizations/${organizationId}/tasks/${taskId}`, {
+  return request<TaskAck>(`/organizations/${organizationId}/tasks/${taskId}`, {
     method: 'DELETE',
     headers: auth(accessToken),
   })
@@ -362,6 +372,24 @@ export type FriendRequest = {
 export function searchUsers(accessToken: string, query: string) {
   const params = new URLSearchParams({ q: query })
   return request<PublicUser[]>(`/friendship/search?${params.toString()}`, {
+// --- Membres d'un projet -----------------------------------------------------
+// Cette route existe desormais cote backend (findAllMembers) : la page projet peut
+// enfin afficher les membres, leurs roles et le tag administrateur.
+
+// Forme exacte renvoyee par GET /organizations/:id/members.
+// Le backend selectionne volontairement peu de champs : ni e-mail ni date.
+export type OrganizationMember = {
+  role: 'ADMIN' | 'MEMBER'
+  user: {
+    id: string
+    displayName: string
+    avatarUrl: string | null
+  }
+}
+
+// Liste les membres ACTIFS d'un projet (le backend exclut ceux qui l'ont quitte).
+export function listOrganizationMembers(accessToken: string, organizationId: string) {
+  return request<OrganizationMember[]>(`/organizations/${organizationId}/members`, {
     headers: auth(accessToken),
   })
 }
@@ -393,6 +421,9 @@ export function sendFriendRequest(accessToken: string, username: string) {
 // Accepte une demande recue.
 export function acceptFriendRequest(accessToken: string, friendshipId: string) {
   return request<FriendRequest>(`/friendship/${friendshipId}/accept`, {
+// Promeut un membre en administrateur. Reserve aux administrateurs.
+export function promoteMember(accessToken: string, organizationId: string, targetUserId: string) {
+  return request<Ack>(`/organizations/${organizationId}/members/${targetUserId}/promote`, {
     method: 'PATCH',
     headers: auth(accessToken),
   })
@@ -403,6 +434,19 @@ export function acceptFriendRequest(accessToken: string, friendshipId: string) {
 // partie de la relation.
 export function removeFriendship(accessToken: string, friendshipId: string) {
   return request<{ success: boolean }>(`/friendship/${friendshipId}`, {
+// Retrograde un administrateur en membre simple.
+// Le backend refuse s'il s'agit du dernier administrateur du projet.
+export function demoteMember(accessToken: string, organizationId: string, targetUserId: string) {
+  return request<Ack>(`/organizations/${organizationId}/members/${targetUserId}/demote`, {
+    method: 'PATCH',
+    headers: auth(accessToken),
+  })
+}
+
+// Exclut un membre du projet. Reserve aux administrateurs.
+// Le backend interdit a un administrateur de s'exclure lui-meme (il doit "quitter").
+export function removeMember(accessToken: string, organizationId: string, targetUserId: string) {
+  return request<Ack>(`/organizations/${organizationId}/members/${targetUserId}`, {
     method: 'DELETE',
     headers: auth(accessToken),
   })
@@ -428,6 +472,15 @@ export type ChatMessage = {
 export function listMessages(accessToken: string, organizationId: string, before?: string) {
   const params = before ? `?before=${encodeURIComponent(before)}` : ''
   return request<ChatMessage[]>(`/organizations/${organizationId}/messages${params}`, {
+    headers: auth(accessToken),
+  })
+}
+// --- Relecture d'une tache ---------------------------------------------------
+
+// Recharge une tache depuis l'API.
+// Necessaire apres updateTask(), qui ne renvoie qu'un accuse de reception.
+export function getTask(accessToken: string, organizationId: string, taskId: string) {
+  return request<Task>(`/organizations/${organizationId}/tasks/${taskId}`, {
     headers: auth(accessToken),
   })
 }

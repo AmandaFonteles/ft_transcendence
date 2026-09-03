@@ -9,7 +9,9 @@ import { useAuth } from '../auth/AuthContext'
 
 // Entrees du menu, declarees une fois pour eviter la repetition.
 const menuItems = [
-  { to: '/tableau-de-bord', label: 'Agenda et projets' },
+  // Libelle aligne sur le bouton d'accueil ("Ouvrir mon tableau de bord") :
+  // deux noms differents pour la meme page desorientaient l'utilisateur.
+  { to: '/tableau-de-bord', label: 'Tableau de bord' },
   { to: '/agenda', label: 'Agenda' },
   { to: '/projets/nouveau', label: 'Créer un projet' },
   { to: '/equipe', label: 'Équipe' },
@@ -53,7 +55,7 @@ export default function Header() {
     // h-14 (56px) : hauteur reprise par le padding du contenu dans AppShell.
     <header className="fixed top-0 inset-x-0 z-20 h-14 flex items-center gap-4 px-4 bg-surface border-b border-rule">
       <Link to="/" className="text-base font-semibold tracking-tight text-ink no-underline">
-        ft_transcendence
+        Aqan
       </Link>
 
       <div className="ml-auto flex items-center gap-2">
