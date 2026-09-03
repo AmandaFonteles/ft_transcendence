@@ -372,6 +372,9 @@ export type FriendRequest = {
 export function searchUsers(accessToken: string, query: string) {
   const params = new URLSearchParams({ q: query })
   return request<PublicUser[]>(`/friendship/search?${params.toString()}`, {
+    headers: auth(accessToken),
+  })
+}
 // --- Membres d'un projet -----------------------------------------------------
 // Cette route existe desormais cote backend (findAllMembers) : la page projet peut
 // enfin afficher les membres, leurs roles et le tag administrateur.
@@ -421,6 +424,10 @@ export function sendFriendRequest(accessToken: string, username: string) {
 // Accepte une demande recue.
 export function acceptFriendRequest(accessToken: string, friendshipId: string) {
   return request<FriendRequest>(`/friendship/${friendshipId}/accept`, {
+    method: 'PATCH',
+    headers: auth(accessToken),
+  })
+}
 // Promeut un membre en administrateur. Reserve aux administrateurs.
 export function promoteMember(accessToken: string, organizationId: string, targetUserId: string) {
   return request<Ack>(`/organizations/${organizationId}/members/${targetUserId}/promote`, {
@@ -434,6 +441,10 @@ export function promoteMember(accessToken: string, organizationId: string, targe
 // partie de la relation.
 export function removeFriendship(accessToken: string, friendshipId: string) {
   return request<{ success: boolean }>(`/friendship/${friendshipId}`, {
+    method: 'DELETE',
+    headers: auth(accessToken),
+  })
+}
 // Retrograde un administrateur en membre simple.
 // Le backend refuse s'il s'agit du dernier administrateur du projet.
 export function demoteMember(accessToken: string, organizationId: string, targetUserId: string) {
