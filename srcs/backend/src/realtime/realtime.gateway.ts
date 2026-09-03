@@ -28,14 +28,22 @@ import { Server, Socket } from 'socket.io'
 // Importe le registre de presence.
 import { PresenceRegistry } from './presence.registry'
 // Importe le contrat partage (noms d'evenements, helper de room, types de payloads).
+import { MessageService } from '../chat/message.service'
 import {
   ClientEvents,
   ServerEvents,
   boardRoom,
+  orgRoom,           // AJOUT
   BoardScopePayload,
   CardMovedPayload,
+  OrgScopePayload,    // AJOUT
+  MessageSendPayload, // AJOUT
   PresenceUser,
+  userRoom
 } from './realtime.events'
+
+import { UsersService } from '../users/users.service'
+import { FriendshipService } from '../friendship/friendship.service'
 
 // [CONCEPT: chemin Socket.IO] "path" doit correspondre EXACTEMENT a la regle nginx
 // qui proxifie le WebSocket. Socket.IO utilise /socket.io/ par defaut ; on l'ecrit
@@ -52,46 +60,49 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   private readonly logger = new Logger(RealtimeGateway.name)
 
   // Injection du registre de presence (fourni par RealtimeModule).
-  constructor(private readonly presence: PresenceRegistry) {}
+  constructor(private readonly presence: PresenceRegistry,
+              private readonly messages: MessageService, // AJOUT
+              private readonly users: UsersService,          // AJOUT
+              private readonly friendship: FriendshipService, // AJOUT
+  ){}
 
   // -------------------------------------------------------------------------
   // Cycle de vie
   // -------------------------------------------------------------------------
 
-  // Appele automatiquement des qu'un client etablit la connexion WebSocket.
-  handleConnection(client: Socket): void {
-    // [SEAM: AUTH — Qu] Aujourd'hui l'identite arrive dans le "handshake" (auth.userId).
-    // A remplacer par la verification du JWT de Qu :
-    //   const payload = this.jwtService.verify(client.handshake.auth.token)
-    // Pourquoi valider ICI et pas dans chaque handler : une socket non authentifiee
-    // ne doit jamais entrer dans une room. On filtre une fois, a la porte.
+  async handleConnection(client: Socket): Promise<void> {
     const auth = client.handshake.auth as { userId?: string; displayName?: string }
 
-    // Refuse la connexion si l'identite est absente.
     if (!auth?.userId) {
-      // Informe le client de la raison avant de fermer (sinon il ne saurait pas pourquoi).
       client.emit(ServerEvents.ERROR, { message: 'authentification requise' })
-      // Ferme la connexion cote serveur.
       client.disconnect(true)
-      // Arrete le traitement.
       return
     }
 
-    // Construit l'identite publique (jamais l'email : donnee privee).
     const user: PresenceUser = {
       userId: auth.userId,
-      // Repli sur l'identifiant si aucun nom d'affichage n'est fourni.
       displayName: auth.displayName ?? auth.userId,
     }
 
-    // Memorise la socket dans le registre de presence.
     this.presence.register(client.id, user)
-    // Trace utile au debogage (visible via "make logs").
+    // Room personnelle : c'est par la que ses amis recevront son changement de statut.
+    await client.join(userRoom(user.userId))
+
+    // Passe en ligne UNIQUEMENT a la premiere socket connectee (evite les
+    // ecritures redondantes si l'utilisateur a plusieurs onglets ouverts).
+    if (!this.presence.hasAnyOtherSocket(user.userId, client.id)) {
+      await this.users.setOnlineStatus(user.userId, true)
+      const friendIds = await this.friendship.getFriendIds(user.userId)
+      for (const friendId of friendIds) {
+        this.server.to(userRoom(friendId)).emit(ServerEvents.USER_ONLINE, { userId: user.userId, isOnline: true })
+      }
+    }
+
     this.logger.log(`connexion ${client.id} (user ${user.userId})`)
   }
 
   // Appele automatiquement quand un client se deconnecte (fermeture, reseau, onglet ferme).
-  handleDisconnect(client: Socket): void {
+  async handleDisconnect(client: Socket): Promise<void> {
     // Retire la socket du registre et recupere son etat pour prevenir les rooms.
     const state = this.presence.unregister(client.id)
     // Rien a faire si la socket n'etait pas enregistree (refusee a la connexion).
@@ -106,7 +117,14 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
         this.server.to(boardRoom(boardId)).emit(ServerEvents.PRESENCE_LEFT, state.user)
       }
     }
-
+    // AJOUT : passe hors ligne seulement si aucune autre socket ne reste.
+    if (!this.presence.hasAnyOtherSocket(state.user.userId, client.id)) {
+      await this.users.setOnlineStatus(state.user.userId, false)
+      const friendIds = await this.friendship.getFriendIds(state.user.userId)
+      for (const friendId of friendIds) {
+        this.server.to(userRoom(friendId)).emit(ServerEvents.USER_OFFLINE, { userId: state.user.userId, isOnline: false })
+      }
+    }
     // Trace de deconnexion.
     this.logger.log(`deconnexion ${client.id}`)
     // NB : Socket.IO retire automatiquement la socket de ses rooms a la deconnexion.
@@ -224,4 +242,83 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       movedBy: user,
     })
   }
+
+  // Handler de "org:join" : rejoindre la room de chat d'un projet.
+  @SubscribeMessage(ClientEvents.JOIN_ORG)
+  async handleJoinOrg(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: OrgScopePayload,
+  ): Promise<void> {
+    const user = this.presence.getUser(client.id)
+    if (!user) return
+
+    if (!payload?.organizationId) {
+      client.emit(ServerEvents.ERROR, { message: 'organizationId manquant' })
+      return
+    }
+
+    const isMember = await this.messages.isActiveMember(user.userId, payload.organizationId)
+    if (!isMember) {
+      client.emit(ServerEvents.ERROR, { message: 'accès refusé à ce projet' })
+      return
+    }
+
+    await client.join(orgRoom(payload.organizationId))
+    client.emit(ServerEvents.ORG_JOINED, { organizationId: payload.organizationId })
+  }
+
+  // Handler de "org:leave".
+  @SubscribeMessage(ClientEvents.LEAVE_ORG)
+  async handleLeaveOrg(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: OrgScopePayload,
+  ): Promise<void> {
+    if (!payload?.organizationId) return
+    await client.leave(orgRoom(payload.organizationId))
+  }
+
+  // Handler de "message:send" : le coeur du chat.
+  @SubscribeMessage(ClientEvents.MESSAGE_SEND)
+  async handleSendMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: MessageSendPayload,
+  ): Promise<void> {
+    const user = this.presence.getUser(client.id)
+    if (!user) return
+
+    if (!payload?.organizationId || !payload?.content?.trim()) {
+      client.emit(ServerEvents.ERROR, { message: 'payload message:send invalide' })
+      return
+    }
+
+    const member = await this.messages.getMembership(user.userId, payload.organizationId)
+    if (!member || member.leftAt) {
+      client.emit(ServerEvents.ERROR, { message: 'accès refusé à ce projet' })
+      return
+    }
+
+    const saved = await this.messages.createMessage(
+      payload.organizationId,
+      member.id,
+      payload.content.trim(),
+    )
+
+    this.server.to(orgRoom(payload.organizationId)).emit(ServerEvents.MESSAGE_NEW, {
+      id: saved.id,
+      content: saved.content,
+      createdAt: saved.createdAt.toISOString(),
+      organizationId: payload.organizationId,
+      author: {
+        userId: saved.author.user.id,
+        displayName: saved.author.user.displayName,
+      },
+    })
+  }
+  
+  // Permet a d'autres modules (friendship) de pousser un evenement cible a UN
+  // utilisateur, sans connaitre Socket.IO : ils appellent juste cette methode.
+  notifyUser(userId: string, event: string, payload: unknown): void {
+    this.server.to(userRoom(userId)).emit(event, payload)
+  }
+
 }

@@ -19,11 +19,15 @@ import { OrganizationsModule } from './organizations/organizations.module';
 // Importe le module de feature "tasks".
 import { TasksModule } from './tasks/tasks.module';
 
+import { FriendshipModule } from './friendship/friendship.module';
+
+import { ChatModule } from './chat/chat.module'
+
 // Declare et cable le module racine.
 @Module({
   // On importe PrismaModule (@Global => PrismaService injectable partout) et UsersModule.
   // Chaque futur module d'equipe (AuthModule, BoardsModule...) s'ajoutera dans cette liste.
-  imports: [PrismaModule, UsersModule, RealtimeModule, AuthModule, OrganizationsModule, TasksModule],
+  imports: [PrismaModule, UsersModule, RealtimeModule, AuthModule, OrganizationsModule, TasksModule, FriendshipModule , ChatModule],
   // Controllers de ce module.
   controllers: [AppController],
   // Providers de ce module.

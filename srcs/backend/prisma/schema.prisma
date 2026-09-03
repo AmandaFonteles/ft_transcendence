@@ -84,7 +84,11 @@ model User {
   organizationMembers OrganizationMember[]
 
   // Add friendship
-  //
+  sentFriendRequests     Friendship[] @relation("FriendshipRequester")
+  receivedFriendRequests Friendship[] @relation("FriendshipReceiver")
+
+  //add status online en websocket
+  isOnline    Boolean  @default(false) @map("is_online")
 
   // Convention FIGEE : table en snake_case pluriel.
   @@map("users")
@@ -130,6 +134,29 @@ model OAuthAccount {
   @@map("oauth_accounts")
 }
 
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+}
+
+model Friendship {
+  id          String   @id @default(cuid())
+  requesterId String   @map("requester_id")
+  receiverId  String   @map("receiver_id")
+
+  status      FriendshipStatus @default(PENDING)
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt      @map("updated_at")
+
+  requester   User @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  receiver    User @relation("FriendshipReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, receiverId])
+  @@index([receiverId])
+  @@map("friendships")
+}
+
 enum InvitePolicy {
   ADMIN_ONLY
   ANY_MEMBER
@@ -145,6 +172,7 @@ model Organization {
   organizationMembers OrganizationMember[]
   tasks               Task[]
   files               File[]
+  messages            Message[]   // AJOUT thcat
 
   @@map("organizations")
 }
@@ -169,6 +197,7 @@ model OrganizationMember {
   assignedTasks  TaskAssignment[]
   ownedFiles     File[]
   fileAccesses   FileAccess[]
+  messages       Message[]   // AJOUT thcat
 
   @@unique([userId, organizationId])
   @@index([organizationId])
@@ -255,4 +284,19 @@ model File {
   @@index([ownerId])
   //@@index([name])
   @@map("files")
+}
+
+model Message {
+  id             String             @id @default(cuid())
+  content        String
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId String             @map("organization_id")
+  author         OrganizationMember @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId       String             @map("author_id")
+
+  @@index([organizationId])
+  @@index([authorId])
+  @@map("messages")
 }

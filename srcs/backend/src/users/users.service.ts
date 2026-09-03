@@ -24,7 +24,8 @@ const USER_PUBLIC_SELECT = {
   displayName: true,
   avatarUrl: true,
   createdAt: true,
-  updatedAt: true
+  updatedAt: true,
+  isOnline: true
 } as const
 
 @Injectable()
@@ -124,5 +125,13 @@ export class UsersService {
     // Pas besoin de renvoyer le user complet : le mot de passe n'apparait dans
     // aucun champ visible. Un simple accuse de reception suffit.
     return { success: true }
+  }
+
+  setOnlineStatus(userId: string, isOnline: boolean) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { isOnline },
+      select: { id: true, isOnline: true },
+    })
   }
 }

@@ -95,4 +95,15 @@ export class PresenceRegistry {
     // Aucune autre socket : l'utilisateur quitte reellement le tableau.
     return false
   }
+
+  // Indique si un utilisateur a encore une autre socket connectee, tous
+  // tableaux/rooms confondus. Sert a ne changer le statut qu'au premier
+  // onglet ouvert / dernier onglet ferme.
+  hasAnyOtherSocket(userId: string, excludeSocketId: string): boolean {
+    for (const [socketId, state] of this.sockets.entries()) {
+      if (socketId === excludeSocketId) continue
+      if (state.user.userId === userId) return true
+    }
+    return false
+  }
 }

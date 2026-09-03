@@ -11,6 +11,10 @@ export const ClientEvents = {
   JOIN_BOARD: 'board:join',
   LEAVE_BOARD: 'board:leave',
   CARD_MOVED: 'card:moved',
+
+  JOIN_ORG: 'org:join',
+  LEAVE_ORG: 'org:leave',
+  MESSAGE_SEND: 'message:send',
 } as const
 
 // Noms des evenements SORTANTS du serveur (serveur -> client).
@@ -21,7 +25,21 @@ export const ServerEvents = {
   PRESENCE_STATE: 'presence:state',
   CARD_MOVED: 'card:moved',
   ERROR: 'realtime:error',
+
+  ORG_JOINED: 'org:joined',
+  MESSAGE_NEW: 'message:new',
+  USER_ONLINE: 'user:online',
+  USER_OFFLINE: 'user:offline',
+  FRIEND_REQUEST_RECEIVED: 'friend:request_received',
+  FRIEND_REQUEST_ACCEPTED: 'friend:request_accepted',
+  FRIEND_REMOVED: 'friend:removed',
 } as const
+
+
+export interface OnlineStatusEvent {
+  userId: string
+  isOnline: boolean
+}
 
 // Identite publique d'un membre presente dans l'UI.
 export interface PresenceUser {
@@ -38,4 +56,21 @@ export interface CardMovedEvent {
   position: string
   // Present uniquement sur l'evenement RECU (le serveur ajoute l'auteur).
   movedBy?: PresenceUser
+}
+
+export interface OrgScopePayload {
+  organizationId: string
+}
+
+export interface MessageSendPayload {
+  organizationId: string
+  content: string
+}
+
+export interface ChatMessageEvent {
+  id: string
+  content: string
+  createdAt: string
+  organizationId: string
+  author: PresenceUser
 }

@@ -17,6 +17,7 @@ import EmptyState from '../components/ui/EmptyState'
 import SeamBlock from '../components/ui/SeamBlock'
 import ProjectDot from '../components/ui/ProjectDot'
 import { colorForId } from '../lib/projectColors'
+import ChatPanel from '../components/ChatPanel'
 
 export default function ProjectPage() {
   // Identifiant du projet, extrait de l'URL /projets/:projectId.
@@ -151,10 +152,7 @@ export default function ProjectPage() {
       </SeamBlock>
 
       <h2 className="text-xl font-semibold mt-8 mb-3">Discussion</h2>
-      <SeamBlock owner="Module chat · Qu">
-        Fil de discussion du projet, avec onglets général et messages privés.
-        La diffusion en direct passera par le gateway WebSocket déjà en place.
-      </SeamBlock>
+      {projectId && <ChatPanel organizationId={projectId} />}
 
       <h2 className="text-xl font-semibold mt-8 mb-3">Fichiers</h2>
       <SeamBlock owner="Module fichiers · à attribuer">

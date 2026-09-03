@@ -14,8 +14,8 @@ import { UsersService } from './users.service'
   controllers: [UsersController],
   // Les services instancies par ce module.
   // PrismaService n'est PAS liste ici : il vient du PrismaModule @Global, deja injectable.
-  providers: [UsersService]
-  // "exports: [UsersService]" serait a ajouter seulement si un AUTRE module devait
+  providers: [UsersService],
+  exports: [UsersService]// pour status online
   // injecter UsersService (ex. le module chat plus tard). Inutile pour l'instant.
 })
 // Classe vide : configuration portee par le decorateur.

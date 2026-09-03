@@ -20,6 +20,7 @@ import type { ReactNode } from 'react'
 // Fonctions d'API ecrites par Qu (auth) que ce contexte orchestre.
 import { login as apiLogin, logout as apiLogout, me, refresh, signup as apiSignup } from '../api'
 import type { AuthUser } from '../api'
+import { closeSocket } from '../realtime/socket' // AJOUT
 
 // Ce que le contexte expose a l'application.
 interface AuthState {
@@ -114,6 +115,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Le catch evite qu'une erreur reseau empeche la deconnexion locale :
     // mieux vaut deconnecter l'interface que laisser l'utilisateur bloque.
     await apiLogout().catch(() => {})
+    // AJOUT : ferme la socket AVANT de vider l'etat React. Sans ca, le serveur
+    // ne recoit jamais l'evenement "disconnect" : isOnline reste bloque a true
+    // en base et les amis ne voient jamais le passage hors ligne.
+    closeSocket()
     setAccessToken(null)
     setUser(null)
   }, [])

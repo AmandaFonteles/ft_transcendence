@@ -193,6 +193,7 @@ export type PublicUser = {
   displayName: string
   avatarUrl: string | null
   createdAt: string
+  isOnline?: boolean // AJOUT : présent sur les réponses /friendship/*, absent de /users
 }
 
 // Liste les utilisateurs connus (page Equipe). Route PROTEGEE : jeton obligatoire.
@@ -330,6 +331,103 @@ export function updateTask(
 export function deleteTask(accessToken: string, organizationId: string, taskId: string) {
   return request<unknown>(`/organizations/${organizationId}/tasks/${taskId}`, {
     method: 'DELETE',
+    headers: auth(accessToken),
+  })
+}
+
+
+// --- Amitié --------------------------------------------------------------
+
+export type FriendshipStatus = 'PENDING' | 'ACCEPTED'
+
+// Un ami tel que renvoyé par GET /friendship : le backend a déjà résolu
+// "l'autre" utilisateur (requester ou receiver selon qui a envoyé la demande).
+export type Friend = {
+  friendshipId: string
+  user: PublicUser
+}
+
+// Une demande en attente (recue ou envoyee), avec l'autre utilisateur inclus.
+export type FriendRequest = {
+  id: string
+  status: FriendshipStatus
+  createdAt: string
+  requester?: PublicUser
+  receiver?: PublicUser
+}
+
+// Recherche d'utilisateurs par nom/identifiant, pour ajouter un ami.
+// Distinct de listUsers() : celle-ci cible specifiquement /friendship/search
+// (exclut deja soi-meme cote backend).
+export function searchUsers(accessToken: string, query: string) {
+  const params = new URLSearchParams({ q: query })
+  return request<PublicUser[]>(`/friendship/search?${params.toString()}`, {
+    headers: auth(accessToken),
+  })
+}
+
+// Liste des amis actuels (statut ACCEPTED, dans les deux sens).
+export function listFriends(accessToken: string) {
+  return request<Friend[]>('/friendship', { headers: auth(accessToken) })
+}
+
+// Demandes recues en attente (quelqu'un veut m'ajouter).
+export function listPendingRequests(accessToken: string) {
+  return request<FriendRequest[]>('/friendship/pending', { headers: auth(accessToken) })
+}
+
+// Demandes envoyees en attente (j'attends une reponse).
+export function listSentRequests(accessToken: string) {
+  return request<FriendRequest[]>('/friendship/sent', { headers: auth(accessToken) })
+}
+
+// Envoie une demande d'ami par username.
+export function sendFriendRequest(accessToken: string, username: string) {
+  return request<FriendRequest>('/friendship/request', {
+    method: 'POST',
+    headers: auth(accessToken),
+    body: JSON.stringify({ username }),
+  })
+}
+
+// Accepte une demande recue.
+export function acceptFriendRequest(accessToken: string, friendshipId: string) {
+  return request<FriendRequest>(`/friendship/${friendshipId}/accept`, {
+    method: 'PATCH',
+    headers: auth(accessToken),
+  })
+}
+
+// Meme route pour 3 usages : refuser une demande recue, annuler une demande
+// envoyee, ou retirer un ami existant — le backend verifie juste qu'on fait
+// partie de la relation.
+export function removeFriendship(accessToken: string, friendshipId: string) {
+  return request<{ success: boolean }>(`/friendship/${friendshipId}`, {
+    method: 'DELETE',
+    headers: auth(accessToken),
+  })
+}
+
+// --- Chat -------------------------------------------------------------------
+
+// Forme d'un message tel que renvoyé par GET /organizations/:id/messages.
+// L'auteur est enrichi de la relation OrganizationMember -> User côté backend.
+export type ChatMessage = {
+  id: string
+  content: string
+  createdAt: string
+  organizationId: string
+  authorId: string
+  author: {
+    user: PublicUser
+  }
+}
+
+// Historique des messages d'un projet. `before` sert a paginer en remontant
+// dans le temps (createdAt du plus ancien message deja charge).
+export function listMessages(accessToken: string, organizationId: string, before?: string) {
+  const params = before ? `?before=${encodeURIComponent(before)}` : ''
+  return request<ChatMessage[]>(`/organizations/${organizationId}/messages${params}`, {
     headers: auth(accessToken),
   })
 }

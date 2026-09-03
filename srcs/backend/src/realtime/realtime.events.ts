@@ -17,6 +17,10 @@ export const ClientEvents = {
   LEAVE_BOARD: 'board:leave',
   // Le client signale qu'il a deplace une carte (sera persiste PUIS rediffuse).
   CARD_MOVED: 'card:moved',
+  // AJOUT tchat
+  JOIN_ORG: 'org:join',
+  LEAVE_ORG: 'org:leave',
+  MESSAGE_SEND: 'message:send',
 } as const
 
 // Noms d'evenements SORTANTS (serveur -> client).
@@ -33,6 +37,16 @@ export const ServerEvents = {
   CARD_MOVED: 'card:moved',
   // Erreur applicative (ex. acces refuse) renvoyee au seul client concerne.
   ERROR: 'realtime:error',
+  //ajout tchat
+  ORG_JOINED: 'org:joined',
+  MESSAGE_NEW: 'message:new',
+
+  USER_ONLINE: 'user:online',
+  USER_OFFLINE: 'user:offline',
+
+  FRIEND_REQUEST_RECEIVED: 'friend:request_received',
+  FRIEND_REQUEST_ACCEPTED: 'friend:request_accepted',
+  FRIEND_REMOVED: 'friend:removed',
 } as const
 
 // [CONCEPT: convention de nommage des rooms] Une "room" Socket.IO est juste une
@@ -72,4 +86,41 @@ export interface PresenceUser {
   userId: string
   // Nom affichable dans l'UI (avatars, "X est en train de regarder ce tableau").
   displayName: string
+}
+
+export function orgRoom(organizationId: string): string {
+  return `org:${organizationId}`
+}
+
+// --- Chat par projet ---------------------------------------------------------
+
+// Payload pour rejoindre/quitter la room de chat d'un projet.
+export interface OrgScopePayload {
+  organizationId: string
+}
+
+// Payload envoye par le client pour poster un message.
+export interface MessageSendPayload {
+  organizationId: string
+  content: string
+}
+
+// Forme d'un message diffuse (apres persistance, jamais avant : voir gateway).
+export interface ChatMessage {
+  id: string
+  content: string
+  createdAt: string
+  organizationId: string
+  author: PresenceUser
+}
+
+// Room personnelle : permet de cibler "tous les amis de X" sans que chacun
+// ait a rejoindre une room par ami.
+export function userRoom(userId: string): string {
+  return `user:${userId}`
+}
+
+export interface OnlineStatusEvent {
+  userId: string
+  isOnline: boolean
 }
