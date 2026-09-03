@@ -168,11 +168,6 @@ export class FriendshipService {
     }));
   }
 
-<<<<<<< HEAD
-=======
-  // --- Demandes reçues en attente ---
-
->>>>>>> b0bd0ad (Aileen: add Quentin's friendship files + all started FileUpload)
   async getPendingRequests(userId: string) {
     return this.prisma.friendship.findMany({
       where: { receiverId: userId, status: 'PENDING' },
