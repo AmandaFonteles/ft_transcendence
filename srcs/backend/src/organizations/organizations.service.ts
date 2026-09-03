@@ -1,13 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common'
 import { Role, InvitePolicy } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { FriendshipService } from '../friendship/friendship.service'
 import { CreateOrganizationDto } from './dto/create-organization.dto'
 import { UpdateOrganizationDto } from './dto/update-organization.dto'
 
 
 @Injectable()
 export class OrganizationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly friendship: FriendshipService) {}
   async create(data: CreateOrganizationDto, creatorId: string) {
 	return await this.prisma.organization.create({
   	  data: {
@@ -38,7 +39,7 @@ export class OrganizationsService {
 	})
   }
 
-  async findOne(id: string) {
+  private async findOne(id: string) {
     const organization = await this.prisma.organization.findUnique({ where: { id: id } })
     if (!organization) {
       throw new NotFoundException(`Le projet n'a pas été trouvé`)
@@ -66,7 +67,7 @@ export class OrganizationsService {
 	return await this.prisma.organization.delete({ where: { id: organizationId } })
   }
 
-  async findMembershipRecord(organizationId: string, userId: string) {
+  private async findMembershipRecord(organizationId: string, userId: string) {
      const membershipRecord = await this.prisma.organizationMember.findUnique({
 	  where: {
 		userId_organizationId: {
@@ -105,7 +106,7 @@ export class OrganizationsService {
 	return member
   }//utile ?
 
-  async checkInvitePolicy(organizationId: string, requesterUserId: string) {
+  private async checkInvitePolicy(organizationId: string, requesterUserId: string) {
 	const organization = await this.findOne(organizationId)
 	if (organization.invitePolicy === InvitePolicy.ADMIN_ONLY) {
 	  await this.requireAdmin(organizationId, requesterUserId)
@@ -119,15 +120,17 @@ export class OrganizationsService {
   async addMember(organizationId: string, targetUserId: string, requesterUserId: string) {
 	await this.checkInvitePolicy(organizationId, requesterUserId)
 	const existingMember = await this.findMembershipRecord(organizationId, targetUserId)
-	if (existingMember) {
-	  if (existingMember.leftAt === null) {
-		throw new BadRequestException(`Cet utilisateur est déjà membre actif de ce projet`)
-	  } else {
-		return await this.prisma.organizationMember.update({
-		  where: { userId_organizationId: { userId: targetUserId, organizationId: organizationId } },
-		  data: { leftAt: null }
-		})
-	  }
+	if (existingMember && existingMember.leftAt === null) {
+      throw new BadRequestException(`Cet utilisateur est déjà membre actif de ce projet`)
+	}
+	if (await this.friendship.areFriends(requesterUserId, targetUserId) === false) {
+	  throw new BadRequestException(`Vous ne pouvez inviter que des amis à rejoindre un projet`)
+	}
+	if (existingMember && existingMember.leftAt !== null) {
+	  return await this.prisma.organizationMember.update({
+	    where: { userId_organizationId: { userId: targetUserId, organizationId: organizationId } },
+	    data: { leftAt: null }
+	  })
 	}
 	return await this.prisma.organizationMember.create({
 	  data: {
