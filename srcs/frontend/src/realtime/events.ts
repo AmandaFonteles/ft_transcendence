@@ -80,8 +80,3 @@ export interface ChatMessageEvent {
   organizationId: string
   author: PresenceUser
 }
-
-// Pas de type de payload pour les evenements de membres cote client : le hook
-// useOrganizationMembers IGNORE volontairement leur contenu et recharge la liste
-// depuis l'API. Declarer un type que personne n'utilise laisserait croire qu'on
-// exploite le message.

@@ -317,7 +317,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       },
     })
   }
-  
+
   // Permet a d'autres modules (friendship) de pousser un evenement cible a UN
   // utilisateur, sans connaitre Socket.IO : ils appellent juste cette methode.
   // Diffuse un evenement a TOUS les membres presents dans le salon d'un projet.

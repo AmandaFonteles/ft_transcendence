@@ -17,7 +17,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto'
 import { ChangePasswordDto } from './dto/change-password.dto'
 import { OrganizationsService } from '../organizations/organizations.service' ////pour supp orga en meme temps que user
 //AJOUTS AILEEN:
-import { StorageService } from '../files/storage.service' 
+import { StorageService } from '../files/storage.service'
 import { join, extname } from 'path'
 import { randomUUID } from 'crypto'
 // AJOUT : constante placee ICI, HORS de la classe, juste apres les imports.
