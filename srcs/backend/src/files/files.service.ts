@@ -12,7 +12,7 @@ import { UpdateFileDto } from './dto/update-file.dto'
 @Injectable()
 export class FilesService implements OnModuleInit {
   private magic: WASMagic
-  
+
   constructor(private readonly prisma: PrismaService, private readonly orgaServ: OrganizationsService, private readonly storageServ: StorageService) {}
 
   async onModuleInit() {
