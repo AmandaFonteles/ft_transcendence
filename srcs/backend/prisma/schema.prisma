@@ -83,10 +83,11 @@ model User {
   //Ajout Ai
   organizationMembers OrganizationMember[]
 
-
+  // Add friendship
   sentFriendRequests     Friendship[] @relation("FriendshipRequester")
   receivedFriendRequests Friendship[] @relation("FriendshipReceiver")
 
+  //add status online en websocket
   isOnline    Boolean  @default(false) @map("is_online")
 
   // Convention FIGEE : table en snake_case pluriel.
