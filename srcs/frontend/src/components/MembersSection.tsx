@@ -7,8 +7,8 @@
 // =============================================================================
 
 import { useEffect, useState } from 'react'
-import { demoteMember, listOrganizationMembers, promoteMember, removeMember } from '../api'
-import type { OrganizationMember } from '../api'
+import { addOrganizationMember, demoteMember, listFriends, listOrganizationMembers, promoteMember, removeMember } from '../api'
+import type { Friend, InvitePolicy, OrganizationMember } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import Card from './ui/Card'
 import Button from './ui/Button'
@@ -16,9 +16,12 @@ import Button from './ui/Button'
 interface MembersSectionProps {
   organizationId: string
   accessToken: string
+  // Politique d'invitation du projet : determine, avec le role, qui peut
+  // ajouter un membre (voir checkInvitePolicy cote backend).
+  invitePolicy: InvitePolicy
 }
 
-export default function MembersSection({ organizationId, accessToken }: MembersSectionProps) {
+export default function MembersSection({ organizationId, accessToken, invitePolicy }: MembersSectionProps) {
   // Utilisateur courant : sert a savoir s'il est administrateur et a s'exclure
   // lui-meme des actions de moderation.
   const { user } = useAuth()
@@ -29,6 +32,18 @@ export default function MembersSection({ organizationId, accessToken }: MembersS
   const [openUserId, setOpenUserId] = useState<string | null>(null)
   // Action en cours : desactive les boutons pour eviter les doubles clics.
   const [busy, setBusy] = useState(false)
+  // Amis de l'utilisateur courant : le backend n'autorise a inviter QUE des
+  // amis (voir OrganizationsService.addMember), c'est donc le seul vivier
+  // pertinent a proposer ici.
+  const [friends, setFriends] = useState<Friend[]>([])
+  const [selectedFriendId, setSelectedFriendId] = useState('')
+
+  useEffect(() => {
+    listFriends(accessToken)
+      .then(setFriends)
+      // Echec silencieux : au pire le selecteur d'ajout reste vide.
+      .catch(() => {})
+  }, [accessToken])
 
   // Recharge la liste depuis l'API. Appelee au montage et apres chaque action :
   // le backend est la source de verite (il peut refuser une retrogradation, par
@@ -53,6 +68,14 @@ export default function MembersSection({ organizationId, accessToken }: MembersS
   const me = members.find((m) => m.user.id === user?.id)
   const iAmAdmin = me?.role === 'ADMIN'
 
+  // Peut inviter : administrateur (toujours autorise), ou membre simple si la
+  // politique du projet l'autorise. Reflete checkInvitePolicy cote backend ;
+  // celui-ci reste le seul garant reel du droit.
+  const canInvite = iAmAdmin || invitePolicy === 'ANY_MEMBER'
+  // Amis pas encore membres actifs : seuls eux ont un sens a proposer.
+  const memberIds = new Set(members.map((m) => m.user.id))
+  const eligibleFriends = friends.filter((f) => !memberIds.has(f.user.id))
+
   // Enveloppe commune aux trois actions : etat occupe, erreurs, rechargement.
   async function run(action: () => Promise<unknown>) {
     setBusy(true)
@@ -70,11 +93,48 @@ export default function MembersSection({ organizationId, accessToken }: MembersS
     }
   }
 
+  // Ajoute l'ami selectionne comme membre du projet.
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault()
+    if (!selectedFriendId) return
+    await run(() => addOrganizationMember(accessToken, organizationId, selectedFriendId))
+    setSelectedFriendId('')
+  }
+
   if (loading) return <p className="text-ink-soft">Chargement des membres…</p>
 
   return (
     <>
       {error && <p className="text-danger text-sm mb-3">{error}</p>}
+
+      {canInvite && (
+        <Card className="mb-3">
+          <form onSubmit={handleAdd} className="flex items-center gap-2">
+            <select
+              value={selectedFriendId}
+              onChange={(e) => setSelectedFriendId(e.target.value)}
+              disabled={busy || eligibleFriends.length === 0}
+              className="flex-1 min-w-0 bg-surface border border-rule rounded-lg px-3 py-2 text-[15px] cursor-pointer disabled:cursor-not-allowed"
+            >
+              <option value="">
+                {eligibleFriends.length === 0 ? 'Aucun ami à ajouter' : 'Choisir un ami à ajouter…'}
+              </option>
+              {eligibleFriends.map((f) => (
+                <option key={f.user.id} value={f.user.id}>{f.user.displayName}</option>
+              ))}
+            </select>
+            <Button type="submit" variant="primary" disabled={busy || !selectedFriendId}>
+              Ajouter
+            </Button>
+          </form>
+          {/* Rappel du perimetre : le backend ne permet d'inviter que des amis. */}
+          {eligibleFriends.length === 0 && friends.length === 0 && (
+            <p className="font-data text-[12.5px] text-ink-soft mt-2">
+              Ajoutez des amis pour pouvoir les inviter dans ce projet.
+            </p>
+          )}
+        </Card>
+      )}
 
       <div className="grid gap-2">
         {members.map((m) => {

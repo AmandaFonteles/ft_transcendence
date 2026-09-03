@@ -9,8 +9,16 @@
 import { Outlet } from 'react-router-dom'
 import Header from './Header'
 import Footer from './Footer'
+import { useAuth } from '../auth/AuthContext'
+import { getSocket } from '../realtime/socket'
+import { useEffect } from 'react'
 
 export default function AppShell() {
+  const { user } = useAuth()
+  useEffect(() => {
+    if (!user) return
+    getSocket({ userId: user.id, displayName: user.displayName })
+  }, [user?.id, user?.displayName])
   return (
     <>
       <Header />

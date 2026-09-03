@@ -41,6 +41,10 @@ export default function ProjectPage() {
   const [iAmAdmin, setIAmAdmin] = useState(false)
   // Panneau de modification du projet ouvert ?
   const [editingProject, setEditingProject] = useState(false)
+  // Incremente a la fermeture du panneau de modification, pour forcer
+  // MembersSection a se remonter et relire les membres (l'admin a pu en
+  // retirer depuis ce panneau, voir ProjectSettings).
+  const [membersRefreshKey, setMembersRefreshKey] = useState(0)
 
   // Charge le projet et ses taches. Relance si le filtre change, car le backend
   // sait filtrer lui-meme (parametre owned).
@@ -209,7 +213,12 @@ export default function ProjectPage() {
       <h2 className="text-xl font-semibold mt-8 mb-3">Membres et rôles</h2>
       {/* Section reelle : la route GET /organizations/:id/members existe desormais. */}
       {projectId && accessToken && (
-        <MembersSection organizationId={projectId} accessToken={accessToken} />
+        <MembersSection
+          key={membersRefreshKey}
+          organizationId={projectId}
+          accessToken={accessToken}
+          invitePolicy={org.invitePolicy}
+        />
       )}
 
       <h2 className="text-xl font-semibold mt-8 mb-3">Discussion</h2>
@@ -227,7 +236,12 @@ export default function ProjectPage() {
         <ProjectSettings
           organization={org}
           accessToken={accessToken}
-          onClose={() => setEditingProject(false)}
+          onClose={() => {
+            setEditingProject(false)
+            // Le panneau a pu retirer des membres : force MembersSection a se
+            // remonter pour relire la liste a jour.
+            setMembersRefreshKey((k) => k + 1)
+          }}
           onUpdated={setOrg}
         />
       )}

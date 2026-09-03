@@ -6,9 +6,10 @@
 // propose simplement pas l'action a ceux qui ne peuvent pas la mener a bien.
 // =============================================================================
 
-import { useState } from 'react'
-import { getOrganization, updateOrganization } from '../api'
-import type { InvitePolicy, Organization } from '../api'
+import { useEffect, useState } from 'react'
+import { getOrganization, listOrganizationMembers, removeMember, updateOrganization } from '../api'
+import type { InvitePolicy, Organization, OrganizationMember } from '../api'
+import { useAuth } from '../auth/AuthContext'
 import Modal from './ui/Modal'
 import Button from './ui/Button'
 import TextField from './ui/TextField'
@@ -34,6 +35,38 @@ export default function ProjectSettings({
   const [invitePolicy, setInvitePolicy] = useState<InvitePolicy>(organization.invitePolicy)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // --- Retrait de membres ----------------------------------------------------
+  // Cet utilisateur est forcement administrateur : le panneau n'est ouvert que
+  // pour lui (voir ProjectPage). removeMember() est deja garde cote backend.
+  const { user } = useAuth()
+  const [members, setMembers] = useState<OrganizationMember[]>([])
+  const [membersLoading, setMembersLoading] = useState(true)
+  const [membersError, setMembersError] = useState<string | null>(null)
+  // Identifiant de l'utilisateur en cours de retrait, pour desactiver son bouton.
+  const [removingId, setRemovingId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    listOrganizationMembers(accessToken, organization.id)
+      .then((list) => { if (!cancelled) setMembers(list) })
+      .catch((err) => { if (!cancelled) setMembersError(err instanceof Error ? err.message : 'erreur inconnue') })
+      .finally(() => { if (!cancelled) setMembersLoading(false) })
+    return () => { cancelled = true }
+  }, [accessToken, organization.id])
+
+  async function handleRemove(targetUserId: string) {
+    setRemovingId(targetUserId)
+    setMembersError(null)
+    try {
+      await removeMember(accessToken, organization.id, targetUserId)
+      setMembers((prev) => prev.filter((m) => m.user.id !== targetUserId))
+    } catch (err) {
+      setMembersError(err instanceof Error ? err.message : 'erreur inconnue')
+    } finally {
+      setRemovingId(null)
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -102,6 +135,45 @@ export default function ProjectSettings({
           <Button type="button" variant="ghost" onClick={onClose}>Annuler</Button>
         </div>
       </form>
+
+      {/* Retrait de membres : distinct du formulaire ci-dessus (pas de PATCH
+          /organizations/:id ici, mais un DELETE /members/:targetUserId par
+          membre retire). */}
+      <div className="mt-6 pt-4 border-t border-rule">
+        <h3 className="text-[13.5px] text-ink-soft mb-2">Retirer un membre</h3>
+
+        {membersError && <p className="text-danger text-sm mb-2">{membersError}</p>}
+
+        {membersLoading ? (
+          <p className="text-ink-soft text-sm">Chargement des membres…</p>
+        ) : (
+          <div className="grid gap-1.5">
+            {members
+              // On ne se propose pas de s'exclure soi-meme : le backend le refuse
+              // de toute facon ("quitter le projet" est l'action prevue pour ca).
+              .filter((m) => m.user.id !== user?.id)
+              .map((m) => (
+                <div key={m.user.id} className="flex items-center gap-3">
+                  <span className="flex-1 min-w-0 truncate text-[14px]">
+                    {m.user.displayName}
+                    {m.role === 'ADMIN' && <span className="ml-2 text-[12px] text-ink-faint">Administrateur</span>}
+                  </span>
+                  <Button
+                    type="button"
+                    disabled={removingId === m.user.id}
+                    onClick={() => handleRemove(m.user.id)}
+                    className="!text-danger"
+                  >
+                    {removingId === m.user.id ? 'Retrait…' : 'Retirer'}
+                  </Button>
+                </div>
+              ))}
+            {members.length <= 1 && (
+              <p className="font-data text-[12.5px] text-ink-soft">Aucun autre membre à retirer.</p>
+            )}
+          </div>
+        )}
+      </div>
     </Modal>
   )
 }
