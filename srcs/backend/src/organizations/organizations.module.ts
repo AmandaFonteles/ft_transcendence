@@ -11,6 +11,6 @@ import { RealtimeModule } from '../realtime/realtime.module'
   controllers: [OrganizationsController],
   providers: [OrganizationsService],
   exports: [OrganizationsService],
-  imports: [FriendshipModule, forwardRef(() => RealtimeModule), StorageModule], 
+  imports: [FriendshipModule, forwardRef(() => RealtimeModule), StorageModule],
 })
 export class OrganizationsModule {}
