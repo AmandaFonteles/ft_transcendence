@@ -8,7 +8,6 @@ import { createReadStream } from 'fs'
 import { UpdateFileDto } from './dto/update-file.dto';
 
 
-
 @UseGuards(JwtAuthGuard)
 @Controller('organizations/:organizationId/files')
 export class FilesController {
@@ -23,6 +22,12 @@ export class FilesController {
   async uploadFile( @Param('organizationId') organizationId: string, @CurrentUser() user: { userId: string }, @Body() createFileDto: CreateFileDto, @UploadedFile() file: Express.Multer.File ) {
 	const uploadedFile = await this.filesService.uploadFile(createFileDto, organizationId, user.userId, file);
 	return uploadedFile;
+  }
+
+  @Post(':fileId/access/:targetUserId')
+  async addFileAccess(@Param('organizationId') organizationId: string, @Param('fileId') fileId: string, @Param('targetUserId') targetUserId: string, @CurrentUser() user: { userId: string }) {
+    await this.filesService.addFileAccess(fileId, targetUserId, user.userId, organizationId);
+    return fileId;
   }
 
   @Get()
@@ -61,5 +66,17 @@ export class FilesController {
   async updateFile(@Param('organizationId') organizationId: string, @Param('fileId') fileId: string, @CurrentUser() user: { userId: string }, @Body() updateFileDto: UpdateFileDto) {
     const updatedFile = await this.filesService.updateFile(fileId, user.userId, organizationId, updateFileDto);
     return updatedFile;
+  }
+
+  @Delete(':fileId/access/:targetUserId')
+  async removeFileAccess(@Param('organizationId') organizationId: string, @Param('fileId') fileId: string, @Param('targetUserId') targetUserId: string, @CurrentUser() user: { userId: string }) {
+    await this.filesService.removeFileAccess(fileId, targetUserId, user.userId, organizationId);
+    return fileId;
+  }
+
+  @Delete(':fileId')
+  async deleteFile(@Param('organizationId') organizationId: string, @Param('fileId') fileId: string, @CurrentUser() user: { userId: string }) {
+    await this.filesService.removeFile(fileId, user.userId, organizationId);
+    return fileId;
   }
 }

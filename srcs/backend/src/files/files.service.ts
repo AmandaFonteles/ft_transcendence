@@ -232,4 +232,83 @@ export class FilesService implements OnModuleInit {
 		throw new InternalServerErrorException(`Impossible de mettre à jour le fichier`)
 	}
   }
+
+  private async findFileAccessForMember(fileId: string, memberId: string) {
+	return await this.prisma.fileAccess.findUnique({
+	  where: {
+		fileId_memberId: {
+		  fileId,
+		  memberId
+		}
+	  }
+	})
+  }
+
+  async addFileAccess(fileId: string, targetUserId: string, requesterId: string, organizationId: string) {
+	const file = await this.findFileById(fileId, requesterId, organizationId)
+	if (file.visibilityPolicy !== VisibilityPolicy.RESTRICTED) {
+		throw new BadRequestException(`Le fichier n'a pas une politique de visibilité restreinte`)
+	}
+	const member = await this.orgaServ.requireActiveMember(organizationId, requesterId)
+	if (member.role !== Role.ADMIN && file.ownerId !== member.id) {
+		throw new ForbiddenException(`Vous n'avez pas la permission d'ajouter un accès à ce fichier`)
+	}
+	const targetMember = await this.orgaServ.requireActiveMember(organizationId, targetUserId)
+	const existingAccess = await this.findFileAccessForMember(fileId, targetMember.id)
+	if (existingAccess !== null || targetMember.id === file.ownerId) {
+		throw new BadRequestException(`L'accès au fichier pour ce membre existe déjà`)
+	}
+	const fileAccess = await this.prisma.fileAccess.create({
+	  data: {
+	    fileId: fileId,
+	    memberId: targetMember.id
+	  }
+	})
+	return fileAccess
+  }
+
+  async removeFileAccess(fileId: string, targetUserId: string, requesterId: string, organizationId: string) {
+	const file = await this.findFileById(fileId, requesterId, organizationId)
+	if (file.visibilityPolicy !== VisibilityPolicy.RESTRICTED) {
+		throw new BadRequestException(`Le fichier n'a pas une politique de visibilité restreinte`)
+	}
+	const member = await this.orgaServ.requireActiveMember(organizationId, requesterId)
+	if (member.role !== Role.ADMIN && file.ownerId !== member.id) {
+		throw new ForbiddenException(`Vous n'avez pas la permission de supprimer un accès à ce fichier`)
+	}
+	const targetMember = await this.orgaServ.findMember(organizationId, targetUserId)
+	const existingAccess = await this.findFileAccessForMember(fileId, targetMember.id)
+	if (existingAccess === null) {
+		throw new NotFoundException(`L'accès au fichier pour ce membre n'existe pas`)
+	}
+	await this.prisma.fileAccess.delete({
+	  where: {
+		fileId_memberId: {
+		  fileId: fileId,
+		  memberId: targetMember.id
+		}
+	  }
+	})
+  }
+
+  async removeFile(fileId: string, requesterId: string, organizationId: string) {
+	const member = await this.orgaServ.requireActiveMember(organizationId, requesterId)
+	const file = await this.findFileById(fileId, requesterId, organizationId)
+	if (member.role !== Role.ADMIN && file.ownerId !== member.id) {
+		throw new ForbiddenException(`Vous n'avez pas la permission de supprimer ce fichier`)
+	}
+	const filePath = this.getFilePath(file.storagePath)
+	try {
+	  await this.prisma.file.delete({
+		where: { id: fileId }
+	  })
+	} catch {
+	  throw new InternalServerErrorException(`Impossible de supprimer le fichier de la base de données`)
+	}
+	try {
+	  await unlink(filePath)
+	} catch {
+	//   on laisse passer, car le fichier a été supprimé de la base de données
+	}
+  }
 }
