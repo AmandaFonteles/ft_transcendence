@@ -2,13 +2,14 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException 
 import { Role, InvitePolicy } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { FriendshipService } from '../friendship/friendship.service'
+import { StorageService } from '../files/storage.service'
 import { CreateOrganizationDto } from './dto/create-organization.dto'
 import { UpdateOrganizationDto } from './dto/update-organization.dto'
 
 
 @Injectable()
 export class OrganizationsService {
-  constructor(private readonly prisma: PrismaService, private readonly friendship: FriendshipService) {}
+  constructor(private readonly prisma: PrismaService, private readonly friendship: FriendshipService, private readonly storage: StorageService) {}
   async create(data: CreateOrganizationDto, creatorId: string) {
 	return await this.prisma.organization.create({
   	  data: {
@@ -64,7 +65,9 @@ export class OrganizationsService {
 
   async remove(organizationId: string, requesterUserId: string) {
 	await this.requireAdmin(organizationId, requesterUserId)
-	return await this.prisma.organization.delete({ where: { id: organizationId } })
+	const organization = await this.prisma.organization.delete({ where: { id: organizationId } })
+	await this.storage.removeOrganizationFolder(organizationId)
+	return organization
   }
 
   private async findMembershipRecord(organizationId: string, userId: string) {
@@ -170,6 +173,7 @@ export class OrganizationsService {
 	}
 	if (activeMembersCount === 1) {
 	  await this.prisma.organization.delete({ where: { id: organizationId } })
+	  await this.storage.removeOrganizationFolder(organizationId)
 	  return true
 	}
 	await this.prisma.taskAssignment.deleteMany({ where: { memberId: member.id } })

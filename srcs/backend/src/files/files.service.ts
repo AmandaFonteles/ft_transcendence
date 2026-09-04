@@ -2,7 +2,7 @@ import { Injectable, InternalServerErrorException, BadRequestException, PayloadT
 import { Role, VisibilityPolicy } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { OrganizationsService } from '../organizations/organizations.service'
-import { mkdir,writeFile, unlink, access } from 'fs/promises'
+import { StorageService } from './storage.service'
 import { join, extname } from 'path'
 import { WASMagic } from 'wasmagic'
 import { randomUUID } from 'crypto'
@@ -13,24 +13,10 @@ import { UpdateFileDto } from './dto/update-file.dto'
 export class FilesService implements OnModuleInit {
   private magic: WASMagic
   
-  constructor(private readonly prisma: PrismaService, private readonly orgaServ: OrganizationsService) {}
+  constructor(private readonly prisma: PrismaService, private readonly orgaServ: OrganizationsService, private readonly storageServ: StorageService) {}
 
   async onModuleInit() {
     this.magic = await WASMagic.create()
-  }
-
-  private async createOrganizationFolder(organizationId: string) {
-	const uploadDir = process.env.UPLOAD_DIR
-	if (uploadDir === undefined) {
-	  throw new InternalServerErrorException(`La variable d'environnement UPLOAD_DIR n'est pas définie`)
-	}
-	const organizationPath = join(uploadDir, 'organizations', organizationId)
-	try {
-		await mkdir(organizationPath, { recursive: true })
-	} catch {
-		throw new InternalServerErrorException(`Impossible de créer le dossier contenant les fichiers du projet`)
-	}
-	return organizationPath
   }
 
   async uploadFile(data: CreateFileDto, organizationId: string, requesterId: string, file: Express.Multer.File) {
@@ -64,15 +50,11 @@ export class FilesService implements OnModuleInit {
 		throw new BadRequestException(`Le type MIME du fichier ne correspond pas à son contenu`)
 	}
 	const member = await this.orgaServ.requireActiveMember(organizationId, requesterId)
-	const organizationPath = await this.createOrganizationFolder(organizationId)
+	const organizationPath = await this.storageServ.createOrganizationFolder(organizationId)
 	const generatedFileName = `${randomUUID()}${fileExtension}`
 	const storagePath = join('organizations', organizationId, generatedFileName)
 	const filePath = join(organizationPath, generatedFileName)
-	try {
-	  await writeFile(filePath, file.buffer)
-	} catch {
-	  throw new InternalServerErrorException(`Impossible d'enregistrer le fichier sur le disque`)
-	}
+	await this.storageServ.writeFileToStorage(filePath, file.buffer)
 	try {
 	  const uploadedFile = await this.prisma.file.create({
 	  	data: {
@@ -88,11 +70,7 @@ export class FilesService implements OnModuleInit {
 	  })
 	  return uploadedFile
 	} catch {
-	  try {
-		await unlink(filePath)
-	  } catch {
-		// If the file deletion fails, we do not throw an exception to avoid masking the original error
-	  }
+	  await this.storageServ.deleteFileFromStorage(filePath)
 	  throw new InternalServerErrorException(`Impossible d'enregistrer le fichier dans la base de données`)
 	}
   }
@@ -167,23 +145,11 @@ export class FilesService implements OnModuleInit {
 	return files
   }
 
-  private getFilePath(storagePath: string) {
-	const uploadDir = process.env.UPLOAD_DIR
-	if (uploadDir === undefined) {
-	  throw new InternalServerErrorException(`La variable d'environnement UPLOAD_DIR n'est pas définie`)
-	}
-	const filePath = join(uploadDir, storagePath)
-	return filePath
-  }
 
   async downloadFile(fileId: string, requesterId: string, organizationId: string) {
 	const file = await this.findFileById(fileId, requesterId, organizationId)
-	const filePath = this.getFilePath(file.storagePath)
-	try {
-	  await access(filePath)
-	} catch {
-	  throw new NotFoundException(`Le fichier n'existe pas`)
-	}
+	const filePath = this.storageServ.getFilePath(file.storagePath)
+	await this.storageServ.checkFileExists(filePath)
 	return { filePath, fileName: file.name, mimeType: file.mimeType }
   }
 
@@ -193,12 +159,8 @@ export class FilesService implements OnModuleInit {
 	if (!previewableMimeTypes.includes(file.mimeType)) {
 		throw new BadRequestException(`Le type MIME du fichier n'est pas prévisualisable`)
 	}
-	const filePath = this.getFilePath(file.storagePath)
-	try {
-	  await access(filePath)
-	} catch {
-	  throw new NotFoundException(`Le fichier n'existe pas`)
-	}
+	const filePath = this.storageServ.getFilePath(file.storagePath)
+	await this.storageServ.checkFileExists(filePath)
 	return { filePath, fileName: file.name, mimeType: file.mimeType }
   }
 
@@ -297,7 +259,7 @@ export class FilesService implements OnModuleInit {
 	if (member.role !== Role.ADMIN && file.ownerId !== member.id) {
 		throw new ForbiddenException(`Vous n'avez pas la permission de supprimer ce fichier`)
 	}
-	const filePath = this.getFilePath(file.storagePath)
+	const filePath = this.storageServ.getFilePath(file.storagePath)
 	try {
 	  await this.prisma.file.delete({
 		where: { id: fileId }
@@ -305,10 +267,6 @@ export class FilesService implements OnModuleInit {
 	} catch {
 	  throw new InternalServerErrorException(`Impossible de supprimer le fichier de la base de données`)
 	}
-	try {
-	  await unlink(filePath)
-	} catch {
-	//   on laisse passer, car le fichier a été supprimé de la base de données
-	}
+	await this.storageServ.deleteFileFromStorage(filePath)
   }
 }
