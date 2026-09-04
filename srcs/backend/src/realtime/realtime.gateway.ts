@@ -6,7 +6,7 @@
 // =============================================================================
 
 // Importe le logger de Nest (journalisation coherente avec le reste de l'app).
-import { Logger } from '@nestjs/common'
+import { Logger, Inject, forwardRef } from '@nestjs/common'
 // Importe les decorateurs et interfaces WebSocket de Nest.
 import {
   // Marque une methode comme handler d'un evenement entrant.
@@ -60,11 +60,14 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   private readonly logger = new Logger(RealtimeGateway.name)
 
   // Injection du registre de presence (fourni par RealtimeModule).
-  constructor(private readonly presence: PresenceRegistry,
-              private readonly messages: MessageService, // AJOUT
-              private readonly users: UsersService,          // AJOUT
-              private readonly friendship: FriendshipService, // AJOUT
-  ){}
+  constructor(
+    private readonly presence: PresenceRegistry,
+    private readonly messages: MessageService,
+    @Inject(forwardRef(() => UsersService))
+    private readonly users: UsersService,
+    @Inject(forwardRef(() => FriendshipService))
+    private readonly friendship: FriendshipService,
+  ) {}
 
   // -------------------------------------------------------------------------
   // Cycle de vie

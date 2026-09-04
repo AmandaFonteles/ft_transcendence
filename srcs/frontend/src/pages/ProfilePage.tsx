@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react'
 import {
-  changePassword, confirmTwoFactor, disableTwoFactor,
+  changePassword, confirmTwoFactor, disableTwoFactor, deleteAccount,///
   fetchAvatarPresets, selectAvatar, setupTwoFactor, updateProfile,
 } from '../api'
 import type { AuthUser } from '../api'
@@ -15,9 +15,10 @@ import Card from '../components/ui/Card'
 import TextField from '../components/ui/TextField'
 import Button from '../components/ui/Button'
 import PageHeading from '../components/ui/PageHeading'
+import { closeSocket } from '../realtime/socket'
 
 export default function ProfilePage() {
-  const { user, accessToken, setUser } = useAuth()
+  const { user, accessToken, setUser, logout } = useAuth()
 
   // Route protegee : ce cas ne devrait pas se produire, mais TypeScript exige
   // qu'on le traite pour que user soit non-nul dans la suite.
@@ -33,6 +34,7 @@ export default function ProfilePage() {
         <ProfileForm accessToken={accessToken} user={user} onUpdated={setUser} />
         <PasswordForm accessToken={accessToken} />
         <TwoFactorCard accessToken={accessToken} />
+        <DeleteAcc accessToken={accessToken} logout={logout} />
       </div>
     </>
   )
@@ -260,6 +262,37 @@ function TwoFactorCard({ accessToken }: { accessToken: string }) {
       ) : (
         <Button onClick={start}>Activer</Button>
       )}
+    </Card>
+  )
+}
+
+
+function DeleteAcc({ accessToken, logout }: { accessToken: string; logout: () => Promise<void> }) { // sup compte
+  const [error, setError] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  async function handleDelete() {
+    if (!window.confirm('Supprimer définitivement votre compte ?')) return
+
+    setError(null)
+    setDeleting(true)
+    try {
+      await deleteAccount(accessToken)
+      closeSocket()
+      await logout()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'erreur inconnue')
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <Card>
+      <h2 className="text-base font-semibold mb-2 text-danger">Supprime définitivement votre compte</h2>
+      {error && <p className="text-danger text-sm mb-2">{error}</p>}
+      <Button variant="secondary" onClick={handleDelete} disabled={deleting}>
+        {deleting ? 'Suppression…' : 'Supprimer mon compte'}
+      </Button>
     </Card>
   )
 }

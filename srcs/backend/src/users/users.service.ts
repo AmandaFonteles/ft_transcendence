@@ -12,7 +12,7 @@ import * as argon2 from 'argon2'
 import { PrismaService } from '../prisma/prisma.service'
 import { UpdateProfileDto } from './dto/update-profile.dto'
 import { ChangePasswordDto } from './dto/change-password.dto'
-
+import { OrganizationsService } from '../organizations/organizations.service' ////pour supp orga en meme temps que user
 // AJOUT : constante placee ICI, HORS de la classe, juste apres les imports.
 // [CONCEPT: constante partagee] Extrait la liste des champs "publics" d'un User
 // (jamais le credential). Utilisee par findById ET updateAvatar : evite d'ecrire
@@ -30,7 +30,8 @@ const USER_PUBLIC_SELECT = {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService,
+              private readonly organizations: OrganizationsService) {}
 
   // [CONCEPT: liste blanche de champs] "select" enumere explicitement ce qui sort.
   // L'ADRESSE E-MAIL EST VOLONTAIREMENT ABSENTE : c'est une donnee personnelle, et
@@ -127,11 +128,27 @@ export class UsersService {
     return { success: true }
   }
 
-  setOnlineStatus(userId: string, isOnline: boolean) {
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { isOnline },
-      select: { id: true, isOnline: true },
-    })
+  async setOnlineStatus(userId: string, isOnline: boolean) { //// supp compte
+    try {
+      return await this.prisma.user.update({
+        where: { id: userId },
+        data: { isOnline },
+        select: { id: true, isOnline: true },
+      })
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        return null
+      }
+      throw error
+    }
+  }
+
+  async deleteAccount(userId: string) { // delete account & orga
+    const organizationIdsToDelete = await this.organizations.checkOrganizationsAtUserDeletion(userId)
+    for (const organizationId of organizationIdsToDelete) {
+      await this.prisma.organization.delete({ where: { id: organizationId } })
+    }
+    await this.prisma.user.delete({ where: { id: userId } })
+    return { success: true }
   }
 }

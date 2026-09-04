@@ -12,7 +12,7 @@ import { UsersModule } from '../users/users.module'       // isOnline
 import { FriendshipModule } from '../friendship/friendship.module' //ajout
 // Declare et cable le module.
 @Module({
-  imports: [ChatModule, UsersModule, forwardRef(() => FriendshipModule)], 
+  imports: [ChatModule, forwardRef(() => UsersModule), forwardRef(() => FriendshipModule)],
   // Un gateway se declare comme un PROVIDER (pas dans "controllers" : il ne sert pas de routes HTTP).
   providers: [RealtimeGateway, PresenceRegistry],
   // [CONCEPT: frontiere de module] On n'exporte QUE PresenceRegistry.

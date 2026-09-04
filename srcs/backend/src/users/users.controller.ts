@@ -1,7 +1,7 @@
 // [CONCEPT: controller de feature] UsersController mappe les routes HTTP vers le
 // service. Il ne contient AUCUNE logique : il recoit, delegue, renvoie.
 
-import { Body, Controller, Get, NotFoundException, Patch, UseGuards } from '@nestjs/common'
+import { Body, Controller, Get, NotFoundException, Patch, UseGuards, Delete } from '@nestjs/common'
 import { UsersService } from './users.service'
 import { SelectAvatarDto } from './dto/select-avatar.dto'
 import { UpdateProfileDto } from './dto/update-profile.dto'
@@ -65,5 +65,11 @@ export class UsersController {
   @Patch('me/password')
   changePassword(@CurrentUser() user: { userId: string }, @Body() dto: ChangePasswordDto) {
     return this.users.changePassword(user.userId, dto)
+  }
+  //pour supprimer un comte
+  @UseGuards(JwtAuthGuard)
+  @Delete('me')
+  deleteAccount(@CurrentUser() user: { userId: string }) {
+    return this.users.deleteAccount(user.userId)
   }
 }

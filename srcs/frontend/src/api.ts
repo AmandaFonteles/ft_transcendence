@@ -556,3 +556,10 @@ export function getTask(accessToken: string, organizationId: string, taskId: str
     headers: auth(accessToken),
   })
 }
+
+export function deleteAccount(accessToken: string) { // pour supprimer un compte
+  return request<{ success: boolean }>('/users/me', {
+    method: 'DELETE',
+    headers: auth(accessToken),
+  })
+}

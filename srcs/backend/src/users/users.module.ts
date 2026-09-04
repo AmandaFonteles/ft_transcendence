@@ -8,8 +8,12 @@ import { UsersController } from './users.controller'
 // Importe le service de ce module.
 import { UsersService } from './users.service'
 
+import { OrganizationsModule } from '../organizations/organizations.module'// pour supp les donner en meme temps que l'user
+
+
 // Declare et cable le module.
 @Module({
+  imports: [OrganizationsModule], //////// //
   // Les routes exposees par ce module.
   controllers: [UsersController],
   // Les services instancies par ce module.

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common'
+import { Module, forwardRef } from '@nestjs/common'
 import { OrganizationsController } from './organizations.controller'
 import { OrganizationsService } from './organizations.service'
 import { FriendshipModule } from '../friendship/friendship.module'
@@ -11,6 +11,6 @@ import { RealtimeModule } from '../realtime/realtime.module'
   controllers: [OrganizationsController],
   providers: [OrganizationsService],
   exports: [OrganizationsService],
-  imports: [FriendshipModule, RealtimeModule, StorageModule],
+  imports: [FriendshipModule, forwardRef(() => RealtimeModule), StorageModule], 
 })
 export class OrganizationsModule {}
