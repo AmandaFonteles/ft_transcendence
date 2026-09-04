@@ -47,6 +47,13 @@ export const ServerEvents = {
   FRIEND_REQUEST_RECEIVED: 'friend:request_received',
   FRIEND_REQUEST_ACCEPTED: 'friend:request_accepted',
   FRIEND_REMOVED: 'friend:removed',
+
+  // Gestion des membres d'un projet. Diffuses dans le SALON DU PROJET (orgRoom),
+  // pas a un utilisateur precis : tous les membres presents doivent voir la
+  // liste evoluer, pas seulement la personne concernee.
+  MEMBER_ADDED: 'member:added',
+  MEMBER_REMOVED: 'member:removed',
+  MEMBER_ROLE_CHANGED: 'member:role_changed',
 } as const
 
 // [CONCEPT: convention de nommage des rooms] Une "room" Socket.IO est juste une
@@ -123,4 +130,16 @@ export function userRoom(userId: string): string {
 export interface OnlineStatusEvent {
   userId: string
   isOnline: boolean
+}
+
+// Payload des evenements de membres. On ne transmet que l'identifiant et le role :
+// le client RECHARGE la liste depuis l'API en recevant l'evenement, plutot que de
+// reconstituer son etat a partir du message.
+// Pourquoi : le backend applique des regles que le client ignore (dernier
+// administrateur non retrogradable, projet supprime quand le dernier membre part).
+// Un client qui bricolerait sa liste divergerait de la verite serveur.
+export interface MemberEventPayload {
+  organizationId: string
+  userId: string
+  role?: 'ADMIN' | 'MEMBER'
 }

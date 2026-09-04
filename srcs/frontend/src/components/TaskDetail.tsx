@@ -10,6 +10,8 @@
 import { useState } from 'react'
 import { deleteTask, getTask, updateTask, updateTaskStatus } from '../api'
 import type { Task, TaskStatus } from '../api'
+import { useAuth } from '../auth/AuthContext'
+import TaskAssignees from './TaskAssignees'
 import Modal from './ui/Modal'
 import Button from './ui/Button'
 import TextField from './ui/TextField'
@@ -28,11 +30,19 @@ interface TaskDetailProps {
   onUpdated: (task: Task) => void
   // Remonte la suppression au parent.
   onDeleted: (taskId: string) => void
+  // La personne connectee est-elle administratrice du projet ? Sert a savoir si
+  // elle peut assigner n'importe qui. Optionnelle : depuis le tableau de bord,
+  // qui melange plusieurs projets, on ne connait pas ce role — on retombe alors
+  // sur les droits du proprietaire de la tache uniquement.
+  isAdmin?: boolean
 }
 
 export default function TaskDetail({
-  task, accessToken, onClose, onUpdated, onDeleted,
+  task, accessToken, onClose, onUpdated, onDeleted, isAdmin = false,
 }: TaskDetailProps) {
+  // Identifiant de la personne connectee : necessaire pour savoir ce qu'elle a
+  // le droit de faire sur les assignations.
+  const { user } = useAuth()
   // Bascule lecture / edition.
   const [editing, setEditing] = useState(false)
   // Champs du formulaire, initialises depuis la tache courante.
@@ -145,6 +155,18 @@ export default function TaskDetail({
             <dt className="text-ink-soft">◆ Échéance</dt>
             <dd className="tabular-nums">{formatLongDate(task.dueDate)}</dd>
           </dl>
+
+          {/* Assignations : qui travaille sur cette tache, et actions associees. */}
+          {user && (
+            <TaskAssignees
+              accessToken={accessToken}
+              organizationId={task.organizationId}
+              taskId={task.id}
+              ownerId={task.ownerId}
+              currentUserId={user.id}
+              isAdmin={isAdmin}
+            />
+          )}
 
           {/* Changement de statut direct, sans entrer en edition : c'est l'action
               la plus frequente sur une tache. */}

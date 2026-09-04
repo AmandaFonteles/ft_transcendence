@@ -33,6 +33,12 @@ export const ServerEvents = {
   FRIEND_REQUEST_RECEIVED: 'friend:request_received',
   FRIEND_REQUEST_ACCEPTED: 'friend:request_accepted',
   FRIEND_REMOVED: 'friend:removed',
+
+  // Gestion des membres d'un projet, diffusee dans le salon du projet.
+  // DOIT rester identique au contrat backend (realtime.events.ts).
+  MEMBER_ADDED: 'member:added',
+  MEMBER_REMOVED: 'member:removed',
+  MEMBER_ROLE_CHANGED: 'member:role_changed',
 } as const
 
 
@@ -74,3 +80,8 @@ export interface ChatMessageEvent {
   organizationId: string
   author: PresenceUser
 }
+
+// Pas de type de payload pour les evenements de membres cote client : le hook
+// useOrganizationMembers IGNORE volontairement leur contenu et recharge la liste
+// depuis l'API. Declarer un type que personne n'utilise laisserait croire qu'on
+// exploite le message.

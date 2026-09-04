@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react'
 import { addOrganizationMember, demoteMember, listFriends, listOrganizationMembers, promoteMember, removeMember } from '../api'
 import type { Friend, InvitePolicy, OrganizationMember } from '../api'
 import { useAuth } from '../auth/AuthContext'
+import { useOrganizationMembers } from '../realtime/useOrganizationMembers'
 import Card from './ui/Card'
 import Button from './ui/Button'
 
@@ -38,6 +39,18 @@ export default function MembersSection({ organizationId, accessToken, invitePoli
   const [friends, setFriends] = useState<Friend[]>([])
   const [selectedFriendId, setSelectedFriendId] = useState('')
 
+  // [TEMPS REEL] S'abonne au salon du projet. Le compteur change des qu'un membre
+  // est ajoute, retire, promu ou retrograde — y compris par QUELQU'UN D'AUTRE.
+  // Sans cela, deux personnes travaillant en meme temps voyaient des listes
+  // divergentes jusqu'au prochain rechargement manuel.
+  const membersRevision = useOrganizationMembers(
+    organizationId,
+    // Identite du handshake. Le repli sur des chaines vides ne sert qu'a
+    // satisfaire le typage : la section n'est rendue que pour un utilisateur
+    // connecte, et le backend refuse une socket sans identite.
+    { userId: user?.id ?? '', displayName: user?.displayName ?? '' },
+  )
+
   useEffect(() => {
     listFriends(accessToken)
       .then(setFriends)
@@ -61,8 +74,12 @@ export default function MembersSection({ organizationId, accessToken, invitePoli
 
   useEffect(() => {
     reload()
-    // organizationId suffit : accessToken ne change pas pendant la vie de la page.
-  }, [organizationId])
+    // membersRevision en dependance : chaque evenement temps reel incremente ce
+    // compteur, ce qui relance le chargement. On RECHARGE plutot que d'appliquer
+    // le payload, car le backend applique des regles que le client ignore
+    // (dernier administrateur, suppression du projet au depart du dernier membre).
+    // accessToken n'y figure pas : il ne change pas pendant la vie de la page.
+  }, [organizationId, membersRevision])
 
   // Le rôle de l'utilisateur courant determine les actions proposees.
   const me = members.find((m) => m.user.id === user?.id)

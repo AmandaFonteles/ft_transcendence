@@ -246,6 +246,16 @@ export function updateOrganization(
   })
 }
 
+// Supprime definitivement un projet. Reserve aux ADMIN (le backend le verifie).
+// CASCADE : entraine la suppression de toutes les taches, de toutes les
+// appartenances et de tous les fichiers du projet (voir schema.prisma).
+export function deleteOrganization(accessToken: string, id: string) {
+  return request<Ack>(`/organizations/${id}`, {
+    method: 'DELETE',
+    headers: auth(accessToken),
+  })
+}
+
 // Ajoute un membre au projet (soumis a la politique d'invitation).
 export function addOrganizationMember(accessToken: string, id: string, userId: string) {
   return request<Ack>(`/organizations/${id}/members`, {
@@ -335,6 +345,57 @@ export function updateTask(
     headers: auth(accessToken),
     body: JSON.stringify(data),
   })
+}
+
+// --- Assignations de taches --------------------------------------------------
+
+// Une assignation telle que renvoyee par l'API : la ligne de jointure, avec le
+// membre d'organisation associe. Attention, "member" est un OrganizationMember,
+// PAS un User : il porte userId, pas displayName. Il faut croiser avec
+// listOrganizationMembers pour afficher un nom.
+export type TaskAssignment = {
+  taskId: string
+  memberId: string
+  member: {
+    id: string
+    userId: string
+    organizationId: string
+    role: 'ADMIN' | 'MEMBER'
+  }
+}
+
+// Liste les personnes assignees a une tache.
+export function listTaskAssignments(accessToken: string, organizationId: string, taskId: string) {
+  return request<TaskAssignment[]>(
+    `/organizations/${organizationId}/tasks/${taskId}/assignments`,
+    { headers: auth(accessToken) },
+  )
+}
+
+// Assigne un membre a une tache.
+// REGLES BACKEND : le proprietaire de la tache et les administrateurs peuvent
+// assigner n'importe qui ; tout autre membre ne peut s'assigner LUI-MEME, et
+// seulement si la tache n'a encore AUCUN assigne.
+export function assignTaskMember(
+  accessToken: string, organizationId: string, taskId: string, memberUserId: string,
+) {
+  return request<TaskAck>(`/organizations/${organizationId}/tasks/${taskId}/assignments`, {
+    method: 'POST',
+    headers: auth(accessToken),
+    body: JSON.stringify({ memberUserId }),
+  })
+}
+
+// Retire une assignation.
+// REGLES BACKEND : le proprietaire et les administrateurs peuvent retirer
+// n'importe qui ; les autres ne peuvent retirer qu'eux-memes.
+export function removeTaskAssignment(
+  accessToken: string, organizationId: string, taskId: string, memberUserId: string,
+) {
+  return request<TaskAck>(
+    `/organizations/${organizationId}/tasks/${taskId}/assignments/${memberUserId}`,
+    { method: 'DELETE', headers: auth(accessToken) },
+  )
 }
 
 // Supprime une tache.

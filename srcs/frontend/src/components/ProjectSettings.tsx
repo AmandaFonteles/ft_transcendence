@@ -7,7 +7,8 @@
 // =============================================================================
 
 import { useEffect, useState } from 'react'
-import { getOrganization, listOrganizationMembers, removeMember, updateOrganization } from '../api'
+import { useNavigate } from 'react-router-dom'
+import { deleteOrganization, getOrganization, listOrganizationMembers, removeMember, updateOrganization } from '../api'
 import type { InvitePolicy, Organization, OrganizationMember } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import Modal from './ui/Modal'
@@ -35,6 +36,15 @@ export default function ProjectSettings({
   const [invitePolicy, setInvitePolicy] = useState<InvitePolicy>(organization.invitePolicy)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // Zone de suppression depliee ? Fermee par defaut : l'action doit se chercher.
+  const [showDelete, setShowDelete] = useState(false)
+  // Nom saisi pour confirmer la suppression (justification plus bas).
+  const [confirmName, setConfirmName] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
+  // Permet de quitter la page apres suppression : le projet n'existe plus, y
+  // rester afficherait une erreur.
+  const navigate = useNavigate()
 
   // --- Retrait de membres ----------------------------------------------------
   // Cet utilisateur est forcement administrateur : le panneau n'est ouvert que
@@ -92,6 +102,21 @@ export default function ProjectSettings({
       setError(err instanceof Error ? err.message : 'erreur inconnue')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    setError(null)
+    setDeleting(true)
+    try {
+      await deleteOrganization(accessToken, organization.id)
+      // Redirige AVANT que le parent tente de recharger un projet disparu.
+      // "replace" evite d'empiler une entree d'historique vers une page morte :
+      // le bouton Retour ne ramenerait que sur cette erreur.
+      navigate('/tableau-de-bord', { replace: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'erreur inconnue')
+      setDeleting(false)
     }
   }
 
@@ -171,6 +196,67 @@ export default function ProjectSettings({
             {members.length <= 1 && (
               <p className="font-data text-[12.5px] text-ink-soft">Aucun autre membre à retirer.</p>
             )}
+          </div>
+        )}
+      </div>
+
+      {/* ---------------------------------------------------------------------
+          ZONE DE SUPPRESSION DU PROJET. Placee en dernier et separee par un
+          filet : ce n'est pas un reglage de plus, c'est une action d'une autre
+          nature. Elle n'apparait que dans ce panneau, donc uniquement pour les
+          administrateurs.
+          --------------------------------------------------------------------- */}
+      <div className="mt-5 pt-4 border-t border-rule">
+        {!showDelete ? (
+          // Repliee par defaut : l'action destructrice doit se chercher, elle ne
+          // doit pas se trouver sous le curseur de quelqu'un venu renommer.
+          <Button type="button" variant="ghost" onClick={() => setShowDelete(true)}>
+            Supprimer le projet
+          </Button>
+        ) : (
+          <div className="grid gap-3">
+            {/* L'avertissement enumere ce qui disparait REELLEMENT : le schema
+                declare onDelete: Cascade depuis Organization vers les membres,
+                les taches, les fichiers et les messages. Dire "irreversible"
+                sans dire QUOI ne prepare a rien. */}
+            <p className="text-[13.5px] text-danger">
+              Cette action est irréversible. Elle supprimera définitivement le projet,
+              <strong> toutes ses tâches</strong>, <strong>tous ses fichiers</strong>,
+              <strong> toute sa discussion</strong> et l'appartenance de
+              <strong> tous ses membres</strong>.
+            </p>
+
+            {/* [CONCEPT: confirmation par saisie] Recopier le nom est plus
+                exigeant qu'un second clic, et c'est voulu : la suppression
+                detruit le travail de TOUTE une equipe, pas seulement celui de la
+                personne qui clique. Recopier oblige a lire ce qu'on supprime. */}
+            <TextField
+              label={`Tapez « ${organization.name} » pour confirmer`}
+              value={confirmName}
+              onChange={(e) => setConfirmName(e.target.value)}
+              placeholder={organization.name}
+              autoComplete="off"
+            />
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                onClick={handleDelete}
+                // Inactif tant que le nom ne correspond pas exactement.
+                // trim() tolere un espace colle par un copier-coller, sans plus.
+                disabled={deleting || confirmName.trim() !== organization.name}
+                className="!bg-danger !text-white !border-transparent"
+              >
+                {deleting ? 'Suppression…' : 'Supprimer définitivement'}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => { setShowDelete(false); setConfirmName('') }}
+              >
+                Annuler
+              </Button>
+            </div>
           </div>
         )}
       </div>

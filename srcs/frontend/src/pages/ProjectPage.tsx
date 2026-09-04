@@ -251,6 +251,9 @@ export default function ProjectPage() {
         <TaskDetail
           task={openTask}
           accessToken={accessToken}
+          // On connait le role sur CE projet : on le transmet pour que le panneau
+          // propose les actions d'assignation reservees aux administrateurs.
+          isAdmin={iAmAdmin}
           onClose={() => setOpenTask(null)}
           onUpdated={applyUpdate}
           onDeleted={(id) => setTasks((prev) => prev.filter((t) => t.id !== id))}

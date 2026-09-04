@@ -317,6 +317,14 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   
   // Permet a d'autres modules (friendship) de pousser un evenement cible a UN
   // utilisateur, sans connaitre Socket.IO : ils appellent juste cette methode.
+  // Diffuse un evenement a TOUS les membres presents dans le salon d'un projet.
+  // Pendant de notifyUser, mais a l'echelle d'une organisation.
+  // Le salon n'est peuple que de sockets ayant passe le controle d'appartenance
+  // de handleJoinOrg : diffuser ici ne fuite donc rien a un non-membre.
+  notifyOrganization(organizationId: string, event: string, payload: unknown): void {
+    this.server.to(orgRoom(organizationId)).emit(event, payload)
+  }
+
   notifyUser(userId: string, event: string, payload: unknown): void {
     this.server.to(userRoom(userId)).emit(event, payload)
   }

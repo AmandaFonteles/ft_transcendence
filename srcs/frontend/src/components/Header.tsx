@@ -14,7 +14,7 @@ const menuItems = [
   { to: '/tableau-de-bord', label: 'Tableau de bord' },
   { to: '/agenda', label: 'Agenda' },
   { to: '/projets/nouveau', label: 'Créer un projet' },
-  { to: '/equipe', label: 'Équipe' },
+  { to: '/amis', label: 'Amis' },
   { to: '/profil', label: 'Profil' },
 ]
 
@@ -65,10 +65,25 @@ export default function Header() {
             <span className="hidden sm:inline font-data text-[13px] text-ink-soft">
               {user.displayName}
             </span>
-            {/* Avatar si l'utilisateur en a choisi un. */}
-            {user.avatarUrl && (
-              <img src={user.avatarUrl} alt="" className="size-7 rounded-full object-cover" />
-            )}
+            {/* [ACCES AU PROFIL] L'avatar est un LIEN vers /profil. C'est la
+                convention attendue : partout ailleurs sur le web, cliquer sur sa
+                propre photo mene a son compte. Le passer par le menu deroulant
+                obligeait a chercher.
+                Un repli sur les initiales est affiche quand aucun avatar n'a ete
+                choisi : sans lui, ces utilisateurs n'auraient aucun raccourci. */}
+            <Link
+              to="/profil"
+              title="Mon profil"
+              className="shrink-0 rounded-full ring-2 ring-transparent hover:ring-rule transition-shadow"
+            >
+              {user.avatarUrl ? (
+                <img src={user.avatarUrl} alt="Mon profil" className="size-7 rounded-full object-cover block" />
+              ) : (
+                <span className="grid place-items-center size-7 rounded-full bg-sunk text-ink-soft text-[11px] font-semibold">
+                  {user.displayName.charAt(0).toUpperCase()}
+                </span>
+              )}
+            </Link>
           </>
         ) : (
           <Link

@@ -8,6 +8,13 @@
 //
 // Une tache dont les deux dates tombent le meme jour n'apparait qu'UNE fois, avec
 // les deux marqueurs : la dupliquer dans la meme case n'apprendrait rien.
+//
+// Une tache SANS AUCUNE DATE est placee sur le jour courant : sans cela elle
+// n'apparaissait nulle part dans l'agenda, donc restait invisible a qui travaille
+// depuis cette page.
+//
+// Les taches TERMINEES ne sont plus affichees : l'agenda sert a voir ce qui reste
+// a faire, pas a archiver ce qui est fait.
 // =============================================================================
 
 import { useEffect, useMemo, useState } from 'react'
@@ -31,7 +38,7 @@ const MAX_PER_DAY = 3
 
 // Ce qu'une entree de calendrier represente : le debut d'une tache, son echeance,
 // ou les deux quand elles tombent le meme jour.
-type EntryKind = 'start' | 'due' | 'both'
+type EntryKind = 'start' | 'due' | 'both' | 'undated'
 
 interface DayEntry {
   task: Task
@@ -44,6 +51,9 @@ const kindMarker: Record<EntryKind, string> = {
   start: '▸',
   due: '◆',
   both: '▸◆',
+  // Cercle vide : ni debut ni echeance. Volontairement different des deux autres
+  // marqueurs, pour ne pas laisser croire a une date qui n'existe pas.
+  undated: '○',
 }
 
 // Libelle lu par les lecteurs d'ecran : un symbole seul n'est pas une information
@@ -52,10 +62,14 @@ const kindLabel: Record<EntryKind, string> = {
   start: 'début',
   due: 'échéance',
   both: 'début et échéance',
+  undated: 'sans date',
 }
 
 // Ordre de tri dans une case : le debut avant l'echeance.
-const kindOrder: Record<EntryKind, number> = { start: 0, both: 1, due: 2 }
+// Ordre de tri dans une case : le debut avant l'echeance. Les taches sans date
+// passent en dernier : elles n'ont pas de rendez-vous ce jour-la, elles y sont
+// juste rangees faute de mieux.
+const kindOrder: Record<EntryKind, number> = { start: 0, both: 1, due: 2, undated: 3 }
 
 export default function AgendaPage() {
   const { accessToken } = useAuth()
@@ -127,12 +141,26 @@ export default function AgendaPage() {
       map.set(key, list)
     }
 
+    // Cle du jour courant, calculee une fois hors de la boucle.
+    const todayKey = dayKey(new Date())
+
     for (const t of tasks) {
       // Applique le filtre projet.
       if (filterOrg && t.organizationId !== filterOrg) continue
 
+      // Une tache TERMINEE ne figure plus dans l'agenda : celui-ci sert a voir ce
+      // qui reste a faire. La garder encombrerait la grille sans rien apprendre.
+      if (t.status === 'DONE') continue
+
       const startKey = t.startDate ? dayKey(t.startDate) : null
       const dueKey = t.dueDate ? dayKey(t.dueDate) : null
+
+      // Aucune date : on la range sur le jour courant, sinon elle n'apparaitrait
+      // nulle part et resterait invisible depuis l'agenda.
+      if (!startKey && !dueKey) {
+        push(todayKey, { task: t, kind: 'undated' })
+        continue
+      }
 
       // Debut et echeance le meme jour : une seule entree, deux marqueurs.
       // Sans ce cas, la tache apparaitrait deux fois dans la meme case.
@@ -247,7 +275,9 @@ export default function AgendaPage() {
                     {kindMarker[e.kind]}
                   </span>
                   {/* truncate coupe proprement un nom trop long pour la cellule. */}
-                  <span className={`text-[11px] truncate ${e.task.status === 'DONE' ? 'line-through text-ink-faint' : 'text-ink'}`}>
+                  {/* Plus de variante "terminee" ici : ces taches sont desormais
+                      filtrees en amont, le style barre serait inatteignable. */}
+                  <span className="text-[11px] truncate text-ink">
                     {e.task.name}
                   </span>
                 </button>

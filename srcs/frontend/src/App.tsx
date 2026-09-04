@@ -22,7 +22,7 @@ import DashboardPage from './pages/DashboardPage'
 import AgendaPage from './pages/AgendaPage'
 import ProjectPage from './pages/ProjectPage'
 import ProjectCreatePage from './pages/ProjectCreatePage'
-import TeamPage from './pages/TeamPage'
+import FriendsPage from './pages/FriendsPage'
 import ProfilePage from './pages/ProfilePage'
 import ContactPage from './pages/ContactPage'
 import PrivacyPage from './pages/PrivacyPage'
@@ -54,7 +54,7 @@ export default function App() {
           <Route path="projets/nouveau" element={<ProjectCreatePage />} />
           {/* ":projectId" est un segment dynamique, lu avec useParams(). */}
           <Route path="projets/:projectId" element={<ProjectPage />} />
-          <Route path="equipe" element={<TeamPage />} />
+          <Route path="amis" element={<FriendsPage />} />
           <Route path="profil" element={<ProfilePage />} />
         </Route>
 
