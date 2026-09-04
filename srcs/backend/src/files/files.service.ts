@@ -1,12 +1,13 @@
 import { Injectable, InternalServerErrorException, BadRequestException, PayloadTooLargeException, OnModuleInit, NotFoundException, ForbiddenException } from '@nestjs/common'
-// import { Role } from '@prisma/client'
+import { Role, VisibilityPolicy } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { OrganizationsService } from '../organizations/organizations.service'
 import { mkdir,writeFile, unlink, access } from 'fs/promises'
 import { join, extname } from 'path'
-import { CreateFileDto } from './dto/create-file.dto'
 import { WASMagic } from 'wasmagic'
 import { randomUUID } from 'crypto'
+import { CreateFileDto } from './dto/create-file.dto'
+import { UpdateFileDto } from './dto/update-file.dto'
 
 @Injectable()
 export class FilesService implements OnModuleInit {
@@ -107,7 +108,7 @@ export class FilesService implements OnModuleInit {
 	  throw new NotFoundException(`Le fichier ${fileId} n'existe pas`)
 	}
 	const member = await this.orgaServ.requireActiveMember(file.organizationId, requesterId)
-	if (member.role === 'ADMIN') {
+	if (member.role === Role.ADMIN) {
 	  return file
 	}
 	if (file.ownerId === member.id) {
@@ -135,7 +136,7 @@ export class FilesService implements OnModuleInit {
   async findAllFiles(organizationId: string, requesterId: string)
   {
 	const member = await this.orgaServ.requireActiveMember(organizationId, requesterId)
-	if (member.role === 'ADMIN') {
+	if (member.role === Role.ADMIN) {
 		return await this.prisma.file.findMany({
 		  where: {
 			organizationId: organizationId
@@ -199,5 +200,36 @@ export class FilesService implements OnModuleInit {
 	  throw new NotFoundException(`Le fichier n'existe pas`)
 	}
 	return { filePath, fileName: file.name, mimeType: file.mimeType }
+  }
+
+  async updateFile(fileId: string, requesterId: string, organizationId: string, data: UpdateFileDto) {
+	const file = await this.findFileById(fileId, requesterId, organizationId)
+	const member = await this.orgaServ.requireActiveMember(organizationId, requesterId)
+	if (member.role !== Role.ADMIN && file.ownerId !== member.id) {
+		throw new ForbiddenException(`Vous n'avez pas la permission de modifier ce fichier`)
+	}
+	try {
+		const updatedFile = await this.prisma.$transaction(async (prisma) => {
+		  const update = await prisma.file.update({
+		  where: { id: fileId },
+		  data: {
+		    name: data.name,
+		    description: data.description,
+		    visibilityPolicy: data.visibilityPolicy
+	      }
+	    })
+	    if (file.visibilityPolicy === VisibilityPolicy.RESTRICTED && data.visibilityPolicy !== undefined && data.visibilityPolicy !== VisibilityPolicy.RESTRICTED) {
+		  await prisma.fileAccess.deleteMany({
+	        where: {
+			  fileId: fileId
+		    }
+		  })
+	    }
+	    return update
+	  })
+	  return updatedFile
+	} catch {
+		throw new InternalServerErrorException(`Impossible de mettre à jour le fichier`)
+	}
   }
 }

@@ -1,10 +1,11 @@
-import { Controller, Body, Get, Post, Param, Delete, UseInterceptors, UploadedFile, UseGuards, StreamableFile} from '@nestjs/common';
+import { Controller, Body, Get, Post, Patch, Param, Delete, UseInterceptors, UploadedFile, UseGuards, StreamableFile} from '@nestjs/common';
 import { FilesService } from './files.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CreateFileDto } from './dto/create-file.dto'
 import { createReadStream } from 'fs'
+import { UpdateFileDto } from './dto/update-file.dto';
 
 
 
@@ -54,5 +55,11 @@ export class FilesController {
     const fileStream = createReadStream(filePath);
     const encodedFileName = this.encodeFileName(fileName);
     return new StreamableFile(fileStream, { type: mimeType, disposition: `inline; filename*=UTF-8''${encodedFileName}` });
+  }
+
+  @Patch(':fileId')
+  async updateFile(@Param('organizationId') organizationId: string, @Param('fileId') fileId: string, @CurrentUser() user: { userId: string }, @Body() updateFileDto: UpdateFileDto) {
+    const updatedFile = await this.filesService.updateFile(fileId, user.userId, organizationId, updateFileDto);
+    return updatedFile;
   }
 }
