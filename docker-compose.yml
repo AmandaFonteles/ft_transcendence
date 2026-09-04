@@ -130,6 +130,62 @@ services:
     depends_on: [frontend, backend]
     # Auto-redemarrage.
     restart: unless-stopped
+  
+  # ---------------------------------------------------------------------------
+  # PROMETHEUS: Le serveur pour le monitoring des services.
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: docker.io/prom/prometheus:v3.13.2
+    # UID 0 DANS LE CONTENEUR — ce n'est PAS root sur l'hote.
+    # Podman tourne en rootless : l'UID 0 du conteneur est mappe sur
+    # l'utilisateur non privilegie qui lance la pile. Aucun root reel
+    # n'existe dans ce stack.
+    # Pourquoi : l'image tourne en 'nobody' (65534) et ne peut pas ecrire
+    # sa TSDB dans un volume neuf sous rootless. L'UID 0 du namespace
+    # dispose de CAP_DAC_OVERRIDE *a l'interieur du namespace*, donc il
+    # ecrit sans dependre de l'appartenance du volume.
+    # Alternatives rejetees : ':U' et 'userns_mode', tous deux ignores
+    # silencieusement par podman-compose 1.6.0 (verifie via podman inspect) ;
+    # 'podman unshare chown' manuel, incompatible avec l'exigence du sujet
+    # d'un deploiement en UNE commande.
+    user: "0:0"
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.external-url=https://localhost:8443/prometheus/
+      - --web.enable-lifecycle
+    volumes:
+      # ':ro' — Prometheus ne doit pas ecrire dans des fichiers versionnes.
+      - ./srcs/monitoring/prometheus:/etc/prometheus:ro
+      # ':U' — option PODMAN : chown recursif du volume vers l'UID/GID du
+      # conteneur (65534 'nobody'). En rootless, un volume neuf appartient a
+      # l'UID 0 du user namespace, alors que Prometheus tourne en 'nobody' :
+      # sans ':U' il ne peut pas ecrire sa TSDB et redemarre en boucle.
+      # Alternative rejetee : 'user: root', qui casse le principe de moindre
+      # privilege pour contourner un probleme de permissions.
+      - prometheus_data:/prometheus
+    networks: [transcendence]
+
+  # ---------------------------------------------------------------------------
+  # NODE-EXPORTER: host metrics exporter
+  # ---------------------------------------------------------------------------
+  node-exporter:
+    image: docker.io/prom/node-exporter:v1.12.1
+    restart: unless-stopped
+    command:
+      # Ces 3 flags redirigent node-exporter vers les systemes de fichiers de
+      # l'HOTE, montes ci-dessous. Sans eux, il mesurerait son propre conteneur.
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/host/root
+    volumes:
+      # Lecture seule : on monte le noyau de l'hote, jamais en ecriture.
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro,rslave
+    networks: [transcendence]
 
 # Bloc racine des reseaux.
 networks:
@@ -145,3 +201,7 @@ volumes:
   # Fichiers televerses par les utilisateurs (modele File). Sa duree de vie est
   # independante des conteneurs : un "make down" ne l'efface pas, seul "make clean" le fait.
   uploads_data:
+  # TSDB Prometheus : les series temporelles survivent a "make down".
+  # Volume nomme (pas de bind mount) : ce sont des donnees binaires generees,
+  # elles n'ont rien a faire dans le depot git.
+  prometheus_data:
