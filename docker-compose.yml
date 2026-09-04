@@ -187,6 +187,36 @@ services:
       - /:/host/root:ro,rslave
     networks: [transcendence]
 
+  # ---------------------------------------------------------------------------
+  # POSTGRES-EXPORTER : traduit les statistiques internes de PostgreSQL
+  # (vues pg_stat_*) au format Prometheus.
+  # ---------------------------------------------------------------------------
+  postgres-exporter:
+    image: docker.io/prometheuscommunity/postgres-exporter:v0.20.1
+    env_file:
+      - .env
+    environment:
+      - DATA_SOURCE_NAME=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}?sslmode=disable
+    networks: [transcendence]
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # NGINX-EXPORTER : lit la page stub_status de nginx et la traduit
+  # au format Prometheus.
+  # ---------------------------------------------------------------------------
+  nginx-exporter:
+    image: docker.io/nginx/nginx-prometheus-exporter:1.5.1
+    command:
+      # URL INTERNE : 'nginx' est resolu par le DNS Docker, 8081 est le port
+      # du serveur virtuel de monitoring ajoute dans nginx.conf.
+      - --nginx.scrape-uri=http://nginx:8081/stub_status
+    networks: [transcendence]
+    depends_on: [nginx]
+    restart: unless-stopped
+
 # Bloc racine des reseaux.
 networks:
   # Un unique reseau prive de type "bridge" partage par tous les services.

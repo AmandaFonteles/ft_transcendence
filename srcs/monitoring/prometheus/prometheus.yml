@@ -51,3 +51,16 @@ scrape_configs:
       - targets: ["backend:3000"]
       # Plain HTTP on the private bridge network: TLS terminates at nginx,
       # and this traffic never leaves the Docker network.
+
+  - job_name: "postgres"
+
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+      #default postgres-exporter's port 
+
+  # nginx, via son exporter (page stub_status)
+  - job_name: "nginx"
+
+    static_configs:
+      - targets: ["nginx-exporter:9113"]
+      # 9113 : port par defaut de nginx-prometheus-exporter
