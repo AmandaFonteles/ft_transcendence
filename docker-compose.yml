@@ -154,32 +154,20 @@ services:
   # ---------------------------------------------------------------------------
   # NODE-EXPORTER: host metrics exporter
   # ---------------------------------------------------------------------------
-  # node-exporter:
-  #   image: docker.io/prom/node-exporter:v1.12.1
-  #   restart: unless-stopped
-  #   command:
-  #     # Ces 3 flags redirigent node-exporter vers les systemes de fichiers de
-  #     # l'HOTE, montes ci-dessous. Sans eux, il mesurerait son propre conteneur.
-  #     - --path.procfs=/host/proc
-  #     - --path.sysfs=/host/sys
-  #     - --path.rootfs=/host/root
-  #   volumes:
-  #     # Lecture seule : on monte le noyau de l'hote, jamais en ecriture.
-  #     - /proc:/host/proc:ro
-  #     - /sys:/host/sys:ro
-  #     - /:/host/root:ro,rslave
-  #   networks: [transcendence]
   node-exporter:
     image: docker.io/prom/node-exporter:v1.12.1
     restart: unless-stopped
     command:
+      # Ces 3 flags redirigent node-exporter vers les systemes de fichiers de
+      # l'HOTE, montes ci-dessous. Sans eux, il mesurerait son propre conteneur.
       - --path.procfs=/host/proc
       - --path.sysfs=/host/sys
       - --path.rootfs=/host/root
     volumes:
+      # Lecture seule : on monte le noyau de l'hote, jamais en ecriture.
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
-      - /:/host/root:ro
+      - /:/host/root:ro,rslave
     networks: [transcendence]
 
   # ---------------------------------------------------------------------------
@@ -265,3 +253,18 @@ volumes:
   uploads_data:
   prometheus_data:
   grafana_data:
+
+#### pour mac
+
+    # node-exporter:
+    # image: docker.io/prom/node-exporter:v1.12.1
+    # restart: unless-stopped
+    # command:
+    #   - --path.procfs=/host/proc
+    #   - --path.sysfs=/host/sys
+    #   - --path.rootfs=/host/root
+    # volumes:
+    #   - /proc:/host/proc:ro
+    #   - /sys:/host/sys:ro
+    #   - /:/host/root:ro
+    # networks: [transcendence]
