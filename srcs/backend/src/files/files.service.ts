@@ -2,7 +2,7 @@ import { Injectable, InternalServerErrorException, BadRequestException, PayloadT
 // import { Role } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { OrganizationsService } from '../organizations/organizations.service'
-import { mkdir,writeFile, unlink } from 'fs/promises'
+import { mkdir,writeFile, unlink, access } from 'fs/promises'
 import { join, extname } from 'path'
 import { CreateFileDto } from './dto/create-file.dto'
 import { WASMagic } from 'wasmagic'
@@ -130,5 +130,74 @@ export class FilesService implements OnModuleInit {
 	   }
 	}
 	throw new ForbiddenException(`Accès au fichier refusé`)
+  }
+
+  async findAllFiles(organizationId: string, requesterId: string)
+  {
+	const member = await this.orgaServ.requireActiveMember(organizationId, requesterId)
+	if (member.role === 'ADMIN') {
+		return await this.prisma.file.findMany({
+		  where: {
+			organizationId: organizationId
+		  }
+		})
+	}
+	const files = await this.prisma.file.findMany({
+	  where: {
+		organizationId: organizationId,
+		OR: [
+		  { ownerId: member.id },
+		  { visibilityPolicy: 'ALL_MEMBERS' },
+		  {
+			AND: [
+			  { visibilityPolicy: 'RESTRICTED' },
+			  {
+				fileAccesses: {
+				  some: {
+					memberId: member.id
+				  }
+				}
+			  }
+			]
+		  }
+		]
+	  }
+	})
+	return files
+  }
+
+  private getFilePath(storagePath: string) {
+	const uploadDir = process.env.UPLOAD_DIR
+	if (uploadDir === undefined) {
+	  throw new InternalServerErrorException(`La variable d'environnement UPLOAD_DIR n'est pas définie`)
+	}
+	const filePath = join(uploadDir, storagePath)
+	return filePath
+  }
+
+  async downloadFile(fileId: string, requesterId: string, organizationId: string) {
+	const file = await this.findFileById(fileId, requesterId, organizationId)
+	const filePath = this.getFilePath(file.storagePath)
+	try {
+	  await access(filePath)
+	} catch {
+	  throw new NotFoundException(`Le fichier n'existe pas`)
+	}
+	return { filePath, fileName: file.name, mimeType: file.mimeType }
+  }
+
+  async previewFile(fileId: string, requesterId: string, organizationId: string) {
+	const file = await this.findFileById(fileId, requesterId, organizationId)
+	const previewableMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain']
+	if (!previewableMimeTypes.includes(file.mimeType)) {
+		throw new BadRequestException(`Le type MIME du fichier n'est pas prévisualisable`)
+	}
+	const filePath = this.getFilePath(file.storagePath)
+	try {
+	  await access(filePath)
+	} catch {
+	  throw new NotFoundException(`Le fichier n'existe pas`)
+	}
+	return { filePath, fileName: file.name, mimeType: file.mimeType }
   }
 }
