@@ -23,11 +23,14 @@ import { FriendshipModule } from './friendship/friendship.module';
 
 import { ChatModule } from './chat/chat.module'
 
+// Importe le module de monitoring
+import { MetricsModule } from './metrics/metrics.module';
+
 // Declare et cable le module racine.
 @Module({
   // On importe PrismaModule (@Global => PrismaService injectable partout) et UsersModule.
   // Chaque futur module d'equipe (AuthModule, BoardsModule...) s'ajoutera dans cette liste.
-  imports: [PrismaModule, UsersModule, RealtimeModule, AuthModule, OrganizationsModule, TasksModule, FriendshipModule , ChatModule],
+  imports: [PrismaModule, UsersModule, RealtimeModule, AuthModule, OrganizationsModule, TasksModule, FriendshipModule , ChatModule, MetricsModule],
   // Controllers de ce module.
   controllers: [AppController],
   // Providers de ce module.

@@ -4,6 +4,8 @@ global:
   scrape_interval: 15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
   evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
   # scrape_timeout is set to the global default (10s).
+  external_labels:
+    monitor: ft_transcendence
 
 # Alertmanager configuration
 # alerting:
@@ -16,9 +18,6 @@ global:
 # rule_files:
   # - "first_rules.yml"
   # - "second_rules.yml"
-
-  external_labels:
-    monitor: ft_transcendence
 
 
 # The list of targets Prometheus pulls metrics from
@@ -40,3 +39,15 @@ scrape_configs:
     static_configs:
       - targets: ["node-exporter:9100"]
       # port 9100: node-exporter's default listening port
+
+  # NestJS backend: application metrics exposed by prom-client
+  - job_name: "backend"
+
+    # The Nest global prefix is /api, so the endpoint is /api/metrics,
+    # not Prometheus' default /metrics.
+    metrics_path: /api/metrics
+
+    static_configs:
+      - targets: ["backend:3000"]
+      # Plain HTTP on the private bridge network: TLS terminates at nginx,
+      # and this traffic never leaves the Docker network.
