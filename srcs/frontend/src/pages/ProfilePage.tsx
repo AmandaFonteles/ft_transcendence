@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react'
 import {
   changePassword, confirmTwoFactor, disableTwoFactor, deleteAccount,///
-  fetchAvatarPresets, selectAvatar, setupTwoFactor, updateProfile,
+  fetchAvatarPresets, selectAvatar, setupTwoFactor, updateProfile, uploadAvatar
 } from '../api'
 import type { AuthUser } from '../api'
 import { useAuth } from '../auth/AuthContext'
@@ -59,53 +59,6 @@ function IdentityCard({ user }: { user: AuthUser }) {
           <div className="font-data text-[12.5px] text-ink-soft truncate">{user.username}</div>
           <div className="font-data text-[12.5px] text-ink-soft truncate">{user.email}</div>
         </div>
-      </div>
-    </Card>
-  )
-}
-
-// --- Avatar ------------------------------------------------------------------
-function AvatarCard({
-  accessToken, user, onUpdated,
-}: { accessToken: string; user: AuthUser; onUpdated: (u: AuthUser) => void }) {
-  const [presets, setPresets] = useState<string[]>([])
-  const [error, setError] = useState<string | null>(null)
-
-  // Charge la liste des avatars disponibles (route publique).
-  useEffect(() => {
-    fetchAvatarPresets()
-      .then(setPresets)
-      .catch(() => setError('impossible de charger les avatars'))
-  }, [])
-
-  async function pick(url: string) {
-    setError(null)
-    try {
-      // Le backend renvoie l'utilisateur complet mis a jour.
-      onUpdated(await selectAvatar(accessToken, url))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'erreur inconnue')
-    }
-  }
-
-  return (
-    <Card>
-      <h2 className="text-base font-semibold mb-2">Avatar</h2>
-      {error && <p className="text-danger text-sm mb-2">{error}</p>}
-      <div className="flex flex-wrap gap-2">
-        {presets.map((url) => (
-          <button
-            key={url}
-            onClick={() => pick(url)}
-            // ring-2 marque l'avatar actuellement selectionne.
-            className={`rounded-full cursor-pointer p-0 border-0 bg-transparent ${
-              url === user.avatarUrl ? 'ring-2 ring-link' : 'ring-2 ring-transparent'
-            }`}
-            aria-label="Choisir cet avatar"
-          >
-            <img src={url} alt="" className="size-12 rounded-full object-cover" />
-          </button>
-        ))}
       </div>
     </Card>
   )
@@ -293,6 +246,79 @@ function DeleteAcc({ accessToken, logout }: { accessToken: string; logout: () =>
       <Button variant="secondary" onClick={handleDelete} disabled={deleting}>
         {deleting ? 'Suppression…' : 'Supprimer mon compte'}
       </Button>
+    </Card>
+  )
+}
+
+// --- Avatar ------------------------------------------------------------------
+function AvatarCard({
+  accessToken, user, onUpdated,
+}: { accessToken: string; user: AuthUser; onUpdated: (u: AuthUser) => void }) {
+  const [presets, setPresets] = useState<string[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+
+  useEffect(() => {
+    fetchAvatarPresets()
+      .then(setPresets)
+      .catch(() => setError('impossible de charger les avatars'))
+  }, [])
+
+  async function pick(url: string) {
+    setError(null)
+    try {
+      onUpdated(await selectAvatar(accessToken, url))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'erreur inconnue')
+    }
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setError(null)
+    setUploading(true)
+    try {
+      onUpdated(await uploadAvatar(accessToken, file))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'erreur inconnue')
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  return (
+    <Card>
+      <h2 className="text-base font-semibold mb-2">Avatar</h2>
+      {error && <p className="text-danger text-sm mb-2">{error}</p>}
+
+      <div className="flex flex-wrap gap-2 mb-3">
+        {presets.map((url) => (
+          <button
+            key={url}
+            onClick={() => pick(url)}
+            className={`rounded-full cursor-pointer p-0 border-0 bg-transparent ${
+              url === user.avatarUrl ? 'ring-2 ring-link' : 'ring-2 ring-transparent'
+            }`}
+            aria-label="Choisir cet avatar"
+          >
+            <img src={url} alt="" className="size-12 rounded-full object-cover" />
+          </button>
+        ))}
+      </div>
+
+      <label className="inline-block">
+        <span className="sr-only">Téléverser un avatar</span>
+        <input
+          type="file"
+          accept="image/png"
+          onChange={handleFileChange}
+          disabled={uploading}
+          className="text-[13.5px] text-ink-soft cursor-pointer"
+        />
+      </label>
+      {uploading && <p className="text-ink-soft text-sm mt-1">Envoi en cours…</p>}
     </Card>
   )
 }

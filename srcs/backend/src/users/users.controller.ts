@@ -1,7 +1,8 @@
 // [CONCEPT: controller de feature] UsersController mappe les routes HTTP vers le
 // service. Il ne contient AUCUNE logique : il recoit, delegue, renvoie.
 
-import { Body, Controller, Get, NotFoundException, Patch, UseGuards, Delete, UploadedFile, UseInterceptors } from '@nestjs/common'
+import { Body, Controller, Get, NotFoundException, Patch, UseGuards, Delete, UploadedFile, UseInterceptors, Param, StreamableFile } from '@nestjs/common'
+import { createReadStream } from 'fs'
 import { UsersService } from './users.service'
 import { SelectAvatarDto } from './dto/select-avatar.dto'
 import { UpdateProfileDto } from './dto/update-profile.dto'
@@ -80,5 +81,15 @@ export class UsersController {
   @Delete('me')
   deleteAccount(@CurrentUser() user: { userId: string }) {
     return this.users.deleteAccount(user.userId)
+  }
+
+  // upload avatar
+  @Get('avatars/:userId/:filename')
+  async serveAvatar(
+    @Param('userId') userId: string,
+    @Param('filename') filename: string,
+  ) {
+    const filePath = await this.users.resolveAvatarFilePath(userId, filename)
+    return new StreamableFile(createReadStream(filePath), { type: 'image/png' })
   }
 }
