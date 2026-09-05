@@ -22,6 +22,7 @@ import { useNavigate } from 'react-router-dom'
 import { listOrganizations, listTasks } from '../api'
 import type { Organization, Task } from '../api'
 import { useAuth } from '../auth/AuthContext'
+import { useTaskEventsForOrganizations } from '../realtime/useTaskEvents'
 import PageHeading from '../components/ui/PageHeading'
 import Button from '../components/ui/Button'
 import FilterChips from '../components/ui/FilterChips'
@@ -72,7 +73,7 @@ const kindLabel: Record<EntryKind, string> = {
 const kindOrder: Record<EntryKind, number> = { start: 0, both: 1, due: 2, undated: 3 }
 
 export default function AgendaPage() {
-  const { accessToken } = useAuth()
+  const { accessToken, user } = useAuth()
   // Permet d'ouvrir la page d'un projet au clic sur une de ses taches.
   const navigate = useNavigate()
 
@@ -87,8 +88,17 @@ export default function AgendaPage() {
   // Filtre par projet ; null = tous les projets.
   const [filterOrg, setFilterOrg] = useState<string | null>(null)
 
-  // Charge projets et taches une seule fois : la navigation entre mois se fait
-  // ensuite en memoire, sans rappeler l'API.
+  // [TEMPS REEL] Cette vue melange les taches de TOUS les projets de
+  // l'utilisateur : on rejoint donc le salon de chacun (voir
+  // useTaskEventsForOrganizations) pour recharger des qu'une tache change
+  // n'importe ou, y compris depuis la page d'un projet ou par quelqu'un d'autre.
+  const tasksRevision = useTaskEventsForOrganizations(
+    orgs.map((o) => o.id),
+    { userId: user?.id ?? '', displayName: user?.displayName ?? '' },
+  )
+
+  // Charge projets et taches (et les recharge sur evenement temps reel) ; la
+  // navigation entre mois, elle, se fait ensuite en memoire sans rappeler l'API.
   useEffect(() => {
     if (!accessToken) return
     let cancelled = false
@@ -113,7 +123,7 @@ export default function AgendaPage() {
     load()
     // Ignore les reponses tardives si le composant est demonte entre-temps.
     return () => { cancelled = true }
-  }, [accessToken])
+  }, [accessToken, tasksRevision])
 
   // Options du filtre : "Tous" en tete, puis un projet par option avec sa pastille.
   const filterOptions: FilterOption[] = useMemo(() => [

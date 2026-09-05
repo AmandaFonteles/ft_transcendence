@@ -55,3 +55,53 @@ export function useTaskEvents(organizationId: string, identity: SocketIdentity):
 
   return revision
 }
+
+// Variante pour les ecrans qui melangent PLUSIEURS projets (DashboardPage,
+// AgendaPage) : ceux-ci n'ont pas un organizationId unique mais une liste de
+// projets, il faut donc rejoindre une room par projet plutot qu'une seule.
+//
+// organizationIds est attendu STABLE en VALEUR mais pas forcement en
+// REFERENCE (les pages le calculent souvent via .map() a chaque rendu) : on
+// dependend donc d'une cle textuelle plutot que du tableau lui-meme, sans
+// quoi l'effet se relancerait — et rejoindrait/quitterait les rooms — a
+// chaque rendu.
+export function useTaskEventsForOrganizations(organizationIds: string[], identity: SocketIdentity): number {
+  const [revision, setRevision] = useState(0)
+  const idsKey = organizationIds.join(',')
+
+  useEffect(() => {
+    const ids = idsKey ? idsKey.split(',') : []
+    if (ids.length === 0) return
+    const socket = getSocket(identity)
+
+    const joinAll = () => {
+      for (const organizationId of ids) socket.emit(ClientEvents.JOIN_ORG, { organizationId })
+    }
+
+    const bump = (payload: TaskEventPayload) => {
+      if (!ids.includes(payload.organizationId)) return
+      setRevision((r) => r + 1)
+    }
+
+    socket.on('connect', joinAll)
+    socket.on(ServerEvents.TASK_CREATED, bump)
+    socket.on(ServerEvents.TASK_UPDATED, bump)
+    socket.on(ServerEvents.TASK_DELETED, bump)
+    socket.on(ServerEvents.TASK_ASSIGNED, bump)
+    socket.on(ServerEvents.TASK_UNASSIGNED, bump)
+
+    if (socket.connected) joinAll()
+
+    return () => {
+      for (const organizationId of ids) socket.emit(ClientEvents.LEAVE_ORG, { organizationId })
+      socket.off('connect', joinAll)
+      socket.off(ServerEvents.TASK_CREATED, bump)
+      socket.off(ServerEvents.TASK_UPDATED, bump)
+      socket.off(ServerEvents.TASK_DELETED, bump)
+      socket.off(ServerEvents.TASK_ASSIGNED, bump)
+      socket.off(ServerEvents.TASK_UNASSIGNED, bump)
+    }
+  }, [idsKey, identity.userId, identity.displayName])
+
+  return revision
+}

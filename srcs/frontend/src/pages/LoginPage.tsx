@@ -14,10 +14,12 @@ import Button from '../components/ui/Button'
 export default function LoginPage() {
   const { user, login, signup } = useAuth()
   const navigate = useNavigate()
-  // Destination memorisee par RequireAuth avant la redirection.
-  const location = useLocation() as { state?: { from?: string } }
+  // Destination memorisee par RequireAuth avant la redirection ; mode : demande
+  // par HomePage pour ouvrir directement sur l'inscription (bouton "Créer un
+  // compte"), sans quoi cette route s'ouvrait toujours en connexion.
+  const location = useLocation() as { state?: { from?: string; mode?: 'login' | 'signup' } }
 
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [mode, setMode] = useState<'login' | 'signup'>(location.state?.mode ?? 'login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')

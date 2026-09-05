@@ -48,7 +48,9 @@ export default function HomePage() {
               </Link>
             ) : (
               <>
-                <Link to="/connexion" className="inline-flex items-center rounded-full bg-ink px-[18px] py-[9px] text-sm font-medium text-white no-underline hover:bg-action-hover">
+                {/* state.mode : lu par LoginPage pour ouvrir directement le
+                    formulaire d'inscription plutot que celui de connexion. */}
+                <Link to="/connexion" state={{ mode: 'signup' }} className="inline-flex items-center rounded-full bg-ink px-[18px] py-[9px] text-sm font-medium text-white no-underline hover:bg-action-hover">
                   Créer un compte
                 </Link>
                 <Link to="/connexion" className="inline-flex items-center rounded-full border border-rule bg-surface px-[18px] py-[9px] text-sm font-medium text-ink no-underline hover:border-ink-faint">

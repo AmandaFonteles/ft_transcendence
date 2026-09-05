@@ -65,10 +65,15 @@ export class TasksService {
 			showAssignedTasks = false
 		}
 		return await this.prisma.task.findMany({
-	 	where: { organizationId: organizationId, 
+	 	where: { organizationId: organizationId,
 			OR: [
 				showOwned ? { ownerId: activeMember.id } : undefined,
-				showAssignedTasks ? { taskAssignments: { some: { memberId: { in: activeMemberIdsToShow } } } } : filters.assignedUserIds === undefined? { taskAssignments: { some: {} } } : undefined,
+				// Si aucun assignedUserIds explicite n'a ete demande, on retombe sur
+				// LES TACHES ASSIGNEES A L'ADMIN LUI-MEME (comme pour un membre
+				// normal, voir la branche non-admin plus bas) — et non plus sur
+				// "n'importe quelle tache assignee a n'importe qui", qui faisait que
+				// "Mes taches uniquement" ne filtrait rien pour un administrateur.
+				showAssignedTasks ? { taskAssignments: { some: { memberId: { in: activeMemberIdsToShow } } } } : filters.assignedUserIds === undefined ? { taskAssignments: { some: { memberId: activeMember.id } } } : undefined,
 				showUnassigned ? { taskAssignments: { none: {} } } : undefined
 			].filter(condition => condition !== undefined)
 		},

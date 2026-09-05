@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom'
 import { listOrganizations, listTasks, updateTaskStatus } from '../api'
 import type { Organization, Task, TaskStatus } from '../api'
 import { useAuth } from '../auth/AuthContext'
+import { useTaskEventsForOrganizations } from '../realtime/useTaskEvents'
 import TaskRow from '../components/TaskRow'
 import TaskDetail from '../components/TaskDetail'
 import PageHeading from '../components/ui/PageHeading'
@@ -20,7 +21,7 @@ import { colorForId } from '../lib/projectColors'
 import { dayKey, hasStartedOn, isSameDay, weekGrid } from '../lib/dates'
 
 export default function DashboardPage() {
-  const { accessToken } = useAuth()
+  const { accessToken, user } = useAuth()
   const [orgs, setOrgs] = useState<Organization[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,6 +33,15 @@ export default function DashboardPage() {
   // Le changer permet d'ANTICIPER : en avancant au jeudi, on voit ce qui sera
   // actif jeudi, sans attendre jeudi.
   const [selectedDay, setSelectedDay] = useState(() => new Date())
+
+  // [TEMPS REEL] Cette vue melange les taches de TOUS les projets de
+  // l'utilisateur : on rejoint donc le salon de chacun (voir
+  // useTaskEventsForOrganizations) pour recharger des qu'une tache change
+  // n'importe ou, y compris depuis la page d'un projet ou par quelqu'un d'autre.
+  const tasksRevision = useTaskEventsForOrganizations(
+    orgs.map((o) => o.id),
+    { userId: user?.id ?? '', displayName: user?.displayName ?? '' },
+  )
 
   useEffect(() => {
     if (!accessToken) return
@@ -58,7 +68,7 @@ export default function DashboardPage() {
     load()
     // Ignore les reponses tardives si le composant est demonte entre-temps.
     return () => { cancelled = true }
-  }, [accessToken])
+  }, [accessToken, tasksRevision])
 
   async function handleStatus(taskId: string, status: TaskStatus) {
     const task = tasks.find((t) => t.id === taskId)
