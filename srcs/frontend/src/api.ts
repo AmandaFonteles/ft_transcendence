@@ -600,3 +600,26 @@ export type ChatMessage = {
     user: PublicUser
   }
 }
+
+  // --- Fichiers -----------------------------------------------------------------
+  
+// Politique de visibilite d'un fichier, telle que definie par l'enum Prisma
+// VisibilityPolicy.
+export type VisibilityPolicy = 'PRIVATE' | 'RESTRICTED' | 'ALL_MEMBERS'
+
+// Forme renvoyee par l'API pour un fichier.
+// Un fichier appartient a un seul projet (Organization) et son proprietaire
+// est un OrganizationMember, represente ici par ownerId.
+export type ProjectFile = {
+  id: string
+  name: string
+  description: string | null
+  mimeType: string
+  size: number
+  storagePath: string
+  visibilityPolicy: VisibilityPolicy
+  createdAt: string
+  updatedAt: string
+  organizationId: string
+  ownerId: string | null
+}

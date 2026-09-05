@@ -20,6 +20,7 @@ import SeamBlock from '../components/ui/SeamBlock'
 import ProjectDot from '../components/ui/ProjectDot'
 import { colorForId } from '../lib/projectColors'
 import ChatPanel from '../components/ChatPanel'
+import FilesSection from '../components/FilesSection'
 
 export default function ProjectPage() {
   // Identifiant du projet, extrait de l'URL /projets/:projectId.
