@@ -9,11 +9,11 @@ import { UsersController } from './users.controller'
 import { UsersService } from './users.service'
 
 import { OrganizationsModule } from '../organizations/organizations.module'// pour supp les donner en meme temps que l'user
-
+import { StorageModule } from '../files/storage.module'
 
 // Declare et cable le module.
 @Module({
-  imports: [OrganizationsModule], //////// //
+  imports: [OrganizationsModule, StorageModule], //////// //
   // Les routes exposees par ce module.
   controllers: [UsersController],
   // Les services instancies par ce module.

@@ -5,7 +5,10 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  UnauthorizedException
+  UnauthorizedException,
+  BadRequestException,
+  PayloadTooLargeException,
+  InternalServerErrorException
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import * as argon2 from 'argon2'
@@ -13,6 +16,10 @@ import { PrismaService } from '../prisma/prisma.service'
 import { UpdateProfileDto } from './dto/update-profile.dto'
 import { ChangePasswordDto } from './dto/change-password.dto'
 import { OrganizationsService } from '../organizations/organizations.service' ////pour supp orga en meme temps que user
+//AJOUTS AILEEN:
+import { StorageService } from '../files/storage.service' 
+import { join, extname } from 'path'
+import { randomUUID } from 'crypto'
 // AJOUT : constante placee ICI, HORS de la classe, juste apres les imports.
 // [CONCEPT: constante partagee] Extrait la liste des champs "publics" d'un User
 // (jamais le credential). Utilisee par findById ET updateAvatar : evite d'ecrire
@@ -31,7 +38,8 @@ const USER_PUBLIC_SELECT = {
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService,
-              private readonly organizations: OrganizationsService) {}
+              private readonly organizations: OrganizationsService,
+              private readonly storage: StorageService) {}
 
   // [CONCEPT: liste blanche de champs] "select" enumere explicitement ce qui sort.
   // L'ADRESSE E-MAIL EST VOLONTAIREMENT ABSENTE : c'est une donnee personnelle, et
@@ -147,8 +155,42 @@ export class UsersService {
     const organizationIdsToDelete = await this.organizations.checkOrganizationsAtUserDeletion(userId)
     for (const organizationId of organizationIdsToDelete) {
       await this.prisma.organization.delete({ where: { id: organizationId } })
+      await this.storage.removeOrganizationFolder(organizationId) // Supprime les fichiers de l'organisation
     }
     await this.prisma.user.delete({ where: { id: userId } })
     return { success: true }
+  }
+
+  async uploadAvatar(userId: string, file: Express.Multer.File)
+  {
+    if (!file) {
+      throw new BadRequestException(`Aucun fichier n'a été fourni`)
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      throw new PayloadTooLargeException(`Le fichier est trop lourd`)
+    }
+    const allowedFileType : Record<string, string[]> =  { 'image/png': ['.png'] }
+    const fileExtension = extname(file.originalname).toLowerCase()
+    if (!allowedFileType[file.mimetype]?.includes(fileExtension)) {
+      throw new BadRequestException(`Type de fichier non autorisé`)
+    }
+	  const detectedMimeType = this.storage.detectMimeType(file.buffer)
+	  if (detectedMimeType !== file.mimetype) {
+		  throw new BadRequestException(`Le type MIME du fichier ne correspond pas à son contenu`)
+	  }
+    const avatarPath = await this.storage.createAvatarFolder(userId)
+    const generatedFileName = `${randomUUID()}.png`
+    const filePath = join(avatarPath, generatedFileName)
+    await this.storage.writeFileToStorage(filePath, file.buffer)
+    try {
+      const updatedUser = await this.prisma.user.update({
+        where: { id: userId },
+        data: { avatarUrl: `avatars/${userId}/${generatedFileName}` },
+        select: USER_PUBLIC_SELECT
+      })
+      return updatedUser
+    } catch {
+      throw new InternalServerErrorException(`Impossible de mettre a jour l'avatar dans la base de donnees`)
+    }
   }
 }
