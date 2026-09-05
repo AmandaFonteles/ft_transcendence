@@ -600,3 +600,22 @@ export type ChatMessage = {
     user: PublicUser
   }
 }
+
+export async function uploadAvatar(accessToken: string, file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch('/api/users/me/avatar/upload', {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
+  })
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error(body?.message ?? `Erreur HTTP ${res.status}`)
+  }
+
+  return res.json() as Promise<AuthUser>
+}

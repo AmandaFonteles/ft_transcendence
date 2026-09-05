@@ -8,7 +8,8 @@ import {
   UnauthorizedException,
   BadRequestException,
   PayloadTooLargeException,
-  InternalServerErrorException
+  InternalServerErrorException,
+  NotFoundException, // AJOUT
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import * as argon2 from 'argon2'
@@ -208,7 +209,8 @@ export class UsersService {
     try {
         updatedUser = await this.prisma.user.update({
         where: { id: userId },
-        data: { avatarUrl: `avatars/${userId}/${generatedFileName}` },
+        //data: { avatarUrl: `avatars/${userId}/${generatedFileName}` },
+        data: { avatarUrl: `/api/users/avatars/${userId}/${generatedFileName}` },
         select: USER_PUBLIC_SELECT
       })
     } catch {
@@ -219,5 +221,12 @@ export class UsersService {
       await this.storage.deleteFileFromStorage(currentAvatarPath)
     }
     return updatedUser
+  }
+
+  async resolveAvatarFilePath(userId: string, filename: string) {
+    const storagePath = `avatars/${userId}/${filename}`
+    const filePath = this.storage.getFilePath(storagePath)
+    await this.storage.checkFileExists(filePath)
+    return filePath
   }
 }
