@@ -1,0 +1,22 @@
+# AlertManager config
+
+# Promethues -> decide if we send an alert
+# AlertManager -> decide how many times, when and to whom send the alert
+
+global:
+  resolve_timeout: 3m
+
+# For security reasons, we decide to send the alert to nginx itself
+# So we don't have to expose another port or a real URL (for discord or email, for example)
+route:
+  receiver: sink-nginx
+  group_by: ['alertname', 'job']
+  group_wait: 30s
+  group_interval: 2m
+  repeat_interval: 4h
+
+receivers:
+  - name: sink-nginx
+    webhook_configs:
+      - url: http://nginx:8081/alert-sink
+        send_resolved: true

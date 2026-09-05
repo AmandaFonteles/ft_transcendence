@@ -1,0 +1,49 @@
+# Alert rules Prometheus will evaluate each 15s.
+
+# PromQL
+# - expr: will tell Prometheus that the "service" needs an active alert
+# - for: duration of active alert defined by expr will be PENDING
+
+
+groups:
+  - name: availability
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} down."
+          description: "Prometheus could not scrape {{ $labels.instance }} (job {{ $labels.job }}) for 30s."
+
+  - name: backend
+    rules:
+      - alert: HighErrorRate
+        expr: 100 * sum(rate(http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(http_requests_total[5m])), 0.001) > 5
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Error rate 5xx high (backend)."
+          description: "{{ printf \"%.1f\" $value }}% of requests return 5xx (threshold: 5%)."
+
+      - alert: HighLatencyP95
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) > 1
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 latency above 1s"
+          description: "95% of the requests take longer than 1s."
+
+  - name: infrastructure
+    rules:
+      - alert: PostgresConnectionHigh
+        expr: sum(pg_stat_database_numbackends) > 80
+        for: 10s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Postgres number of connections is high"
+          description: "Postgres number of connections is higher than 80. Max_connections = 100."

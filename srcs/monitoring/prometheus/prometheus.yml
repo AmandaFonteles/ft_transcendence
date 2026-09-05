@@ -6,19 +6,16 @@ global:
   # scrape_timeout is set to the global default (10s).
   external_labels:
     monitor: ft_transcendence
+  
+  # Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
+rule_files:
+    - /etc/prometheus/alert.yml
 
-# Alertmanager configuration
-# alerting:
-#   alertmanagers:
-#     - static_configs:
-#         - targets:
-#           # - alertmanager:9093
-
-# Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
-# rule_files:
-  # - "first_rules.yml"
-  # - "second_rules.yml"
-
+# Alertmanager configuration  
+alerting:
+    alertmanagers:
+      - static_configs:
+        - targets: ["alertmanager:9093"]
 
 # The list of targets Prometheus pulls metrics from
 scrape_configs:
@@ -64,3 +61,9 @@ scrape_configs:
     static_configs:
       - targets: ["nginx-exporter:9113"]
       # 9113 : port par defaut de nginx-prometheus-exporter
+
+  # alertmanager: we'll scrape the alertmanager as well
+  - job_name: alertmanager
+    metrics_path: /alertmanager/metrics
+    static_configs:
+      - targets: ["alertmanager:9093"]

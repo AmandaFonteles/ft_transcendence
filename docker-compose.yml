@@ -237,6 +237,29 @@ services:
     networks: [transcendence]
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # ALERTMANAGER : recoit les alertes emises par Prometheus, les regroupe,
+  # applique les inhibitions et les envoie au recepteur configure.
+  # Prometheus decide QUAND alerter ; Alertmanager decide A QUI et
+  # COMBIEN DE FOIS.
+  # ---------------------------------------------------------------------------
+  alertmanager:
+    image: docker.io/prom/alertmanager:v0.33.1
+    user: "0:0"
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      # Silences et journal des notifications : doivent survivre a un
+      # redemarrage, sinon toute alerte serait renotifiee.
+      - --storage.path=/alertmanager
+      # Meme mecanisme que Prometheus : deplace TOUTES les routes sous
+      # /alertmanager/, y compris /metrics et l'API.
+      - --web.external-url=https://localhost:8443/alertmanager/
+    volumes:
+      - ./srcs/monitoring/alertmanager:/etc/alertmanager:ro
+      - alertmanager_data:/alertmanager
+    networks: [transcendence]
+    restart: unless-stopped
+
 # Bloc racine des reseaux.
 networks:
   # Un unique reseau prive de type "bridge" partage par tous les services.
@@ -253,6 +276,7 @@ volumes:
   uploads_data:
   prometheus_data:
   grafana_data:
+  alertmanager_data:
 
 #### pour mac
 
