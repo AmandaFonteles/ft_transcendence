@@ -33,6 +33,10 @@ export default function DashboardPage() {
   // Le changer permet d'ANTICIPER : en avancant au jeudi, on voit ce qui sera
   // actif jeudi, sans attendre jeudi.
   const [selectedDay, setSelectedDay] = useState(() => new Date())
+  // Filtre "mes taches" / "toutes", meme principe que sur la page d'un projet
+  // (voir ProjectPage) : le backend sait deja filtrer par projet (parametre
+  // owned), on l'applique donc a chacun des appels ci-dessous.
+  const [onlyMine, setOnlyMine] = useState(false)
 
   // [TEMPS REEL] Cette vue melange les taches de TOUS les projets de
   // l'utilisateur : on rejoint donc le salon de chacun (voir
@@ -55,7 +59,10 @@ export default function DashboardPage() {
         // [CONCEPT: requetes en parallele] Les taches sont imbriquees sous un projet :
         // il faut un appel PAR projet. Promise.all les lance simultanement au lieu
         // d'attendre chaque reponse l'une apres l'autre.
-        const perOrg = await Promise.all(organizations.map((o) => listTasks(accessToken!, o.id)))
+        const perOrg = await Promise.all(
+          // owned: true limite aux taches dont l'utilisateur est proprietaire.
+          organizations.map((o) => listTasks(accessToken!, o.id, onlyMine ? { owned: true, unassigned: false } : undefined)),
+        )
         if (cancelled) return
         setTasks(perOrg.flat())
       } catch (err) {
@@ -68,7 +75,7 @@ export default function DashboardPage() {
     load()
     // Ignore les reponses tardives si le composant est demonte entre-temps.
     return () => { cancelled = true }
-  }, [accessToken, tasksRevision])
+  }, [accessToken, tasksRevision, onlyMine])
 
   async function handleStatus(taskId: string, status: TaskStatus) {
     const task = tasks.find((t) => t.id === taskId)
@@ -129,7 +136,7 @@ export default function DashboardPage() {
   return (
     <>
       <PageHeading
-        title="Votre semaine"
+        title="Ma semaine"
         subtitle={`${visible.length} tâche${visible.length > 1 ? 's' : ''} active${visible.length > 1 ? 's' : ''} · ${orgs.length} projet${orgs.length > 1 ? 's' : ''}`}
         actions={
           // Plus de navigation entre semaines : seul un retour rapide au jour
@@ -187,13 +194,25 @@ export default function DashboardPage() {
       </div>
 
       {/* Rappel explicite du filtre applique : sans cette phrase, l'utilisateur
-          pourrait croire que des taches ont disparu. */}
-      <p className="font-data text-[12.5px] text-ink-soft mb-3">
-        Tâches commencées au {selectedDay.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}
-        {laterThisWeek > 0 && (
-          <> · {laterThisWeek} autre{laterThisWeek > 1 ? 's' : ''} démarre{laterThisWeek > 1 ? 'nt' : ''} plus tard cette semaine</>
-        )}
-      </p>
+          pourrait croire que des taches ont disparu. La bascule "mes taches" est
+          posee sur la meme ligne : les deux disent ce qui est filtre. */}
+      <div className="flex items-center gap-3 mb-3">
+        <p className="font-data text-[12.5px] text-ink-soft m-0">
+          Tâches commencées au {selectedDay.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}
+          {laterThisWeek > 0 && (
+            <> · {laterThisWeek} autre{laterThisWeek > 1 ? 's' : ''} démarre{laterThisWeek > 1 ? 'nt' : ''} plus tard cette semaine</>
+          )}
+        </p>
+        <label className="ml-auto shrink-0 flex items-center gap-2 text-[13.5px] text-ink-soft cursor-pointer">
+          <input
+            type="checkbox"
+            checked={onlyMine}
+            onChange={(e) => setOnlyMine(e.target.checked)}
+            className="cursor-pointer"
+          />
+          Mes tâches uniquement
+        </label>
+      </div>
 
       {visible.length === 0 ? (
         <EmptyState
@@ -201,7 +220,9 @@ export default function DashboardPage() {
           description={
             laterThisWeek > 0
               ? 'Sélectionnez un jour plus tard dans la semaine pour voir les tâches à venir.'
-              : 'Créez une tâche depuis la page d\'un projet.'
+              : onlyMine
+                ? 'Aucune tâche ne vous appartient à cette date.'
+                : 'Créez une tâche depuis la page d\'un projet.'
           }
           illustration="tasks"
         />

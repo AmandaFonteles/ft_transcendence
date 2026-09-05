@@ -212,7 +212,7 @@ export class OrganizationsService {
   async requireAdmin(organizationId: string, userId: string) {
     const member = await this.requireActiveMember(organizationId, userId)
     if (member.role !== Role.ADMIN) {
-      throw new ForbiddenException(`Cette action nécessite d'être administrateur du projet`)
+      throw new ForbiddenException(`Cette action nécessite d'être administrateur de la tâche`)
     }
     return member
   }
