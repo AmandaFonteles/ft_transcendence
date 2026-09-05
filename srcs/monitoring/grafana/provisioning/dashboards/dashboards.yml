@@ -1,0 +1,22 @@
+# Fournisseur de dashboards : indique a Grafana ou trouver les JSON a charger
+# au demarrage, puis a re-scanner periodiquement.
+
+apiVersion: 1
+
+providers:
+  - name: Aqan
+    # Dossier affiche dans la barre laterale de Grafana.
+    folder: ft_transcendence
+    type: file
+
+    allowUiUpdates: true
+
+    # Empeche la suppression des dashboards quand le fournisseur disparait.
+    disableDeletion: false
+
+    # Re-scan du dossier toutes les 30s : editer un JSON sur l'hote suffit,
+    # sans redemarrer le conteneur (le dossier est bind-monte).
+    updateIntervalSeconds: 30
+
+    options:
+      path: /etc/grafana/dashboards

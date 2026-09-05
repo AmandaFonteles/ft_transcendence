@@ -1,0 +1,37 @@
+# Datasource provisionnee : Grafana lit ce fichier a chaque demarrage et cree
+# (ou met a jour) la connexion vers Prometheus. Rien n'est clique dans l'UI,
+# donc "make fclean && make up" reproduit exactement le meme etat.
+
+# Starts of refresh Grafana-Prometheus connexion
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    # Identifiant stable, reference par les dashboards a la place du nom.
+    # Sans uid fixe, Grafana en genere un aleatoire et les panneaux
+    # provisionnes pointeraient dans le vide au prochain fclean.
+    uid: prometheus
+
+    # 'proxy' : c'est le SERVEUR Grafana qui interroge Prometheus, pas le
+    # navigateur. Indispensable ici — prometheus:9090 n'existe que sur le
+    # reseau prive Docker et le navigateur ne peut pas le joindre.
+    # L'alternative, 'browser' (direct), exigerait de publier un port.
+    access: proxy
+
+    # On utilise prometheus:9090 et pas :8443 ici parce que la communication
+    # entre grafana et prometheus est interne
+    url: http://prometheus:9090/prometheus
+
+    isDefault: true
+
+    editable: false
+
+    jsonData:
+      # POST au lieu de GET : les requetes PromQL longues depassent la limite
+      # de taille d'une URL.
+      httpMethod: POST
+      # Aligne sur scrape_interval. Grafana s'en sert pour calculer
+      # $__rate_interval : trop court, rate() renvoie des trous.
+      timeInterval: 15s

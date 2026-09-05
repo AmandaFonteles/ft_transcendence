@@ -136,18 +136,6 @@ services:
   # ---------------------------------------------------------------------------
   prometheus:
     image: docker.io/prom/prometheus:v3.13.2
-    # UID 0 DANS LE CONTENEUR — ce n'est PAS root sur l'hote.
-    # Podman tourne en rootless : l'UID 0 du conteneur est mappe sur
-    # l'utilisateur non privilegie qui lance la pile. Aucun root reel
-    # n'existe dans ce stack.
-    # Pourquoi : l'image tourne en 'nobody' (65534) et ne peut pas ecrire
-    # sa TSDB dans un volume neuf sous rootless. L'UID 0 du namespace
-    # dispose de CAP_DAC_OVERRIDE *a l'interieur du namespace*, donc il
-    # ecrit sans dependre de l'appartenance du volume.
-    # Alternatives rejetees : ':U' et 'userns_mode', tous deux ignores
-    # silencieusement par podman-compose 1.6.0 (verifie via podman inspect) ;
-    # 'podman unshare chown' manuel, incompatible avec l'exigence du sujet
-    # d'un deploiement en UNE commande.
     user: "0:0"
     restart: unless-stopped
     command:
@@ -159,12 +147,7 @@ services:
     volumes:
       # ':ro' — Prometheus ne doit pas ecrire dans des fichiers versionnes.
       - ./srcs/monitoring/prometheus:/etc/prometheus:ro
-      # ':U' — option PODMAN : chown recursif du volume vers l'UID/GID du
-      # conteneur (65534 'nobody'). En rootless, un volume neuf appartient a
-      # l'UID 0 du user namespace, alors que Prometheus tourne en 'nobody' :
-      # sans ':U' il ne peut pas ecrire sa TSDB et redemarre en boucle.
-      # Alternative rejetee : 'user: root', qui casse le principe de moindre
-      # privilege pour contourner un probleme de permissions.
+      # Les permissions sont reglees par 'user: "0:0"' ci-dessus
       - prometheus_data:/prometheus
     networks: [transcendence]
 
@@ -217,6 +200,43 @@ services:
     depends_on: [nginx]
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # GRAFANA : l'interface de visualisation.
+  # Ne stocke AUCUNE metrique : a chaque rafraichissement de panneau, il envoie
+  # une requete a Prometheus et dessine la reponse. La base de donnees
+  # de series temporelles reste Prometheus.
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: docker.io/grafana/grafana:13.1.5
+    user: "0:0"
+    env_file:
+      - .env
+    environment:
+      # URL PUBLIQUE complete. Grafana s'en sert pour construire ses
+      # redirections et les liens absolus qu'il renvoie au navigateur.
+      - GF_SERVER_ROOT_URL=https://localhost:8443/grafana/
+      # Indique a Grafana de servir ses propres routes SOUS ce prefixe.
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+      # Pas de creation de compte libre : l'admin cree les comptes.
+      - GF_USERS_ALLOW_SIGN_UP=false
+      # On n'a pas besoin des updates
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false
+    volumes:
+      # Provisioning : datasources et dashboards decrits par des FICHIERS
+      # versionnes, lus au demarrage. ':ro' — Grafana ne doit jamais reecrire
+      # ce qui est dans le depot.
+      - ./srcs/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      # Les JSON de dashboards, hors du dossier provisioning pour que le
+      # fournisseur ne rencontre que des dashboards dans le chemin qu'il scanne.
+      - ./srcs/monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    networks: [transcendence]
+    restart: unless-stopped
+
 # Bloc racine des reseaux.
 networks:
   # Un unique reseau prive de type "bridge" partage par tous les services.
@@ -231,7 +251,5 @@ volumes:
   # Fichiers televerses par les utilisateurs (modele File). Sa duree de vie est
   # independante des conteneurs : un "make down" ne l'efface pas, seul "make clean" le fait.
   uploads_data:
-  # TSDB Prometheus : les series temporelles survivent a "make down".
-  # Volume nomme (pas de bind mount) : ce sont des donnees binaires generees,
-  # elles n'ont rien a faire dans le depot git.
   prometheus_data:
+  grafana_data:
