@@ -39,11 +39,7 @@ export class FilesService {
 	if (!allowedFileTypes[file.mimetype]?.includes(fileExtension)) {
 		throw new BadRequestException(`Type de fichier non autorisé`)
 	}
-<<<<<<< HEAD
 	const detectedMimeType = this.storage.detectMimeType(file.buffer)
-=======
-	const detectedMimeType = this.magic.detect(file.buffer)
->>>>>>> b0bd0ad (Aileen: add Quentin's friendship files + all started FileUpload)
 	if (detectedMimeType !== file.mimetype) {
 		throw new BadRequestException(`Le type MIME du fichier ne correspond pas à son contenu`)
 	}

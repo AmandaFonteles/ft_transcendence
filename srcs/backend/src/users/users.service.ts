@@ -155,7 +155,6 @@ export class UsersService {
     const organizationIdsToDelete = await this.organizations.checkOrganizationsAtUserDeletion(userId)
     for (const organizationId of organizationIdsToDelete) {
       await this.prisma.organization.delete({ where: { id: organizationId } })
-<<<<<<< HEAD
       await this.storage.removeOrganizationFolder(organizationId) // Supprime les fichiers de l'organisation
     }
     await this.prisma.user.delete({ where: { id: userId } })
@@ -193,10 +192,5 @@ export class UsersService {
     } catch {
       throw new InternalServerErrorException(`Impossible de mettre a jour l'avatar dans la base de donnees`)
     }
-=======
-    }
-    await this.prisma.user.delete({ where: { id: userId } })
-    return { success: true }
->>>>>>> b980280 (add bouton supprimer le compte, gestion de la suppression des organisation et des donnees de l'utilisateur)
   }
 }
