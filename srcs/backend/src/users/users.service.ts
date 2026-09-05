@@ -72,12 +72,17 @@ export class UsersService {
   // AJOUT : nouvelle methode, a la fin de la classe.
   // Change l'avatar du user connecte. Le controller aura deja verifie via
   // SelectAvatarDto (etape 3) que avatarUrl fait partie des presets autorises.
-  updateAvatar(userId: string, avatarUrl: string) {
-    return this.prisma.user.update({
+  async updateAvatar(userId: string, avatarUrl: string) {
+    const currentAvatarPath = await this.getUserAvatarStoredPath(userId)
+    const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: { avatarUrl },
       select: USER_PUBLIC_SELECT
     })
+    if (currentAvatarPath) {
+      await this.storage.deleteFileFromStorage(currentAvatarPath)
+    }
+    return updatedUser
   }
 
   // AJOUT : met a jour displayName et/ou email. dto.email et dto.displayName
@@ -158,7 +163,23 @@ export class UsersService {
       await this.storage.removeOrganizationFolder(organizationId) // Supprime les fichiers de l'organisation
     }
     await this.prisma.user.delete({ where: { id: userId } })
+    await this.storage.removeAvatarFolder(userId) // Supprime les fichiers de l'utilisateur
     return { success: true }
+  }
+
+  private async getUserAvatarStoredPath(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { avatarUrl: true }
+    })
+    if (!user || !user.avatarUrl) {
+      return null
+    }
+    const avatarStoredPath = user.avatarUrl
+    if (!avatarStoredPath.startsWith(`avatars/${userId}/`)) {
+      return null
+    }
+    return this.storage.getFilePath(avatarStoredPath)
   }
 
   async uploadAvatar(userId: string, file: Express.Multer.File)
@@ -181,16 +202,22 @@ export class UsersService {
     const avatarPath = await this.storage.createAvatarFolder(userId)
     const generatedFileName = `${randomUUID()}.png`
     const filePath = join(avatarPath, generatedFileName)
+    const currentAvatarPath = await this.getUserAvatarStoredPath(userId)
     await this.storage.writeFileToStorage(filePath, file.buffer)
+    let updatedUser
     try {
-      const updatedUser = await this.prisma.user.update({
+        updatedUser = await this.prisma.user.update({
         where: { id: userId },
         data: { avatarUrl: `avatars/${userId}/${generatedFileName}` },
         select: USER_PUBLIC_SELECT
       })
-      return updatedUser
     } catch {
+      await this.storage.deleteFileFromStorage(filePath)
       throw new InternalServerErrorException(`Impossible de mettre a jour l'avatar dans la base de donnees`)
     }
+    if (currentAvatarPath) {
+      await this.storage.deleteFileFromStorage(currentAvatarPath)
+    }
+    return updatedUser
   }
 }

@@ -1,7 +1,7 @@
 // [CONCEPT: controller de feature] UsersController mappe les routes HTTP vers le
 // service. Il ne contient AUCUNE logique : il recoit, delegue, renvoie.
 
-import { Body, Controller, Get, NotFoundException, Patch, UseGuards, Delete } from '@nestjs/common'
+import { Body, Controller, Get, NotFoundException, Patch, UseGuards, Delete, UploadedFile, UseInterceptors } from '@nestjs/common'
 import { UsersService } from './users.service'
 import { SelectAvatarDto } from './dto/select-avatar.dto'
 import { UpdateProfileDto } from './dto/update-profile.dto'
@@ -10,6 +10,7 @@ import { AVATAR_PRESETS } from './avatar-presets'
 // AJOUT : necessaires pour proteger la route PATCH /users/me/avatar.
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
+import { FileInterceptor } from '@nestjs/platform-express'
 
 @Controller('users')
 export class UsersController {
@@ -66,6 +67,14 @@ export class UsersController {
   changePassword(@CurrentUser() user: { userId: string }, @Body() dto: ChangePasswordDto) {
     return this.users.changePassword(user.userId, dto)
   }
+
+  @Patch('me/avatar/upload')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('file', {limits: { fileSize: 5 * 1024 * 1024 }})) // 5 Mo max
+  uploadAvatar(@CurrentUser() user: { userId: string }, @UploadedFile() file: Express.Multer.File) {
+    return this.users.uploadAvatar(user.userId, file)
+  }
+
   //pour supprimer un comte
   @UseGuards(JwtAuthGuard)
   @Delete('me')

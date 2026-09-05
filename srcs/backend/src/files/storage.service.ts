@@ -89,4 +89,17 @@ export class StorageService implements OnModuleInit {
 	}
 	return avatarPath
   }
+
+  async removeAvatarFolder(userId: string) {
+	const uploadDir = process.env.UPLOAD_DIR
+	if (uploadDir === undefined) {
+	  return
+	}
+	const avatarPath = join(uploadDir, 'avatars', userId)
+	try {
+	  await rm(avatarPath, { recursive: true, force: true })
+	} catch {
+	  // on ne veut pas empecher la suppression du compte si la suppression du volume echoue
+	}
+  }
 }
