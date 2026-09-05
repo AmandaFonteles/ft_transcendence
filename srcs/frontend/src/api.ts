@@ -679,3 +679,4 @@ export async function uploadAvatar(accessToken: string, file: File) {
   }
 
   return res.json() as Promise<AuthUser>
+}

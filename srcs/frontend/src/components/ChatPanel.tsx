@@ -64,7 +64,14 @@ export default function ChatPanel({ organizationId }: { organizationId: string }
         // de taches (max-h + overflow-y-auto) dans ProjectPage.
         <div className="max-h-[360px] overflow-y-auto pr-1 mb-3 grid gap-2">
           {messages.map((m) => {
-            const isMine = m.authorId === user!.id
+            // [IMPORTANT] m.authorId est la cle etrangere Message.authorId, qui
+            // pointe vers OrganizationMember.id (pas l'utilisateur). Comparer ce
+            // champ a user.id (un User.id) fonctionnait par coincidence pour les
+            // messages recus en direct (le gateway y met le vrai userId), mais
+            // pas pour l'historique REST (Prisma y renvoie le vrai authorId) : au
+            // rechargement, tous nos propres messages passaient a gauche/gris.
+            // m.author.user.id, lui, est le vrai User.id dans les DEUX cas.
+            const isMine = m.author.user.id === user!.id
             return (
               <div key={m.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[75%] rounded-2xl px-3 py-2 ${isMine ? 'bg-ink text-white' : 'bg-sunk text-ink'}`}>

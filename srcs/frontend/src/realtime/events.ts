@@ -39,6 +39,14 @@ export const ServerEvents = {
   MEMBER_ADDED: 'member:added',
   MEMBER_REMOVED: 'member:removed',
   MEMBER_ROLE_CHANGED: 'member:role_changed',
+
+  // Gestion des taches d'un projet, diffusee dans le salon du projet.
+  // DOIT rester identique au contrat backend (realtime.events.ts).
+  TASK_CREATED: 'task:created',
+  TASK_UPDATED: 'task:updated',
+  TASK_DELETED: 'task:deleted',
+  TASK_ASSIGNED: 'task:assigned',
+  TASK_UNASSIGNED: 'task:unassigned',
 } as const
 
 
@@ -79,4 +87,11 @@ export interface ChatMessageEvent {
   createdAt: string
   organizationId: string
   author: PresenceUser
+}
+
+// Payload minimal des evenements de taches : juste de quoi savoir qu'il faut
+// recharger la liste depuis l'API (voir useTaskEvents.ts).
+export interface TaskEventPayload {
+  organizationId: string
+  taskId: string
 }

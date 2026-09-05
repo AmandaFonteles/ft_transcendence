@@ -16,6 +16,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { assignTaskMember, listOrganizationMembers, listTaskAssignments, removeTaskAssignment } from '../api'
 import type { OrganizationMember, TaskAssignment } from '../api'
+import { useAuth } from '../auth/AuthContext'
+import { useTaskEvents } from '../realtime/useTaskEvents'
 import Button from './ui/Button'
 
 interface TaskAssigneesProps {
@@ -34,6 +36,8 @@ interface TaskAssigneesProps {
 export default function TaskAssignees({
   accessToken, organizationId, taskId, ownerId, currentUserId, isAdmin,
 }: TaskAssigneesProps) {
+  // Displayname pour le handshake socket ; currentUserId suffit pour le reste.
+  const { user } = useAuth()
   const [assignments, setAssignments] = useState<TaskAssignment[]>([])
   // Membres du projet : necessaires pour afficher des NOMS. L'API d'assignation
   // ne renvoie que des OrganizationMember (userId), jamais le displayName.
@@ -62,7 +66,14 @@ export default function TaskAssignees({
     }
   }, [accessToken, organizationId, taskId])
 
-  useEffect(() => { reload() }, [reload])
+  // [TEMPS REEL] Recharge quand une assignation change sur ce projet — y compris
+  // celles faites par quelqu'un d'autre pendant que ce panneau est ouvert.
+  const taskEventsRevision = useTaskEvents(
+    organizationId,
+    { userId: currentUserId, displayName: user?.displayName ?? '' },
+  )
+
+  useEffect(() => { reload() }, [reload, taskEventsRevision])
 
   // Nom affichable d'un utilisateur, via la liste des membres.
   const nameOf = (userId: string) =>

@@ -54,6 +54,15 @@ export const ServerEvents = {
   MEMBER_ADDED: 'member:added',
   MEMBER_REMOVED: 'member:removed',
   MEMBER_ROLE_CHANGED: 'member:role_changed',
+
+  // Gestion des taches d'un projet. Meme convention que les evenements de
+  // membres : diffuses dans le salon du projet (orgRoom), payload minimal
+  // (identifiants seulement), le client RECHARGE la liste depuis l'API.
+  TASK_CREATED: 'task:created',
+  TASK_UPDATED: 'task:updated',
+  TASK_DELETED: 'task:deleted',
+  TASK_ASSIGNED: 'task:assigned',
+  TASK_UNASSIGNED: 'task:unassigned',
 } as const
 
 // [CONCEPT: convention de nommage des rooms] Une "room" Socket.IO est juste une
@@ -142,4 +151,13 @@ export interface MemberEventPayload {
   organizationId: string
   userId: string
   role?: 'ADMIN' | 'MEMBER'
+}
+
+// Payload des evenements de taches. Meme raisonnement que MemberEventPayload :
+// pas la tache entiere, juste de quoi savoir QUOI recharger. Les regles de
+// visibilite (qui voit quelle tache) restent arbitrees par le backend au
+// prochain GET, jamais deduites du payload cote client.
+export interface TaskEventPayload {
+  organizationId: string
+  taskId: string
 }

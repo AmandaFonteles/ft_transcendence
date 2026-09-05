@@ -8,6 +8,7 @@ import { useParams } from 'react-router-dom'
 import { createTask, getOrganization, listOrganizationMembers, listTasks, updateTaskStatus } from '../api'
 import type { Organization, Task, TaskStatus } from '../api'
 import { useAuth } from '../auth/AuthContext'
+import { useTaskEvents } from '../realtime/useTaskEvents'
 import TaskRow from '../components/TaskRow'
 import TaskDetail from '../components/TaskDetail'
 import MembersSection from '../components/MembersSection'
@@ -47,8 +48,18 @@ export default function ProjectPage() {
   // retirer depuis ce panneau, voir ProjectSettings).
   const [membersRefreshKey, setMembersRefreshKey] = useState(0)
 
+  // [TEMPS REEL] S'abonne au salon du projet. Le compteur change des qu'une
+  // tache est creee, modifiee, supprimee ou (des)assignee — y compris par
+  // QUELQU'UN D'AUTRE. Sans cela, deux personnes travaillant en meme temps
+  // voyaient des listes divergentes jusqu'au prochain rechargement manuel.
+  const tasksRevision = useTaskEvents(
+    projectId ?? '',
+    { userId: user?.id ?? '', displayName: user?.displayName ?? '' },
+  )
+
   // Charge le projet et ses taches. Relance si le filtre change, car le backend
-  // sait filtrer lui-meme (parametre owned).
+  // sait filtrer lui-meme (parametre owned), ou si un evenement temps reel
+  // signale qu'une tache a change ailleurs.
   useEffect(() => {
     if (!accessToken || !projectId) return
     let cancelled = false
@@ -74,7 +85,7 @@ export default function ProjectPage() {
 
     load()
     return () => { cancelled = true }
-  }, [accessToken, projectId, onlyMine])
+  }, [accessToken, projectId, onlyMine, tasksRevision])
 
   // Determine si l'utilisateur courant est administrateur du projet.
   // [CONCEPT: effet distinct] On ne le range pas dans le chargement principal :

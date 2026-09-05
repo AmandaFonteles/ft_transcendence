@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
 import { OrganizationsService } from '../organizations/organizations.service'
 import { Role } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
@@ -23,10 +23,10 @@ export class TasksService {
 
   async requireTaskVisibleToMember(	taskId: string,	organizationId: string,	requesterId: string) {
 	const task = await this.requireTaskInOrganization(taskId, organizationId)
-	const activeMember = await this.orgaServ.requireActiveMember(organizationId, requesterId)
-	if (activeMember.role !== Role.ADMIN && task.ownerId !== activeMember.id && await this.countAssignments(taskId) > 0 && !await this.findAssignmentRecord(taskId, activeMember.id)) {
-		throw new ForbiddenException('Tâche inaccessible pour ce membre')
-	}
+	// Tout membre actif du projet peut consulter n'importe quelle tache du projet
+	// (alignement avec findAllForOrganization, qui liste desormais toutes les
+	// taches par defaut) : seule l'appartenance au projet est requise ici.
+	await this.orgaServ.requireActiveMember(organizationId, requesterId)
 	return task
 }
 
@@ -36,6 +36,19 @@ export class TasksService {
 
   async findAllForOrganization(organizationId: string, requesterId: string, filters: TaskVisibilityFilterDto) {
 	const activeMember = await this.orgaServ.requireActiveMember(organizationId, requesterId)
+
+	// Aucun filtre demande (case "Mes taches uniquement" decochee cote front) :
+	// tout membre du projet voit TOUTES ses taches, quel que soit son role.
+	// Avant ce cas particulier, un membre non-admin ne voyait jamais les taches
+	// assignees exclusivement a quelqu'un d'autre, meme sans filtre actif.
+	const noFilterRequested = filters.owned === undefined && filters.assignedUserIds === undefined && filters.unassigned === undefined
+	if (noFilterRequested) {
+		return await this.prisma.task.findMany({
+			where: { organizationId },
+			orderBy: { name: 'asc' }
+		})
+	}
+
 	const activeMemberToShow = await this.orgaServ.requireActiveMembersByUserIds(organizationId, filters.assignedUserIds || [])
 	let showOwned = true
 	let showAssignedTasks = filters.assignedUserIds === undefined || filters.assignedUserIds.length > 0
