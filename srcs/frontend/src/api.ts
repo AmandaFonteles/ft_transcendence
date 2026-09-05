@@ -585,57 +585,6 @@ export type FriendRequest = {
   receiver?: PublicUser
 }
 
-// Recherche d'utilisateurs par nom/identifiant, pour ajouter un ami.
-// Distinct de listUsers() : celle-ci cible specifiquement /friendship/search
-// (exclut deja soi-meme cote backend).
-export function searchUsers(accessToken: string, query: string) {
-  const params = new URLSearchParams({ q: query })
-  return request<PublicUser[]>(`/friendship/search?${params.toString()}`, {
-    headers: auth(accessToken),
-  })
-}
-
-// Liste des amis actuels (statut ACCEPTED, dans les deux sens).
-export function listFriends(accessToken: string) {
-  return request<Friend[]>('/friendship', { headers: auth(accessToken) })
-}
-
-// Demandes recues en attente (quelqu'un veut m'ajouter).
-export function listPendingRequests(accessToken: string) {
-  return request<FriendRequest[]>('/friendship/pending', { headers: auth(accessToken) })
-}
-
-// Demandes envoyees en attente (j'attends une reponse).
-export function listSentRequests(accessToken: string) {
-  return request<FriendRequest[]>('/friendship/sent', { headers: auth(accessToken) })
-}
-
-// Envoie une demande d'ami par username.
-export function sendFriendRequest(accessToken: string, username: string) {
-  return request<FriendRequest>('/friendship/request', {
-    method: 'POST',
-    headers: auth(accessToken),
-    body: JSON.stringify({ username }),
-  })
-}
-
-// Accepte une demande recue.
-export function acceptFriendRequest(accessToken: string, friendshipId: string) {
-  return request<FriendRequest>(`/friendship/${friendshipId}/accept`, {
-    method: 'PATCH',
-    headers: auth(accessToken),
-  })
-}
-
-// Meme route pour 3 usages : refuser une demande recue, annuler une demande
-// envoyee, ou retirer un ami existant — le backend verifie juste qu'on fait
-// partie de la relation.
-export function removeFriendship(accessToken: string, friendshipId: string) {
-  return request<{ success: boolean }>(`/friendship/${friendshipId}`, {
-    method: 'DELETE',
-    headers: auth(accessToken),
-  })
-}
 
 // --- Chat -------------------------------------------------------------------
 
@@ -650,13 +599,4 @@ export type ChatMessage = {
   author: {
     user: PublicUser
   }
-}
-
-// Historique des messages d'un projet. `before` sert a paginer en remontant
-// dans le temps (createdAt du plus ancien message deja charge).
-export function listMessages(accessToken: string, organizationId: string, before?: string) {
-  const params = before ? `?before=${encodeURIComponent(before)}` : ''
-  return request<ChatMessage[]>(`/organizations/${organizationId}/messages${params}`, {
-    headers: auth(accessToken),
-  })
 }
