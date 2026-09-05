@@ -1,22 +1,36 @@
 # AlertManager config
 
-# Promethues -> decide if we send an alert
-# AlertManager -> decide how many times, when and to whom send the alert
+# Prometheus   -> decides IF an alert should be sent
+# AlertManager -> decides how many times, when and to whom it is sent
 
 global:
   resolve_timeout: 3m
 
-# For security reasons, we decide to send the alert to nginx itself
-# So we don't have to expose another port or a real URL (for discord or email, for example)
 route:
-  receiver: sink-nginx
+  receiver: default-receiver
   group_by: ['alertname', 'job']
   group_wait: 30s
   group_interval: 2m
   repeat_interval: 4h
 
 receivers:
-  - name: sink-nginx
+# Two integrations in ONE receiver
+  - name: default-receiver
     webhook_configs:
       - url: http://nginx:8081/alert-sink
         send_resolved: true
+  
+# For discord we use a Go teplate
+# The URL used here is a SECRET, we need to edit
+# to the real URL before the evaluation start
+    discord_configs:
+      - webhook_url_file: /etc/alertmanager/discord_webhook_url
+        send_resolved: true
+        title: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
+        message: >-
+          {{ range .Alerts }}**{{ .Annotations.summary }}**
+
+          {{ .Annotations.description }}
+
+          Severity: `{{ .Labels.severity }}` — Job: `{{ .Labels.job }}`
+          {{ end }}
