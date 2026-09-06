@@ -51,10 +51,7 @@ export default function ProjectPage() {
   // tache est creee, modifiee, supprimee ou (des)assignee — y compris par
   // QUELQU'UN D'AUTRE. Sans cela, deux personnes travaillant en meme temps
   // voyaient des listes divergentes jusqu'au prochain rechargement manuel.
-  const tasksRevision = useTaskEvents(
-    projectId ?? '',
-    { userId: user?.id ?? '', displayName: user?.displayName ?? '' },
-  )
+  const tasksRevision = useTaskEvents(projectId ?? '')
 
   // Charge le projet et ses taches. Relance si le filtre change, car le backend
   // sait filtrer lui-meme (parametre owned), ou si un evenement temps reel

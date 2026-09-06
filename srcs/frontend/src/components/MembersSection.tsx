@@ -44,13 +44,7 @@ export default function MembersSection({ organizationId, accessToken, invitePoli
   // est ajoute, retire, promu ou retrograde — y compris par QUELQU'UN D'AUTRE.
   // Sans cela, deux personnes travaillant en meme temps voyaient des listes
   // divergentes jusqu'au prochain rechargement manuel.
-  const membersRevision = useOrganizationMembers(
-    organizationId,
-    // Identite du handshake. Le repli sur des chaines vides ne sert qu'a
-    // satisfaire le typage : la section n'est rendue que pour un utilisateur
-    // connecte, et le backend refuse une socket sans identite.
-    { userId: user?.id ?? '', displayName: user?.displayName ?? '' },
-  )
+  const membersRevision = useOrganizationMembers(organizationId)
 
   useEffect(() => {
     listFriends(accessToken)

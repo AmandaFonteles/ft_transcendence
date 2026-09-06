@@ -30,8 +30,9 @@ import { MetricsModule } from './metrics/metrics.module';
 
 // Declare et cable le module racine.
 @Module({
-  // On importe PrismaModule (@Global => PrismaService injectable partout) et UsersModule.
-  // Chaque futur module d'equipe (AuthModule, BoardsModule...) s'ajoutera dans cette liste.
+  // On importe PrismaModule (@Global => PrismaService injectable partout), puis un
+  // module par domaine. C'est LE carrefour d'assemblage : tout module d'equipe
+  // doit s'ajouter a cette liste pour exister au demarrage.
   imports: [PrismaModule, UsersModule, RealtimeModule, AuthModule, OrganizationsModule, TasksModule, FilesModule, FriendshipModule , ChatModule, MetricsModule],
   // Controllers de ce module.
   controllers: [AppController],

@@ -15,16 +15,15 @@
 import { useEffect, useState } from 'react'
 import { getSocket } from './socket'
 import { ClientEvents, ServerEvents } from './events'
-import type { SocketIdentity } from './socket'
 
-export function useOrganizationMembers(organizationId: string, identity: SocketIdentity): number {
+export function useOrganizationMembers(organizationId: string): number {
   // Incremente a chaque changement recu. Sa valeur n'a pas de sens en soi ;
   // seul son CHANGEMENT compte, comme signal de rechargement.
   const [revision, setRevision] = useState(0)
 
   useEffect(() => {
     if (!organizationId) return
-    const socket = getSocket(identity)
+    const socket = getSocket()
 
     // Rejoint le salon du projet. Le backend verifie l'appartenance avant
     // d'accepter, donc aucune diffusion ne fuite a un non-membre.
@@ -53,7 +52,7 @@ export function useOrganizationMembers(organizationId: string, identity: SocketI
       socket.off(ServerEvents.MEMBER_REMOVED, bump)
       socket.off(ServerEvents.MEMBER_ROLE_CHANGED, bump)
     }
-  }, [organizationId, identity.userId, identity.displayName])
+  }, [organizationId])
 
   return revision
 }

@@ -7,15 +7,17 @@
 // =============================================================================
 
 import { useEffect, useState } from 'react'
-import { getSocket, SocketIdentity } from './socket'
+import { getSocket } from './socket'
 import { ServerEvents, OnlineStatusEvent } from './events'
 
 // Renvoie une Map userId -> isOnline, mise a jour en temps reel.
-export function useOnlineStatus(identity: SocketIdentity): Map<string, boolean> {
+// Ne prend plus d'identite en parametre : le serveur la deduit du jeton presente
+// au handshake (voir socket.ts), le client n'a plus rien a declarer.
+export function useOnlineStatus(): Map<string, boolean> {
   const [statuses, setStatuses] = useState<Map<string, boolean>>(new Map())
 
   useEffect(() => {
-    const socket = getSocket(identity)
+    const socket = getSocket()
 
     const onOnline = (event: OnlineStatusEvent) =>
       setStatuses((prev) => new Map(prev).set(event.userId, true))
@@ -30,7 +32,10 @@ export function useOnlineStatus(identity: SocketIdentity): Map<string, boolean> 
       socket.off(ServerEvents.USER_ONLINE, onOnline)
       socket.off(ServerEvents.USER_OFFLINE, onOffline)
     }
-  }, [identity.userId, identity.displayName])
+    // Aucune dependance : la socket est un singleton partage et son identite ne
+    // change pas en cours de session. A la deconnexion, closeSocket() la detruit
+    // et ce composant est demonte par la garde de route.
+  }, [])
 
   return statuses
 }

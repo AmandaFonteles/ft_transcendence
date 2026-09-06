@@ -17,13 +17,8 @@ export default function ChatPanel({ organizationId }: { organizationId: string }
   // Reference vers le bas de la liste, pour auto-scroller a chaque nouveau message.
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  // Sans identite (chargement initial de la session), pas de chat possible :
-  // le hook a besoin d'un userId/displayName pour le handshake socket.
-  const identity = user ? { userId: user.id, displayName: user.displayName } : null
-
   const { connected, messages, loadingHistory, error, sendMessage } = useProjectChat(
     organizationId,
-    identity ?? { userId: '', displayName: '' },
     accessToken ?? '',
   )
 
@@ -41,7 +36,9 @@ export default function ChatPanel({ organizationId }: { organizationId: string }
 
   // Pas encore d'identite ou de token : rien a afficher (evite un flash d'erreur
   // au tout premier rendu, le temps que AuthContext termine son chargement).
-  if (!identity || !accessToken) return null
+  // Pas de session encore etablie (rafraichissement silencieux en cours) :
+  // ni l'historique REST ni le handshake socket ne peuvent aboutir.
+  if (!user || !accessToken) return null
 
   return (
     <Card>

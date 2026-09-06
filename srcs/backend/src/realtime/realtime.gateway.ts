@@ -25,6 +25,8 @@ import {
 } from '@nestjs/websockets'
 // Importe les types Socket.IO (Server = le hub, Socket = une connexion cliente).
 import { Server, Socket } from 'socket.io'
+// Importe le service JWT : c'est lui qui verifie le jeton presente au handshake.
+import { JwtService } from '@nestjs/jwt'
 // Importe le registre de presence.
 import { PresenceRegistry } from './presence.registry'
 // Importe le contrat partage (noms d'evenements, helper de room, types de payloads).
@@ -32,12 +34,9 @@ import { MessageService } from '../chat/message.service'
 import {
   ClientEvents,
   ServerEvents,
-  boardRoom,
-  orgRoom,           // AJOUT
-  BoardScopePayload,
-  CardMovedPayload,
-  OrgScopePayload,    // AJOUT
-  MessageSendPayload, // AJOUT
+  orgRoom,
+  OrgScopePayload,
+  MessageSendPayload,
   PresenceUser,
   userRoom
 } from './realtime.events'
@@ -63,6 +62,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   constructor(
     private readonly presence: PresenceRegistry,
     private readonly messages: MessageService,
+    // Verification du jeton d'acces presente au handshake (voir handleConnection).
+    private readonly jwt: JwtService,
     @Inject(forwardRef(() => UsersService))
     private readonly users: UsersService,
     @Inject(forwardRef(() => FriendshipService))
@@ -73,18 +74,65 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   // Cycle de vie
   // -------------------------------------------------------------------------
 
-  async handleConnection(client: Socket): Promise<void> {
-    const auth = client.handshake.auth as { userId?: string; displayName?: string }
+  // Refuse une socket en expliquant pourquoi AVANT de la fermer.
+  // L'ordre compte : en appelant disconnect() d'abord, le client ne recevrait
+  // jamais le message et verrait une coupure silencieuse, impossible a
+  // diagnostiquer. Le "true" ferme la connexion sous-jacente au lieu de la
+  // laisser ouverte en attente.
+  private rejectConnection(client: Socket, message: string): void {
+    client.emit(ServerEvents.ERROR, { message })
+    client.disconnect(true)
+  }
 
-    if (!auth?.userId) {
-      client.emit(ServerEvents.ERROR, { message: 'authentification requise' })
-      client.disconnect(true)
+  // [SECURITE] Le handshake est le SEUL endroit ou l'identite d'une socket est
+  // etablie : tout le reste du gateway lit ensuite cette identite dans le
+  // PresenceRegistry. Il doit donc etre aussi strict qu'un guard HTTP.
+  //
+  // AVANT, le client envoyait { userId, displayName } et on le croyait sur
+  // parole. N'importe qui pouvait alors ouvrir une socket en se declarant
+  // quelqu'un d'autre : lire le chat des projets de sa cible, y poster en son
+  // nom, et manipuler son statut en ligne. Une room n'est PAS une protection si
+  // l'identite qui y entre n'est pas verifiee.
+  //
+  // MAINTENANT, le client envoie { token } : le meme jeton d'acces que pour les
+  // routes HTTP. On le verifie ici exactement comme le fait JwtStrategy cote
+  // HTTP (meme secret, signature + expiration), et l'identite vient de la BASE,
+  // jamais du client.
+  async handleConnection(client: Socket): Promise<void> {
+    const { token } = client.handshake.auth as { token?: string }
+
+    if (!token) {
+      this.rejectConnection(client, 'authentification requise')
+      return
+    }
+
+    let userId: string
+    try {
+      // Meme secret que l'access token signe par AuthService.issueTokens().
+      // verifyAsync leve si la signature est invalide OU si le jeton a expire :
+      // un jeton perime ne donne donc pas plus de droits qu'un jeton forge.
+      const payload = await this.jwt.verifyAsync<{ sub: string }>(token, {
+        secret: process.env.JWT_ACCESS_SECRET,
+      })
+      userId = payload.sub
+    } catch {
+      this.rejectConnection(client, 'jeton invalide ou expire')
+      return
+    }
+
+    // Le displayName vient de la BASE, pas du handshake : le client ne choisit
+    // plus le nom sous lequel il apparait aux autres. Ca ferme au passage
+    // l'usurpation d'affichage (se connecter avec le nom de quelqu'un d'autre).
+    // Un compte supprime entre l'emission du jeton et la connexion tombe ici.
+    const account = await this.users.findById(userId)
+    if (!account) {
+      this.rejectConnection(client, 'compte introuvable')
       return
     }
 
     const user: PresenceUser = {
-      userId: auth.userId,
-      displayName: auth.displayName ?? auth.userId,
+      userId: account.id,
+      displayName: account.displayName,
     }
 
     this.presence.register(client.id, user)
@@ -106,21 +154,13 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   // Appele automatiquement quand un client se deconnecte (fermeture, reseau, onglet ferme).
   async handleDisconnect(client: Socket): Promise<void> {
-    // Retire la socket du registre et recupere son etat pour prevenir les rooms.
+    // Retire la socket du registre et recupere son etat pour prevenir les amis.
     const state = this.presence.unregister(client.id)
     // Rien a faire si la socket n'etait pas enregistree (refusee a la connexion).
     if (!state) return
 
-    // Previent chaque tableau que cette socket avait rejoint.
-    for (const boardId of state.boards) {
-      // N'annonce le depart que si l'utilisateur n'a plus AUCUNE autre socket ici.
-      // Sans ce test, fermer un onglet sur trois ferait disparaitre l'utilisateur a tort.
-      if (!this.presence.hasOtherSocketOnBoard(state.user.userId, boardId, client.id)) {
-        // Diffuse le depart aux membres restants du tableau.
-        this.server.to(boardRoom(boardId)).emit(ServerEvents.PRESENCE_LEFT, state.user)
-      }
-    }
-    // AJOUT : passe hors ligne seulement si aucune autre socket ne reste.
+    // Passe hors ligne seulement si aucune autre socket ne reste : fermer un
+    // onglet sur trois ne doit pas faire disparaitre l'utilisateur.
     if (!this.presence.hasAnyOtherSocket(state.user.userId, client.id)) {
       await this.users.setOnlineStatus(state.user.userId, false)
       const friendIds = await this.friendship.getFriendIds(state.user.userId)
@@ -136,115 +176,6 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   // -------------------------------------------------------------------------
   // Handlers d'evenements
   // -------------------------------------------------------------------------
-
-  // Handler de "board:join" (nom pris dans le contrat, jamais ecrit en dur).
-  @SubscribeMessage(ClientEvents.JOIN_BOARD)
-  async handleJoinBoard(
-    // Socket emettrice, injectee par Nest.
-    @ConnectedSocket() client: Socket,
-    // Payload envoye par le client, type par le contrat.
-    @MessageBody() payload: BoardScopePayload,
-  ): Promise<void> {
-    // Recupere l'utilisateur authentifie associe a cette socket.
-    const user = this.presence.getUser(client.id)
-    // Securite : socket inconnue (ne devrait pas arriver apres handleConnection).
-    if (!user) return
-
-    // Valide le payload : un client malveillant peut envoyer n'importe quoi.
-    if (!payload?.boardId) {
-      // Signale l'erreur au seul emetteur.
-      client.emit(ServerEvents.ERROR, { message: 'boardId manquant' })
-      return
-    }
-
-    // [SEAM: PERMISSIONS — Am] Verifier ici que l'utilisateur a acces a ce tableau :
-    //   if (!await this.permissions.canViewBoard(user.userId, payload.boardId)) { ... }
-    // Pourquoi c'est CRITIQUE : sans ce controle, n'importe qui connaissant un boardId
-    // recoit en direct toutes ses mises a jour. Une room n'est PAS une protection.
-
-    // Calcule le nom canonique de la room.
-    const room = boardRoom(payload.boardId)
-    // Abonne la socket a la room : elle recevra les emissions destinees a ce tableau.
-    await client.join(room)
-    // Met a jour le registre de presence.
-    this.presence.joinBoard(client.id, payload.boardId)
-
-    // Envoie a l'arrivant la liste complete des presents (etat initial).
-    client.emit(ServerEvents.PRESENCE_STATE, this.presence.listBoardMembers(payload.boardId))
-    // Accuse reception de l'entree dans la room.
-    client.emit(ServerEvents.BOARD_JOINED, { boardId: payload.boardId })
-
-    // [CONCEPT: client.to(...) vs server.to(...)] "client.to(room)" exclut l'emetteur,
-    // "this.server.to(room)" l'inclut. Ici on previent les AUTRES : l'arrivant vient
-    // deja de recevoir PRESENCE_STATE, il n'a pas besoin d'etre annonce a lui-meme.
-    client.to(room).emit(ServerEvents.PRESENCE_JOINED, user)
-  }
-
-  // Handler de "board:leave".
-  @SubscribeMessage(ClientEvents.LEAVE_BOARD)
-  async handleLeaveBoard(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: BoardScopePayload,
-  ): Promise<void> {
-    // Identite de l'emetteur.
-    const user = this.presence.getUser(client.id)
-    // Ignore si socket inconnue ou payload invalide.
-    if (!user || !payload?.boardId) return
-
-    // Nom de la room a quitter.
-    const room = boardRoom(payload.boardId)
-    // Desabonne la socket : elle ne recevra plus les emissions de ce tableau.
-    await client.leave(room)
-    // Met a jour le registre.
-    this.presence.leaveBoard(client.id, payload.boardId)
-
-    // N'annonce le depart que si l'utilisateur n'a plus d'autre onglet sur ce tableau.
-    if (!this.presence.hasOtherSocketOnBoard(user.userId, payload.boardId, client.id)) {
-      // Previent les membres restants.
-      client.to(room).emit(ServerEvents.PRESENCE_LEFT, user)
-    }
-  }
-
-  // Handler de "card:moved" : le cas d'usage principal du temps reel produit.
-  @SubscribeMessage(ClientEvents.CARD_MOVED)
-  async handleCardMoved(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: CardMovedPayload,
-  ): Promise<void> {
-    // Identite de l'emetteur.
-    const user = this.presence.getUser(client.id)
-    // Securite.
-    if (!user) return
-
-    // Valide le payload avant tout traitement.
-    if (!payload?.boardId || !payload?.cardId || !payload?.toListId) {
-      client.emit(ServerEvents.ERROR, { message: 'payload card:moved invalide' })
-      return
-    }
-
-    // [SEAM: PERMISSIONS — Am] Verifier le droit d'ECRITURE (pas seulement de lecture) :
-    //   if (!await this.permissions.canEditBoard(user.userId, payload.boardId)) { ... }
-
-    // [SEAM: PERSISTANCE — Ai] Enregistrer le deplacement AVANT de le diffuser :
-    //   await this.cardsService.move(payload.cardId, payload.toListId, payload.position)
-    // [CONCEPT: le serveur est la source de verite] Diffuser sans persister ferait
-    // diverger les clients de la base : la carte "bougerait" a l'ecran puis reviendrait
-    // au rechargement. On persiste D'ABORD, on diffuse ENSUITE. Si l'ecriture echoue,
-    // on n'emet rien et on renvoie une erreur a l'emetteur.
-
-    // [SEAM: EVENT BACKBONE — Am] Emettre ici un activity_event pour l'analytics
-    // et les notifications d'Ai (ex. "X a deplace la carte Y").
-
-    // Diffuse le deplacement aux AUTRES membres du tableau.
-    // Pourquoi exclure l'emetteur : son interface a deja applique le mouvement en
-    // optimiste ; le lui renvoyer provoquerait un scintillement visuel.
-    client.to(boardRoom(payload.boardId)).emit(ServerEvents.CARD_MOVED, {
-      // On rediffuse le payload valide, enrichi de l'auteur.
-      ...payload,
-      // Permet a l'UI d'afficher "deplace par ...".
-      movedBy: user,
-    })
-  }
 
   // Handler de "org:join" : rejoindre la room de chat d'un projet.
   @SubscribeMessage(ClientEvents.JOIN_ORG)

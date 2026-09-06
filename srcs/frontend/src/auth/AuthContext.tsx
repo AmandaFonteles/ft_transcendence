@@ -20,7 +20,7 @@ import type { ReactNode } from 'react'
 // Fonctions d'API ecrites par Qu (auth) que ce contexte orchestre.
 import { login as apiLogin, logout as apiLogout, me, refresh, signup as apiSignup } from '../api'
 import type { AuthUser } from '../api'
-import { closeSocket } from '../realtime/socket' // AJOUT
+import { closeSocket, setSocketAccessToken } from '../realtime/socket' // AJOUT
 
 // Ce que le contexte expose a l'application.
 interface AuthState {
@@ -60,6 +60,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // relancer inutilement les effets qui en dependent.
   const applyToken = useCallback(async (token: string) => {
     setAccessToken(token)
+    // [SECURITE] Depose le jeton dans le module socket AVANT toute ouverture de
+    // connexion temps reel : c'est lui, et non un userId envoye par le client,
+    // qui prouve l'identite au handshake (voir realtime.gateway.ts).
+    // Ordre important : AppShell n'appelle getSocket() qu'une fois "user" pose,
+    // donc a la ligne suivante — le jeton est deja en place a ce moment.
+    setSocketAccessToken(token)
     const found = await me(token)
     setUser(found)
   }, [])

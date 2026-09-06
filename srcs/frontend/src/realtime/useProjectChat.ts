@@ -1,12 +1,12 @@
 // =============================================================================
 // useProjectChat.ts : connecte un composant au chat temps reel d'un projet.
-// Meme structure que useBoardRealtime : rejoindre la room, ecouter, nettoyer.
-// Difference cle : l'historique vient du REST (GET .../messages) au montage,
+// Structure commune a tous les hooks temps reel : rejoindre la room, ecouter,
+// nettoyer. Difference cle : l'historique vient du REST (GET .../messages) au montage,
 // le temps reel ne fait qu'AJOUTER les nouveaux messages par-dessus.
 // =============================================================================
 
 import { useEffect, useState } from 'react'
-import { getSocket, SocketIdentity } from './socket'
+import { getSocket } from './socket'
 import { ClientEvents, ServerEvents, ChatMessageEvent } from './events'
 import { listMessages } from '../api'
 import type { ChatMessage } from '../api'
@@ -21,7 +21,6 @@ interface ProjectChatState {
 
 export function useProjectChat(
   organizationId: string,
-  identity: SocketIdentity,
   accessToken: string,
 ): ProjectChatState {
   const [connected, setConnected] = useState(false)
@@ -46,10 +45,10 @@ export function useProjectChat(
     return () => { cancelled = true }
   }, [organizationId, accessToken])
 
-  // Branchement temps reel : meme pattern que useBoardRealtime (join a chaque
-  // "connect" pour survivre a une reconnexion, nettoyage complet au demontage).
+  // Branchement temps reel : join a chaque "connect" pour survivre a une
+  // reconnexion, nettoyage complet au demontage.
   useEffect(() => {
-    const socket = getSocket(identity)
+    const socket = getSocket()
 
     const onConnect = () => {
       setConnected(true)
@@ -102,15 +101,16 @@ export function useProjectChat(
       socket.off(ServerEvents.MESSAGE_NEW, onMessageNew)
       socket.off(ServerEvents.ERROR, onError)
     }
-  }, [organizationId, identity.userId, identity.displayName])
+  }, [organizationId])
 
   function sendMessage(content: string) {
     if (!content.trim()) return
-    const socket = getSocket(identity)
+    const socket = getSocket()
     socket.emit(ClientEvents.MESSAGE_SEND, { organizationId, content: content.trim() })
-    // Pas d'ajout optimiste ici : contrairement a card:moved, le gateway
-    // renvoie l'evenement a l'emetteur aussi (this.server.to, pas client.to) —
-    // le message apparaitra via onMessageNew des que le serveur l'a persiste.
+    // Pas d'ajout optimiste ici : le gateway diffuse le message a TOUT le salon,
+    // emetteur inclus (this.server.to, et non client.to qui l'exclurait). Il
+    // apparaitra donc via onMessageNew une fois le serveur l'ayant persiste —
+    // avec son vrai id et son vrai horodatage, ceux de la base.
   }
 
   return { connected, messages, loadingHistory, error, sendMessage }

@@ -1,10 +1,12 @@
 import { useEffect } from 'react'
-import { getSocket, SocketIdentity } from './socket'
+import { getSocket } from './socket'
 import { ServerEvents } from './events'
 
-export function useFriendshipEvents(identity: SocketIdentity, onChange: () => void) {
+// L'identite n'est plus un parametre : le serveur la lit dans le jeton du
+// handshake. Le hook n'a donc besoin que du rappel a declencher.
+export function useFriendshipEvents(onChange: () => void) {
   useEffect(() => {
-    const socket = getSocket(identity)
+    const socket = getSocket()
     socket.on(ServerEvents.FRIEND_REQUEST_RECEIVED, onChange)
     socket.on(ServerEvents.FRIEND_REQUEST_ACCEPTED, onChange)
     socket.on(ServerEvents.FRIEND_REMOVED, onChange)
@@ -13,5 +15,5 @@ export function useFriendshipEvents(identity: SocketIdentity, onChange: () => vo
       socket.off(ServerEvents.FRIEND_REQUEST_ACCEPTED, onChange)
       socket.off(ServerEvents.FRIEND_REMOVED, onChange)
     }
-  }, [identity.userId, identity.displayName, onChange])
+  }, [onChange])
 }

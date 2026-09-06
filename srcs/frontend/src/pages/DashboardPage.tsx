@@ -20,7 +20,9 @@ import { colorForId } from '../lib/projectColors'
 import { dayKey, hasStartedOn, isSameDay, weekGrid } from '../lib/dates'
 
 export default function DashboardPage() {
-  const { accessToken, user } = useAuth()
+  // L'utilisateur courant n'est plus necessaire ici : l'identite du handshake
+  // socket vient du jeton verifie par le serveur, plus d'un objet passe au hook.
+  const { accessToken } = useAuth()
   const [orgs, setOrgs] = useState<Organization[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
@@ -41,10 +43,7 @@ export default function DashboardPage() {
   // l'utilisateur : on rejoint donc le salon de chacun (voir
   // useTaskEventsForOrganizations) pour recharger des qu'une tache change
   // n'importe ou, y compris depuis la page d'un projet ou par quelqu'un d'autre.
-  const tasksRevision = useTaskEventsForOrganizations(
-    orgs.map((o) => o.id),
-    { userId: user?.id ?? '', displayName: user?.displayName ?? '' },
-  )
+  const tasksRevision = useTaskEventsForOrganizations(orgs.map((o) => o.id))
 
   useEffect(() => {
     if (!accessToken) return

@@ -12,14 +12,28 @@ import { io, Socket } from 'socket.io-client'
 // Reference conservee entre les appels (null tant qu'aucune connexion n'existe).
 let socket: Socket | null = null
 
-// Identite passee au serveur lors du handshake.
-export interface SocketIdentity {
-  userId: string
-  displayName: string
+// [SECURITE] Jeton d'acces courant, conserve ICI et non passe en parametre.
+// Pourquoi une variable de module : la fonction "auth" ci-dessous est rappelee a
+// CHAQUE tentative de connexion, y compris les reconnexions automatiques. Elle
+// doit lire le jeton du moment, pas celui qui existait a la creation de la socket.
+// Comme l'access token cote React, il ne vit qu'en memoire : ni localStorage ni
+// cookie lisible par le JS.
+let accessToken: string | null = null
+
+// Renseigne le jeton a utiliser pour les (re)connexions. Appele par AuthContext
+// des qu'un jeton est obtenu ou invalide — c'est le seul point d'entree.
+export function setSocketAccessToken(token: string | null): void {
+  accessToken = token
 }
 
 // Renvoie la socket partagee, en la creant au premier appel.
-export function getSocket(identity: SocketIdentity): Socket {
+//
+// [SECURITE] On n'envoie PLUS { userId, displayName }. Le serveur ne peut pas
+// verifier une identite que le client s'attribue lui-meme : n'importe qui
+// pouvait se declarer quelqu'un d'autre et recevoir ses evenements prives.
+// On envoie donc le meme jeton que pour les appels HTTP ; le serveur en deduit
+// l'identite (voir realtime.gateway.ts > handleConnection).
+export function getSocket(): Socket {
   // Si elle existe deja, on la reutilise (garantie du singleton).
   if (socket) return socket
 
@@ -30,10 +44,12 @@ export function getSocket(identity: SocketIdentity): Socket {
   socket = io({
     // Doit correspondre au "path" du gateway ET a la regle nginx /socket.io.
     path: '/socket.io',
-    // [SEAM: AUTH — Qu] "auth" est envoye au HANDSHAKE, avant tout evenement :
-    // c'est ce que lit handleConnection cote serveur. A remplacer par
-    // { token: <JWT> } quand l'auth de Qu sera prete.
-    auth: identity,
+    // [CONCEPT: auth en FONCTION plutot qu'en objet] Un objet serait fige a la
+    // creation de la socket. Avec un callback, Socket.IO le rappelle avant
+    // chaque tentative : apres un rafraichissement de jeton, la reconnexion
+    // presente le NOUVEAU jeton. Avec un objet, elle rejouerait indefiniment
+    // l'ancien, et le serveur la refuserait une fois celui-ci expire.
+    auth: (cb) => cb({ token: accessToken }),
     // Force le WebSocket et interdit le repli en long-polling.
     // Pourquoi : si nginx est mal configure, on veut une ERREUR VISIBLE plutot
     // qu'un fonctionnement degrade silencieux.
@@ -50,4 +66,7 @@ export function closeSocket(): void {
   socket?.disconnect()
   // Remet a null pour qu'un prochain getSocket cree une connexion neuve.
   socket = null
+  // Oublie le jeton : sans ca, une socket recreee juste apres une deconnexion
+  // se reconnecterait avec les identifiants de l'utilisateur precedent.
+  accessToken = null
 }

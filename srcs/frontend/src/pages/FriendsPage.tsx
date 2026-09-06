@@ -61,9 +61,10 @@ function UserRow({ user, action, isOnline }: { user: PublicUser; action?: React.
 }
 
 export default function FriendsPage() {
-  const { accessToken, user } = useAuth()
-  const identity = { userId: user?.id ?? '', displayName: user?.displayName ?? '' }
-  const onlineStatuses = useOnlineStatus(identity)
+  // Plus besoin de l'utilisateur courant ici : l'identite du handshake socket
+  // vient desormais du jeton verifie cote serveur, pas d'un objet passe au hook.
+  const { accessToken } = useAuth()
+  const onlineStatuses = useOnlineStatus()
 
   const [friends, setFriends] = useState<Friend[]>([])
   const [pending, setPending] = useState<FriendRequest[]>([])
@@ -91,7 +92,7 @@ export default function FriendsPage() {
 
   useEffect(() => { reloadFriendshipData() }, [reloadFriendshipData])
 
-  useFriendshipEvents(identity, reloadFriendshipData)
+  useFriendshipEvents(reloadFriendshipData)
 
   useEffect(() => {
     if (!accessToken) return

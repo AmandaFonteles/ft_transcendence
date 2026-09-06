@@ -73,7 +73,9 @@ const kindLabel: Record<EntryKind, string> = {
 const kindOrder: Record<EntryKind, number> = { start: 0, both: 1, due: 2, undated: 3 }
 
 export default function AgendaPage() {
-  const { accessToken, user } = useAuth()
+  // L'utilisateur courant n'est plus necessaire ici : l'identite du handshake
+  // socket vient du jeton verifie par le serveur, plus d'un objet passe au hook.
+  const { accessToken } = useAuth()
   // Permet d'ouvrir la page d'un projet au clic sur une de ses taches.
   const navigate = useNavigate()
 
@@ -92,10 +94,7 @@ export default function AgendaPage() {
   // l'utilisateur : on rejoint donc le salon de chacun (voir
   // useTaskEventsForOrganizations) pour recharger des qu'une tache change
   // n'importe ou, y compris depuis la page d'un projet ou par quelqu'un d'autre.
-  const tasksRevision = useTaskEventsForOrganizations(
-    orgs.map((o) => o.id),
-    { userId: user?.id ?? '', displayName: user?.displayName ?? '' },
-  )
+  const tasksRevision = useTaskEventsForOrganizations(orgs.map((o) => o.id))
 
   // Charge projets et taches (et les recharge sur evenement temps reel) ; la
   // navigation entre mois, elle, se fait ensuite en memoire sans rappeler l'API.

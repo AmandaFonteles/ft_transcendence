@@ -15,10 +15,13 @@ import { useEffect } from 'react'
 
 export default function AppShell() {
   const { user } = useAuth()
+  // Ouvre la connexion temps reel des qu'une session existe. Le jeton a deja ete
+  // depose dans le module socket par AuthContext (setSocketAccessToken), donc le
+  // handshake part authentifie : c'est le serveur qui etablit l'identite.
   useEffect(() => {
     if (!user) return
-    getSocket({ userId: user.id, displayName: user.displayName })
-  }, [user?.id, user?.displayName])
+    getSocket()
+  }, [user?.id])
   return (
     <>
       <Header />

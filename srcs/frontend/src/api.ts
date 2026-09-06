@@ -568,43 +568,6 @@ export function deleteAccount(accessToken: string) { // pour supprimer un compte
   })
 }
 
-
-// --- Amitié --------------------------------------------------------------
-
-export type FriendshipStatus = 'PENDING' | 'ACCEPTED'
-
-// Un ami tel que renvoyé par GET /friendship : le backend a déjà résolu
-// "l'autre" utilisateur (requester ou receiver selon qui a envoyé la demande).
-export type Friend = {
-  friendshipId: string
-  user: PublicUser
-}
-
-// Une demande en attente (recue ou envoyee), avec l'autre utilisateur inclus.
-export type FriendRequest = {
-  id: string
-  status: FriendshipStatus
-  createdAt: string
-  requester?: PublicUser
-  receiver?: PublicUser
-}
-
-
-// --- Chat -------------------------------------------------------------------
-
-// Forme d'un message tel que renvoyé par GET /organizations/:id/messages.
-// L'auteur est enrichi de la relation OrganizationMember -> User côté backend.
-export type ChatMessage = {
-  id: string
-  content: string
-  createdAt: string
-  organizationId: string
-  authorId: string
-  author: {
-    user: PublicUser
-  }
-}
-
   // --- Fichiers -----------------------------------------------------------------
 
 // Politique de visibilite d'un fichier, telle que definie par l'enum Prisma

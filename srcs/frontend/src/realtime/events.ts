@@ -8,10 +8,6 @@
 
 // Noms des evenements ENTRANTS pour le serveur (client -> serveur).
 export const ClientEvents = {
-  JOIN_BOARD: 'board:join',
-  LEAVE_BOARD: 'board:leave',
-  CARD_MOVED: 'card:moved',
-
   JOIN_ORG: 'org:join',
   LEAVE_ORG: 'org:leave',
   MESSAGE_SEND: 'message:send',
@@ -19,11 +15,6 @@ export const ClientEvents = {
 
 // Noms des evenements SORTANTS du serveur (serveur -> client).
 export const ServerEvents = {
-  BOARD_JOINED: 'board:joined',
-  PRESENCE_JOINED: 'presence:joined',
-  PRESENCE_LEFT: 'presence:left',
-  PRESENCE_STATE: 'presence:state',
-  CARD_MOVED: 'card:moved',
   ERROR: 'realtime:error',
 
   ORG_JOINED: 'org:joined',
@@ -55,21 +46,12 @@ export interface OnlineStatusEvent {
   isOnline: boolean
 }
 
-// Identite publique d'un membre presente dans l'UI.
+// Identite publique d'un utilisateur telle qu'elle arrive dans les evenements
+// (auteur d'un message, par exemple). Etablie par le serveur a partir du jeton
+// verifie au handshake : le client ne la declare jamais.
 export interface PresenceUser {
   userId: string
   displayName: string
-}
-
-// Payload d'un deplacement de carte, enrichi de l'auteur au retour du serveur.
-export interface CardMovedEvent {
-  boardId: string
-  cardId: string
-  toListId: string
-  // Position fractionnaire (LexoRank) : chaine, pas nombre.
-  position: string
-  // Present uniquement sur l'evenement RECU (le serveur ajoute l'auteur).
-  movedBy?: PresenceUser
 }
 
 export interface OrgScopePayload {
