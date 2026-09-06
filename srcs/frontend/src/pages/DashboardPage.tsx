@@ -15,7 +15,6 @@ import TaskDetail from '../components/TaskDetail'
 import PageHeading from '../components/ui/PageHeading'
 import ProjectDot from '../components/ui/ProjectDot'
 import EmptyState from '../components/ui/EmptyState'
-import SeamBlock from '../components/ui/SeamBlock'
 import Button from '../components/ui/Button'
 import { colorForId } from '../lib/projectColors'
 import { dayKey, hasStartedOn, isSameDay, weekGrid } from '../lib/dates'
@@ -272,12 +271,6 @@ export default function DashboardPage() {
           })}
         </div>
       )}
-
-      <h2 className="text-xl font-semibold mt-8 mb-3">Notifications</h2>
-      <SeamBlock owner="Module notifications · à attribuer">
-        Rappels d'échéance, tâches à commencer ou à rendre, et alertes de projet.
-        Aucune route backend n'existe encore pour ce module.
-      </SeamBlock>
 
       {/* Panneau de detail, monte uniquement quand une tache est ouverte. */}
       {openTask && accessToken && (

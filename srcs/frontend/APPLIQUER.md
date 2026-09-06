@@ -73,7 +73,6 @@ elle-même**, avec son propriétaire :
 | Membres et rôles du projet | `/projets/:id` | Ai |
 | Discussion (chat) | `/projets/:id` | Qu |
 | Fichiers du projet | `/projets/:id` | à attribuer |
-| Notifications | `/tableau-de-bord` | à attribuer |
 | Amis et messagerie | `/equipe` | Qu |
 | Vue administrateur | `/equipe` | Am |
 | Membres à la création | `/projets/nouveau` | à attribuer |
