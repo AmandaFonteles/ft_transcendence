@@ -602,7 +602,7 @@ export type ChatMessage = {
 }
 
   // --- Fichiers -----------------------------------------------------------------
-  
+
 // Politique de visibilite d'un fichier, telle que definie par l'enum Prisma
 // VisibilityPolicy.
 export type VisibilityPolicy = 'PRIVATE' | 'RESTRICTED' | 'ALL_MEMBERS'
@@ -622,4 +622,43 @@ export type ProjectFile = {
   updatedAt: string
   organizationId: string
   ownerId: string | null
+}
+
+export function uploadProjectFile(accessToken: string, organizationId: string, file: File, onProgress?: (percent: number) => void) {
+  return new Promise<ProjectFile>((resolve, reject) => {
+    const formData = new FormData()
+
+    formData.append('file', file)
+    const xhr = new XMLHttpRequest()
+    xhr.open(`POST`, `/api/organizations/${organizationId}/files`)
+    xhr.setRequestHeader( 'Authorization', `Bearer ${accessToken}`)
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const percent = Math.round((event.loaded / event.total) * 100)
+        onProgress?.(percent)
+      }
+    }
+    xhr.onload = () => {
+      if(xhr.status >= 200 && xhr.status < 300)
+      {
+        const uploadedFile = JSON.parse(xhr.responseText) as ProjectFile
+        resolve(uploadedFile)
+      } else
+      {
+        const body = JSON.parse(xhr.responseText)
+        reject(new Error(body?.message ?? `Erreur HTTP ${xhr.status}`))
+      }
+    }
+    xhr.onerror = () => {
+      reject(new Error(`Erreur réseau pendant l’envoi du fichier`))
+    }
+    xhr.send(formData)
+  }
+}
+
+export function listProjectFiles(accessToken: string, organizationId: string) {
+  return request<ProjectFile[]>(
+    `/organizations/${organizationId}/files`,
+    { headers: auth(accessToken) }
+  )
 }

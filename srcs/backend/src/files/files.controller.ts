@@ -23,7 +23,7 @@ export class FilesController {
 	const uploadedFile = await this.filesService.uploadFile(createFileDto, organizationId, user.userId, file);
 	return uploadedFile;
   }
-
+  
   @Post(':fileId/access/:targetUserId')
   async addFileAccess(@Param('organizationId') organizationId: string, @Param('fileId') fileId: string, @Param('targetUserId') targetUserId: string, @CurrentUser() user: { userId: string }) {
     await this.filesService.addFileAccess(fileId, targetUserId, user.userId, organizationId);
