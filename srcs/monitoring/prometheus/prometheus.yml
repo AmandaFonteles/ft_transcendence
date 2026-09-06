@@ -11,10 +11,11 @@ global:
 rule_files:
     - /etc/prometheus/alert.yml
 
-# Alertmanager configuration  
+# Alertmanager configuration
 alerting:
-    alertmanagers:
-      - static_configs:
+  alertmanagers:
+    - path_prefix: /alertmanager
+      static_configs:
         - targets: ["alertmanager:9093"]
 
 # The list of targets Prometheus pulls metrics from

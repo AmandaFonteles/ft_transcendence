@@ -2,6 +2,21 @@ use that to show traffic on grafana panels
 for i in $(seq 1 200); do curl -sk https://localhost:8443/api/health > /dev/null; done
 for i in $(seq 1 30);  do curl -sk https://localhost:8443/api/nope   > /dev/null; done
 
+to fire an alert (it takes 30s to fire and some min to turn off):
+docker compose stop node-exporter
+check:
+https://localhost:8443/prometheus/alerts
+https://localhost:8443/alertmanager/
+docker compose logs nginx | grep alert-sink
+
+after:
+docker compose start node-explorer
+
+check:
+https://localhost:8443/prometheus/alerts
+https://localhost:8443/alertmanager/
+docker compose logs nginx | grep alert-sink
+
 
 grep "^$USER:" /etc/subuid /etc/subgid check if the machina has enough uid and gid
 
