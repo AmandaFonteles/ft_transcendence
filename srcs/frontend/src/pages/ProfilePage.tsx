@@ -4,7 +4,7 @@
 // lisibles et habillee avec le systeme de design.
 // =============================================================================
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   changePassword, confirmTwoFactor, disableTwoFactor, deleteAccount,///
   fetchAvatarPresets, selectAvatar, setupTwoFactor, updateProfile, uploadAvatar
@@ -251,12 +251,24 @@ function DeleteAcc({ accessToken, logout }: { accessToken: string; logout: () =>
 }
 
 // --- Avatar ------------------------------------------------------------------
+// Contraintes miroir du backend (users.service.ts) : PNG uniquement, 5 Mo max.
+// Les verifier ici evite un aller-retour reseau pour une erreur previsible.
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024
+const AVATAR_MIME = 'image/png'
+
 function AvatarCard({
   accessToken, user, onUpdated,
 }: { accessToken: string; user: AuthUser; onUpdated: (u: AuthUser) => void }) {
   const [presets, setPresets] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  // Fichier choisi mais pas encore envoye : l'utilisateur voit ce qu'il envoie
+  // AVANT de confirmer, comme pour les fichiers de projet.
+  const [file, setFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+  // L'input natif est masque : le declencheur visible est un Button du systeme
+  // de design, pour ne pas laisser un widget navigateur brut dans la page.
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetchAvatarPresets()
@@ -264,8 +276,26 @@ function AvatarCard({
       .catch(() => setError('impossible de charger les avatars'))
   }, [])
 
+  // L'URL objet doit etre liberee, sinon le blob reste en memoire tant que
+  // l'onglet est ouvert.
+  useEffect(() => {
+    if (!file) {
+      setPreview(null)
+      return
+    }
+    const url = URL.createObjectURL(file)
+    setPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [file])
+
+  function reset() {
+    setFile(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
   async function pick(url: string) {
     setError(null)
+    reset()
     try {
       onUpdated(await selectAvatar(accessToken, url))
     } catch (err) {
@@ -273,52 +303,118 @@ function AvatarCard({
     }
   }
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const chosen = e.target.files?.[0] ?? null
+    if (!chosen) {
+      reset()
+      setError(null)
+      return
+    }
+    if (chosen.type !== AVATAR_MIME || !chosen.name.toLowerCase().endsWith('.png')) {
+      setError('Format non accepté : l’avatar doit être une image PNG.')
+      reset()
+      return
+    }
+    if (chosen.size > AVATAR_MAX_BYTES) {
+      setError('Image trop lourde : 5 Mo maximum.')
+      reset()
+      return
+    }
+    setError(null)
+    setFile(chosen)
+  }
+
+  async function handleUpload() {
     if (!file) return
     setError(null)
     setUploading(true)
     try {
       onUpdated(await uploadAvatar(accessToken, file))
+      reset()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'erreur inconnue')
     } finally {
       setUploading(false)
-      e.target.value = ''
     }
   }
 
   return (
     <Card>
-      <h2 className="text-base font-semibold mb-2">Avatar</h2>
+      <h2 className="text-base font-semibold mb-3">Avatar</h2>
+
+      <div className="flex items-center gap-4 mb-3">
+        {/* Apercu : le fichier choisi prend la place de l'avatar courant, pour
+            que le resultat soit visible avant l'envoi. */}
+        {(preview ?? user.avatarUrl) ? (
+          <img
+            src={preview ?? user.avatarUrl ?? ''}
+            alt=""
+            className="size-16 rounded-full object-cover shrink-0"
+          />
+        ) : (
+          <span className="grid place-items-center size-16 rounded-full bg-sunk text-ink-soft text-xl font-semibold shrink-0">
+            {user.displayName.charAt(0).toUpperCase()}
+          </span>
+        )}
+
+        <div className="min-w-0">
+          {file ? (
+            <>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="primary" onClick={handleUpload} disabled={uploading}>
+                  {uploading ? 'Envoi…' : 'Enregistrer'}
+                </Button>
+                <Button variant="ghost" onClick={reset} disabled={uploading}>
+                  Annuler
+                </Button>
+              </div>
+              <p className="font-data text-[12.5px] text-ink-soft truncate mt-1">
+                {file.name} · {Math.round(file.size / 1024)} Ko
+              </p>
+            </>
+          ) : (
+            <>
+              <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                Upload son avatar
+              </Button>
+              <p className="text-[12.5px] text-ink-soft mt-1">PNG, 5 Mo maximum.</p>
+            </>
+          )}
+        </div>
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png"
+        onChange={handleFileChange}
+        disabled={uploading}
+        className="sr-only"
+        aria-label="Téléverser un avatar"
+      />
+
       {error && <p className="text-danger text-sm mb-2">{error}</p>}
 
-      <div className="flex flex-wrap gap-2 mb-3">
+      {/* Rien a proposer si la liste n'a pas pu etre chargee : on n'affiche pas
+          un intitule suivi du vide. */}
+      {presets.length > 0 && (
+        <p className="text-[12.5px] text-ink-soft mb-2">Ou choisir un avatar proposé :</p>
+      )}
+      <div className="flex flex-wrap gap-2">
         {presets.map((url) => (
           <button
             key={url}
             onClick={() => pick(url)}
             className={`rounded-full cursor-pointer p-0 border-0 bg-transparent ${
-              url === user.avatarUrl ? 'ring-2 ring-link' : 'ring-2 ring-transparent'
+              url === user.avatarUrl ? 'ring-2 ring-link' : 'ring-2 ring-transparent hover:ring-ink-faint'
             }`}
             aria-label="Choisir cet avatar"
+            aria-pressed={url === user.avatarUrl}
           >
             <img src={url} alt="" className="size-12 rounded-full object-cover" />
           </button>
         ))}
       </div>
-
-      <label className="inline-block">
-        <span className="sr-only">Téléverser un avatar</span>
-        <input
-          type="file"
-          accept="image/png"
-          onChange={handleFileChange}
-          disabled={uploading}
-          className="text-[13.5px] text-ink-soft cursor-pointer"
-        />
-      </label>
-      {uploading && <p className="text-ink-soft text-sm mt-1">Envoi en cours…</p>}
     </Card>
   )
 }
