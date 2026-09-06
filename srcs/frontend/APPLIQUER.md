@@ -56,7 +56,7 @@ a remplacé celui qui portait la table de routes. Conséquences en cascade :
 | Tableau de bord | `/tableau-de-bord` | `GET /organizations` + tâches de chacun |
 | Agenda (vue mois) | `/agenda` | idem, regroupé par jour |
 | Créer un projet | `/projets/nouveau` | `POST /organizations` |
-| Projet | `/projets/:id` | `GET /organizations/:id`, tâches, création, statut |
+| Projet | `/projets/:id` | `GET /organizations/:id`, tâches, membres, discussion, fichiers |
 | Amis | `/amis` | amis, demandes en attente, recherche d'utilisateurs |
 | Profil | `/profil` | profil, avatar, mot de passe, 2FA |
 
@@ -65,27 +65,12 @@ Les pages protégées passent par `auth/RequireAuth.tsx`, qui redirige vers
 
 ## 5. Modules non terminés : emplacements visibles
 
-Chaque zone manquante est marquée par un bloc `SeamBlock` **dans l'interface
-elle-même**, avec son propriétaire :
+Plus aucun bloc `SeamBlock` n'est monté : membres, discussion et fichiers sont
+désormais branchés sur de vraies routes. Le composant
+`components/ui/SeamBlock.tsx` est conservé le temps de la fusion des branches,
+au cas où un coéquipier en pose encore un.
 
-| Emplacement | Page | Propriétaire |
-|---|---|---|
-| Fichiers du projet | `/projets/:id` | Ai |
-
-## 6. Manque côté backend, à signaler à Ai
-
-Le backend gère les rôles, l'ajout, la promotion et l'exclusion de membres, mais
-**il n'existe aucune route de lecture** :
-
-```
-GET /organizations/:id/members
-```
-
-Sans elle, la page projet ne peut afficher ni les membres, ni leurs rôles, ni le
-tag admin, ni les actions au clic sur un avatar — tout ce que demande la
-structure du 28/08. C'est le blocage le plus court à lever.
-
-## 7. Deux limites connues
+## 6. Deux limites connues
 
 - **Couleur de projet** : le modèle `Organization` n'a pas de champ couleur. Elle
   est donc *dérivée du cuid* (`lib/projectColors.ts`, fonction `colorForId`) :
@@ -95,7 +80,7 @@ structure du 28/08. C'est le blocage le plus court à lever.
   repart donc à « inactive » après un rechargement, même si elle l'est. Un champ
   `twoFactorEnabled` dans la réponse suffirait.
 
-## Vérifié
+## 7. Vérifié
 
 ```
 npx tsc --noEmit   → aucune erreur

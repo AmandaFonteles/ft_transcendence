@@ -24,6 +24,7 @@ import ProjectPage from './pages/ProjectPage'
 import ProjectCreatePage from './pages/ProjectCreatePage'
 import FriendsPage from './pages/FriendsPage'
 import ProfilePage from './pages/ProfilePage'
+import UserProfilePage from './pages/UserProfilePage'
 import ContactPage from './pages/ContactPage'
 import PrivacyPage from './pages/PrivacyPage'
 import TermsPage from './pages/TermsPage'
@@ -56,6 +57,9 @@ export default function App() {
           <Route path="projets/:projectId" element={<ProjectPage />} />
           <Route path="amis" element={<FriendsPage />} />
           <Route path="profil" element={<ProfilePage />} />
+          {/* Profil PUBLIC d'un autre utilisateur. Comme pour les projets,
+              la route statique passe avant le segment dynamique. */}
+          <Route path="profil/:userId" element={<UserProfilePage />} />
         </Route>
 
         {/* "*" attrape toute URL non reconnue. */}

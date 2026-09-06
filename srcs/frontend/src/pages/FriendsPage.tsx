@@ -6,6 +6,7 @@
 // =============================================================================
 
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   listFriends, listPendingRequests, listSentRequests,
   searchUsers, sendFriendRequest, acceptFriendRequest, removeFriendship,
@@ -21,16 +22,26 @@ import { useOnlineStatus } from '../realtime/useOnlineStatus'
 import { useFriendshipEvents } from '../realtime/useFriendshipEvents'
 
 function UserRow({ user, action, isOnline }: { user: PublicUser; action?: React.ReactNode; isOnline?: boolean }) {
+  // L'avatar mène au profil public. Le lien porte un intitulé explicite : une
+  // image sans texte n'annonce rien à un lecteur d'écran.
+  const profilePath = `/profil/${user.id}`
+
   return (
     <Card>
       <div className="flex items-center gap-3">
-        {user.avatarUrl ? (
-          <img src={user.avatarUrl} alt="" className="size-9 rounded-full object-cover shrink-0" />
-        ) : (
-          <span className="grid place-items-center size-9 rounded-full bg-sunk text-ink-soft text-sm font-semibold shrink-0">
-            {user.displayName.charAt(0).toUpperCase()}
-          </span>
-        )}
+        <Link
+          to={profilePath}
+          className="shrink-0 rounded-full"
+          aria-label={`Voir le profil de ${user.displayName}`}
+        >
+          {user.avatarUrl ? (
+            <img src={user.avatarUrl} alt="" className="size-9 rounded-full object-cover" />
+          ) : (
+            <span className="grid place-items-center size-9 rounded-full bg-sunk text-ink-soft text-sm font-semibold">
+              {user.displayName.charAt(0).toUpperCase()}
+            </span>
+          )}
+        </Link>
         <div className="flex-1 min-w-0">
           <div className="font-medium truncate flex items-center gap-2">
             {user.displayName}

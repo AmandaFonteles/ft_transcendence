@@ -662,6 +662,43 @@ export function listProjectFiles(accessToken: string, organizationId: string) {
     { headers: auth(accessToken) }
   )}
 
+// Telecharge le contenu d'un fichier. On ne peut pas se contenter d'un <a href>
+// vers la route : elle exige l'en-tete Authorization, qu'un lien ne porte pas.
+// On recupere donc le corps en Blob et l'appelant declenche l'enregistrement.
+export async function downloadProjectFile(
+  accessToken: string, organizationId: string, fileId: string,
+) {
+  const res = await fetch(`/api/organizations/${organizationId}/files/${fileId}/download`, {
+    credentials: 'include',
+    headers: auth(accessToken),
+  })
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error(body?.message ?? `Erreur HTTP ${res.status}`)
+  }
+
+  return res.blob()
+}
+
+// Supprime un fichier. Reserve a son proprietaire et aux ADMIN du projet (le
+// backend le verifie). La route repond l'identifiant en texte brut, pas du
+// JSON : on n'essaie donc pas de parser le corps en cas de succes.
+export async function deleteProjectFile(
+  accessToken: string, organizationId: string, fileId: string,
+) {
+  const res = await fetch(`/api/organizations/${organizationId}/files/${fileId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: auth(accessToken),
+  })
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error(body?.message ?? `Erreur HTTP ${res.status}`)
+  }
+}
+
 export async function uploadAvatar(accessToken: string, file: File) {
   const formData = new FormData()
   formData.append('file', file)

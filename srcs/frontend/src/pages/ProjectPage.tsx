@@ -17,7 +17,6 @@ import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import TextField from '../components/ui/TextField'
 import EmptyState from '../components/ui/EmptyState'
-import SeamBlock from '../components/ui/SeamBlock'
 import ProjectDot from '../components/ui/ProjectDot'
 import { colorForId } from '../lib/projectColors'
 import ChatPanel from '../components/ChatPanel'
@@ -237,11 +236,9 @@ export default function ProjectPage() {
       {projectId && <ChatPanel organizationId={projectId} />}
 
       <h2 className="text-xl font-semibold mt-8 mb-3">Fichiers</h2>
-      <SeamBlock owner="Module fichiers · Ai">
-        Documents liés au projet. Le schéma définit déjà <code>File</code> et
-        <code className="mx-1">FileAccess</code>, et le volume de stockage
-        (<code>uploads_data</code>) est en place. Il reste à écrire le module.
-      </SeamBlock>
+      {projectId && accessToken && (
+        <FilesSection organizationId={projectId} accessToken={accessToken} />
+      )}
 
       {/* Panneau de modification du projet, monte a la demande. */}
       {editingProject && accessToken && (

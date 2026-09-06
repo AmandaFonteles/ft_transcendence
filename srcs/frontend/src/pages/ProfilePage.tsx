@@ -26,7 +26,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      <PageHeading title="Profil" subtitle={user.username} />
+      <PageHeading title="Mon Profil" />
 
       <div className="grid gap-4 max-w-[560px]">
         <IdentityCard user={user} />

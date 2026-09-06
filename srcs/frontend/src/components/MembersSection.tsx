@@ -7,6 +7,7 @@
 // =============================================================================
 
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { addOrganizationMember, demoteMember, listFriends, listOrganizationMembers, promoteMember, removeMember } from '../api'
 import type { Friend, InvitePolicy, OrganizationMember } from '../api'
 import { useAuth } from '../auth/AuthContext'
@@ -163,9 +164,14 @@ export default function MembersSection({ organizationId, accessToken, invitePoli
           return (
             <Card key={m.user.id}>
               <div className="flex items-center gap-3">
-                {/* Avatar avec TAG administrateur. relative + absolute : la pastille
-                    se pose sur le coin de l'image, comme demande. */}
-                <span className="relative shrink-0">
+                {/* Avatar avec TAG administrateur : relative + absolute posent la
+                    pastille sur le coin de l'image. L'ensemble est un lien vers
+                    le profil public. */}
+                <Link
+                  to={`/profil/${m.user.id}`}
+                  className="relative shrink-0 rounded-full"
+                  aria-label={`Voir le profil de ${m.user.displayName}`}
+                >
                   {m.user.avatarUrl ? (
                     <img src={m.user.avatarUrl} alt="" className="size-9 rounded-full object-cover" />
                   ) : (
@@ -184,7 +190,7 @@ export default function MembersSection({ organizationId, accessToken, invitePoli
                       A
                     </span>
                   )}
-                </span>
+                </Link>
 
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate">
