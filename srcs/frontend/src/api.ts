@@ -732,7 +732,7 @@ export async function uploadAvatar(accessToken: string, file: File) {
     throw new Error(body?.message ?? `Erreur HTTP ${res.status}`)
   }
 
-  return res.blob()
+  return res.json() as Promise<AuthUser>
 }
 
 export function listProjectFileAccesses( accessToken: string, organizationId: string, fileId: string, ) {
@@ -774,4 +774,5 @@ export async function removeProjectFileAccess( accessToken: string, organization
     const body = await res.json().catch(() => null)
     throw new Error(body?.message ?? `Erreur HTTP ${res.status}`)
   }
+  return res.json() as Promise<AuthUser>
 }
