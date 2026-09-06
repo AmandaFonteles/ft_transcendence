@@ -10,6 +10,10 @@ export type AuthUser = {
   avatarUrl: string | null
   createdAt: string
   updatedAt: string
+  // Etat de la double authentification, aplati par le backend depuis la relation
+  // Credential (voir USER_PUBLIC_SELECT / toPublicUser cote users.service.ts).
+  // Toujours false pour un compte OAuth pur : sans mot de passe, pas de 2FA.
+  twoFactorEnabled: boolean
 }
 
 type TokenResponse = { accessToken: string }

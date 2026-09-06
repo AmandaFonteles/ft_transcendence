@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   changePassword, confirmTwoFactor, disableTwoFactor, deleteAccount,///
-  fetchAvatarPresets, selectAvatar, setupTwoFactor, updateProfile, uploadAvatar
+  fetchAvatarPresets, me, selectAvatar, setupTwoFactor, updateProfile, uploadAvatar
 } from '../api'
 import type { AuthUser } from '../api'
 import { useAuth } from '../auth/AuthContext'
@@ -33,7 +33,7 @@ export default function ProfilePage() {
         <AvatarCard accessToken={accessToken} user={user} onUpdated={setUser} />
         <ProfileForm accessToken={accessToken} user={user} onUpdated={setUser} />
         <PasswordForm accessToken={accessToken} />
-        <TwoFactorCard accessToken={accessToken} />
+        <TwoFactorCard accessToken={accessToken} user={user} onUpdated={setUser} />
         <DeleteAcc accessToken={accessToken} logout={logout} />
       </div>
     </>
@@ -150,42 +150,80 @@ function PasswordForm({ accessToken }: { accessToken: string }) {
 }
 
 // --- Double authentification -------------------------------------------------
-function TwoFactorCard({ accessToken }: { accessToken: string }) {
-  // Trois etats : inactif / QR affiche en attente de confirmation / actif.
+// [SOURCE DE VERITE] L'etat "activee ou non" n'est PAS un state local : il vient
+// de user.twoFactorEnabled, renvoye par le backend. Un state local repartait a
+// "inactif" a chaque rechargement de page, meme quand la 2FA etait bien active,
+// et proposait donc "Activer" a quelqu'un qui l'avait deja fait.
+// Apres chaque changement, on RECHARGE l'utilisateur depuis /users/me plutot que
+// de deviner le nouvel etat : le serveur reste seul juge.
+function TwoFactorCard({
+  accessToken,
+  user,
+  onUpdated,
+}: { accessToken: string; user: AuthUser; onUpdated: (u: AuthUser) => void }) {
+  // Seul l'ecran intermediaire (QR affiche, en attente du premier code) est un
+  // etat local : il n'existe que le temps de l'activation, il n'a rien a faire
+  // en base.
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null)
   const [code, setCode] = useState('')
-  const [enabled, setEnabled] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const enabled = user.twoFactorEnabled
 
   async function start() {
     setError(null)
+    setBusy(true)
     try {
       const { qrCodeDataUrl } = await setupTwoFactor(accessToken)
       setQrCodeDataUrl(qrCodeDataUrl)
     } catch (err) {
+      // Cas frequent : compte OAuth pur, le backend repond 403 avec un message
+      // explicite ("ce compte est connecte via OAuth"). On l'affiche tel quel.
       setError(err instanceof Error ? err.message : 'erreur inconnue')
+    } finally {
+      setBusy(false)
     }
   }
 
   async function confirm(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    setBusy(true)
     try {
       await confirmTwoFactor(accessToken, code)
-      setEnabled(true); setQrCodeDataUrl(null); setCode('')
+      setQrCodeDataUrl(null)
+      setCode('')
+      // Le backend vient de basculer twoFactorEnabled : on relit l'utilisateur
+      // pour que TOUTE l'application (pas seulement cette carte) soit a jour.
+      onUpdated(await me(accessToken))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'erreur inconnue')
+    } finally {
+      setBusy(false)
     }
   }
 
   async function disable() {
     setError(null)
+    setBusy(true)
     try {
       await disableTwoFactor(accessToken)
-      setEnabled(false)
+      onUpdated(await me(accessToken))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'erreur inconnue')
+    } finally {
+      setBusy(false)
     }
+  }
+
+  // Annule une activation commencee mais jamais confirmee : on jette simplement
+  // le QR code. Le secret reste stocke en base mais twoFactorEnabled reste false,
+  // donc le compte n'est pas verrouille ; un nouveau "Activer" regenere un secret.
+  function cancel() {
+    setQrCodeDataUrl(null)
+    setCode('')
+    setError(null)
   }
 
   return (
@@ -193,13 +231,14 @@ function TwoFactorCard({ accessToken }: { accessToken: string }) {
       <h2 className="text-base font-semibold mb-2">Authentification à deux facteurs</h2>
       {error && <p className="text-danger text-sm mb-2">{error}</p>}
 
-      {/* LIMITE CONNUE : le backend n'expose pas l'etat 2FA dans AuthUser, donc
-          l'affichage repart a "inactif" apres un rechargement de page, meme si la
-          2FA est reellement active. A corriger quand /users/me renverra ce champ. */}
       {enabled ? (
         <>
-          <p className="text-success text-sm mb-2">Activée.</p>
-          <Button onClick={disable}>Désactiver</Button>
+          <p className="text-success text-sm mb-2">
+            Activée. Un code de votre application d'authentification vous sera demandé à chaque connexion.
+          </p>
+          <Button onClick={disable} disabled={busy}>
+            {busy ? 'Désactivation…' : 'Désactiver'}
+          </Button>
         </>
       ) : qrCodeDataUrl ? (
         <>
@@ -209,11 +248,23 @@ function TwoFactorCard({ accessToken }: { accessToken: string }) {
           <img src={qrCodeDataUrl} alt="QR code de configuration" className="size-40 mb-3" />
           <form onSubmit={confirm} className="grid gap-3 max-w-[220px]">
             <TextField label="Code à 6 chiffres" value={code} onChange={(e) => setCode(e.target.value)} maxLength={6} required />
-            <Button type="submit" variant="primary">Confirmer</Button>
+            <div className="flex gap-2">
+              <Button type="submit" variant="primary" disabled={busy}>
+                {busy ? 'Vérification…' : 'Confirmer'}
+              </Button>
+              <Button type="button" variant="ghost" onClick={cancel} disabled={busy}>Annuler</Button>
+            </div>
           </form>
         </>
       ) : (
-        <Button onClick={start}>Activer</Button>
+        <>
+          <p className="text-[13.5px] text-ink-soft mb-2">
+            Désactivée. Une fois activée, votre mot de passe seul ne suffira plus à vous connecter.
+          </p>
+          <Button onClick={start} disabled={busy}>
+            {busy ? 'Préparation…' : 'Activer'}
+          </Button>
+        </>
       )}
     </Card>
   )

@@ -22,9 +22,15 @@ import { StorageService } from '../files/storage.service'
 import { join, extname } from 'path'
 import { randomUUID } from 'crypto'
 // AJOUT : constante placee ICI, HORS de la classe, juste apres les imports.
-// [CONCEPT: constante partagee] Extrait la liste des champs "publics" d'un User
-// (jamais le credential). Utilisee par findById ET updateAvatar : evite d'ecrire
-// deux fois la meme liste et de risquer qu'elles divergent un jour.
+// [CONCEPT: constante partagee] Extrait la liste des champs "publics" d'un User.
+// Utilisee par findById, updateAvatar, updateProfile ET uploadAvatar : evite
+// d'ecrire quatre fois la meme liste et de risquer qu'elles divergent un jour.
+//
+// [SECURITE] La relation "credential" est incluse mais avec son PROPRE select :
+// SEUL le booleen twoFactorEnabled en sort. Ni passwordHash ni twoFactorSecret
+// ne peuvent fuiter, meme par accident : ils ne sont simplement pas selectionnes.
+// Pourquoi exposer ce booleen : sans lui, le front ne sait pas si la 2FA est
+// active et affichait "Activer" a quelqu'un qui l'a deja activee.
 const USER_PUBLIC_SELECT = {
   id: true,
   email: true,
@@ -33,8 +39,21 @@ const USER_PUBLIC_SELECT = {
   avatarUrl: true,
   createdAt: true,
   updatedAt: true,
-  isOnline: true
+  isOnline: true,
+  credential: { select: { twoFactorEnabled: true } }
 } as const
+
+// [CONCEPT: aplatissement de la reponse] Le front n'a pas a connaitre le modele
+// Credential : c'est un detail de notre schema. On remonte donc le booleen d'un
+// cran pour renvoyer un objet PLAT { ..., twoFactorEnabled }.
+// credential vaut null pour un compte cree via OAuth (il n'a pas de mot de passe,
+// donc pas de 2FA possible) : on retombe alors sur false.
+function toPublicUser<T extends { credential: { twoFactorEnabled: boolean } | null }>(
+  user: T
+): Omit<T, 'credential'> & { twoFactorEnabled: boolean } {
+  const { credential, ...rest } = user
+  return { ...rest, twoFactorEnabled: credential?.twoFactorEnabled ?? false }
+}
 
 @Injectable()
 export class UsersService {
@@ -62,12 +81,15 @@ export class UsersService {
   // [CONCEPT: select vs include] On utilise "select" (liste blanche des champs)
   // plutot que "include" : ca garantit que credential.passwordHash ne sort JAMAIS
   // de cette methode, meme si quelqu'un ajoute une relation plus tard par erreur.
-  findById(id: string) {
-    return this.prisma.user.findUnique({
+  async findById(id: string) {
+    const user = await this.prisma.user.findUnique({
       where: { id },
       // MODIFIE : on reutilise la constante au lieu de re-taper la liste des champs.
       select: USER_PUBLIC_SELECT
     })
+    // findUnique renvoie null si l'id n'existe pas : on le propage tel quel,
+    // c'est le controller qui traduit ce null en 404.
+    return user && toPublicUser(user)
   }
 
   // AJOUT : nouvelle methode, a la fin de la classe.
@@ -83,7 +105,7 @@ export class UsersService {
     if (currentAvatarPath) {
       await this.storage.deleteFileFromStorage(currentAvatarPath)
     }
-    return updatedUser
+    return toPublicUser(updatedUser)
   }
 
   // AJOUT : met a jour displayName et/ou email. dto.email et dto.displayName
@@ -91,7 +113,7 @@ export class UsersService {
   // les cles undefined dans "data", donc pas besoin de filtrage manuel ici.
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     try {
-      return await this.prisma.user.update({
+      const updatedUser = await this.prisma.user.update({
         where: { id: userId },
         data: {
           email: dto.email,
@@ -99,6 +121,7 @@ export class UsersService {
         },
         select: USER_PUBLIC_SELECT
       })
+      return toPublicUser(updatedUser)
     } catch (error) {
       // Meme logique que create() : P2002 sur "email" => quelqu'un d'autre l'a deja.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -220,7 +243,7 @@ export class UsersService {
     if (currentAvatarPath) {
       await this.storage.deleteFileFromStorage(currentAvatarPath)
     }
-    return updatedUser
+    return toPublicUser(updatedUser)
   }
 
   async resolveAvatarFilePath(userId: string, filename: string) {
