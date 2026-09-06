@@ -15,7 +15,6 @@ import { useAuth } from '../auth/AuthContext'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import TextField from '../components/ui/TextField'
-import SeamBlock from '../components/ui/SeamBlock'
 import EmptyState from '../components/ui/EmptyState'
 import PageHeading from '../components/ui/PageHeading'
 import { useOnlineStatus } from '../realtime/useOnlineStatus'
@@ -255,12 +254,6 @@ export default function FriendsPage() {
           })}
         </div>
       )}
-
-      <h2 className="text-xl font-semibold mt-8 mb-3">Vue administrateur</h2>
-      <SeamBlock owner="Module permissions · Am">
-        Liste de tous les utilisateurs, droits de chacun et projets associés.
-        Nécessite une notion d'administrateur global, absente du modèle actuel.
-      </SeamBlock>
     </>
   )
 }

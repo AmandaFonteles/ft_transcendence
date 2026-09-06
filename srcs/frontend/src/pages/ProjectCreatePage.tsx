@@ -11,7 +11,6 @@ import { useAuth } from '../auth/AuthContext'
 import Card from '../components/ui/Card'
 import TextField from '../components/ui/TextField'
 import Button from '../components/ui/Button'
-import SeamBlock from '../components/ui/SeamBlock'
 
 export default function ProjectCreatePage() {
   const { accessToken } = useAuth()
@@ -87,15 +86,6 @@ export default function ProjectCreatePage() {
             </Button>
           </div>
         </form>
-
-        <div className="mt-4">
-          {/* La structure prevoit de choisir les membres des la creation, mais le
-              backend n'expose pas encore de liste d'amis. */}
-          <SeamBlock owner="Module amis · à attribuer">
-            Choix des membres depuis une liste d'amis dès la création. En attendant,
-            les membres s'ajoutent depuis la page du projet une fois celui-ci créé.
-          </SeamBlock>
-        </div>
       </Card>
     </>
   )

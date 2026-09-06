@@ -57,7 +57,7 @@ a remplacé celui qui portait la table de routes. Conséquences en cascade :
 | Agenda (vue mois) | `/agenda` | idem, regroupé par jour |
 | Créer un projet | `/projets/nouveau` | `POST /organizations` |
 | Projet | `/projets/:id` | `GET /organizations/:id`, tâches, création, statut |
-| Équipe | `/equipe` | `GET /users` |
+| Amis | `/amis` | amis, demandes en attente, recherche d'utilisateurs |
 | Profil | `/profil` | profil, avatar, mot de passe, 2FA |
 
 Les pages protégées passent par `auth/RequireAuth.tsx`, qui redirige vers
@@ -70,12 +70,7 @@ elle-même**, avec son propriétaire :
 
 | Emplacement | Page | Propriétaire |
 |---|---|---|
-| Membres et rôles du projet | `/projets/:id` | Ai |
-| Discussion (chat) | `/projets/:id` | Qu |
-| Fichiers du projet | `/projets/:id` | à attribuer |
-| Amis et messagerie | `/equipe` | Qu |
-| Vue administrateur | `/equipe` | Am |
-| Membres à la création | `/projets/nouveau` | à attribuer |
+| Fichiers du projet | `/projets/:id` | Ai |
 
 ## 6. Manque côté backend, à signaler à Ai
 
