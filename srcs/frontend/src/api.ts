@@ -653,15 +653,15 @@ export function uploadProjectFile(accessToken: string, organizationId: string, f
       reject(new Error(`Erreur réseau pendant l’envoi du fichier`))
     }
     xhr.send(formData)
-  }
+  })
 }
 
 export function listProjectFiles(accessToken: string, organizationId: string) {
   return request<ProjectFile[]>(
     `/organizations/${organizationId}/files`,
     { headers: auth(accessToken) }
-  )
-}
+  )}
+
 export async function uploadAvatar(accessToken: string, file: File) {
   const formData = new FormData()
   formData.append('file', file)
