@@ -627,18 +627,16 @@ export function listProjectFiles(accessToken: string, organizationId: string) {
   return request<ProjectFile[]>(
     `/organizations/${organizationId}/files`,
     { headers: auth(accessToken) }
-  )}
+  )
+}
 
-// Telecharge le contenu d'un fichier. On ne peut pas se contenter d'un <a href>
-// vers la route : elle exige l'en-tete Authorization, qu'un lien ne porte pas.
-// On recupere donc le corps en Blob et l'appelant declenche l'enregistrement.
-export async function downloadProjectFile(
-  accessToken: string, organizationId: string, fileId: string,
-) {
-  const res = await fetch(`/api/organizations/${organizationId}/files/${fileId}/download`, {
-    credentials: 'include',
-    headers: auth(accessToken),
-  })
+export async function downloadProjectFile(accessToken: string, organizationId: string, fileId: string ) {
+  const res = await fetch(
+    `/api/organizations/${organizationId}/files/${fileId}/download`,
+    {
+      headers: auth(accessToken)
+    }
+  )
 
   if (!res.ok) {
     const body = await res.json().catch(() => null)
@@ -666,21 +664,40 @@ export async function deleteProjectFile(
   }
 }
 
-export async function uploadAvatar(accessToken: string, file: File) {
-  const formData = new FormData()
-  formData.append('file', file)
-
-  const res = await fetch('/api/users/me/avatar/upload', {
-    method: 'PATCH',
-    credentials: 'include',
-    headers: { Authorization: `Bearer ${accessToken}` },
-    body: formData,
-  })
+export async function previewProjectFile(
+  accessToken: string, organizationId: string, fileId: string,
+) {
+  const res = await fetch(
+    `/api/organizations/${organizationId}/files/${fileId}/preview`,
+    {
+      headers: auth(accessToken),
+    }
+  )
 
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     throw new Error(body?.message ?? `Erreur HTTP ${res.status}`)
   }
 
-  return res.json() as Promise<AuthUser>
+  return res.blob()
+}
+
+export function updateProjectFile(
+  accessToken: string,
+  organizationId: string,
+  fileId: string,
+  data: {
+    name?: string
+    description?: string
+    visibilityPolicy?: VisibilityPolicy
+  },
+) {
+  return request<ProjectFile>(
+    `/organizations/${organizationId}/files/${fileId}`,
+    {
+      method: 'PATCH',
+      headers: auth(accessToken),
+      body: JSON.stringify(data),
+    }
+  )
 }
