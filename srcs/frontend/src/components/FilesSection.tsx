@@ -8,9 +8,14 @@
 
 import { useEffect, useRef, useState } from 'react'
 import {
-  deleteProjectFile, downloadProjectFile, listProjectFiles, uploadProjectFile,
+  deleteProjectFile, 
+  downloadProjectFile, 
+  listProjectFiles, 
+  uploadProjectFile, 
+  previewProjectFile, 
+  updateProjectFile,
 } from '../api'
-import type { ProjectFile } from '../api'
+import type { ProjectFile, VisibilityPolicy } from '../api'
 import Card from './ui/Card'
 import Button from './ui/Button'
 import Badge from './ui/Badge'
@@ -35,6 +40,14 @@ const ALLOWED_FILE_TYPES: Record<string, string[]> = {
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 
+const PREVIEWABLE_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+  'text/plain',
+])
+
 // Liste d'extensions pour l'attribut accept : filtre la boite de dialogue du
 // systeme, ce qui evite la plupart des refus avant meme la validation.
 const ACCEPT = Object.values(ALLOWED_FILE_TYPES).flat().join(',')
@@ -58,6 +71,8 @@ type FilesSectionProps = {
   accessToken: string
   organizationId: string
 }
+type FileAction = 'preview' | 'download' | 'delete' | 'visibility'
+  
 
 export default function FilesSection({ accessToken, organizationId }: FilesSectionProps) {
   const [files, setFiles] = useState<ProjectFile[]>([])
@@ -68,9 +83,10 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   // null = aucun envoi en cours ; sinon la progression en pourcent.
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
-  // Identifiant du fichier en cours de telechargement / de suppression, pour
-  // n'immobiliser que la ligne concernee.
-  const [busyId, setBusyId] = useState<string | null>(null)
+  const [busyFile, setBusyFile] = useState<{
+    id: string
+    action: FileAction
+  } | null>(null)
   // Fichier dont la suppression attend une confirmation.
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   // L'input natif est masque : le declencheur visible est un Button du systeme
@@ -151,7 +167,7 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
 
   async function handleDownload(file: ProjectFile) {
     setError(null)
-    setBusyId(file.id)
+    setBusyFile({ id: file.id, action: 'download' })
     try {
       const blob = await downloadProjectFile(accessToken, organizationId, file.id)
       // La route exige un en-tete Authorization : on ne peut pas y pointer un
@@ -171,13 +187,81 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur pendant le téléchargement')
     } finally {
-      setBusyId(null)
+      setBusyFile(null)
+    }
+  }
+
+  async function handlePreview(file: ProjectFile) {
+    setError(null)
+    setBusyFile({ id: file.id, action: 'preview' })
+
+    const previewWindow = window.open('', '_blank')
+  
+    if (!previewWindow) {
+      setBusyFile(null)
+      setError('Le navigateur a bloqué l’ouverture de l’aperçu')
+      return
+    }
+  
+    try {
+      const blob = await previewProjectFile(
+        accessToken,
+        organizationId,
+        file.id
+      )
+  
+      const url = URL.createObjectURL(blob)
+  
+      previewWindow.location.href = url
+  
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (err) {
+      previewWindow.close()
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Erreur pendant l’aperçu du fichier'
+      )
+    } finally {
+      setBusyFile(null)
+    }
+  }
+
+  async function handleVisibilityChange(
+    file: ProjectFile,
+    visibilityPolicy: VisibilityPolicy
+  ) 
+  {
+    setError(null)
+    setBusyFile({ id: file.id, action: 'visibility' })
+  
+    try {
+      const updatedFile = await updateProjectFile(
+        accessToken,
+        organizationId,
+        file.id,
+        { visibilityPolicy }
+      )
+  
+      setFiles((current) =>
+        current.map((currentFile) =>
+          currentFile.id === file.id ? updatedFile : currentFile
+        )
+      )
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Erreur pendant la modification de la visibilité'
+      )
+    } finally {
+      setBusyFile(null)
     }
   }
 
   async function handleDelete(file: ProjectFile) {
     setError(null)
-    setBusyId(file.id)
+    setBusyFile({ id: file.id, action: 'delete' })
     try {
       await deleteProjectFile(accessToken, organizationId, file.id)
       setFiles((current) => current.filter((f) => f.id !== file.id))
@@ -187,7 +271,7 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
       // son message est plus precis que tout ce qu'on pourrait deviner ici.
       setError(err instanceof Error ? err.message : 'Erreur pendant la suppression')
     } finally {
-      setBusyId(null)
+      setBusyFile(null)
     }
   }
 
@@ -281,6 +365,31 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
+                  <select
+                    value={file.visibilityPolicy}
+                    onChange={(e) =>
+                      handleVisibilityChange( file, e.target.value as VisibilityPolicy )
+                    }
+                    disabled={busyFile !== null}
+                    aria-label={`Visibilité de ${file.name}`}
+                    className="
+                      rounded-lg
+                      border border-ink/15
+                      bg-sunk
+                      px-2.5 py-1.5
+                      text-[12.5px] text-ink
+                      outline-none
+                      transition
+                      focus:border-ink/40
+                      focus:ring-2 focus:ring-ink/10
+                      disabled:cursor-not-allowed
+                      disabled:opacity-50
+                    "
+                  >
+                    <option value="ALL_MEMBERS">Tous les membres</option>
+                    <option value="RESTRICTED">Accès restreint</option>
+                    <option value="PRIVATE">Privé</option>
+                  </select>
                   {confirmingId === file.id ? (
                     // Second clic obligatoire : la suppression est definitive et
                     // le fichier disparait aussi du stockage.
@@ -288,25 +397,30 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
                       <Button
                         variant="secondary"
                         onClick={() => handleDelete(file)}
-                        disabled={busyId === file.id}
+                        disabled={busyFile !== null}
                         className="text-danger"
                       >
-                        {busyId === file.id ? 'Suppression…' : 'Confirmer'}
+                        {busyFile?.id === file.id && busyFile?.action === 'delete' ? 'Suppression…' : 'Confirmer'}
                       </Button>
-                      <Button variant="ghost" onClick={() => setConfirmingId(null)}>
+                      <Button variant="ghost" onClick={() => setConfirmingId(null)} disabled={busyFile !== null}>
                         Annuler
                       </Button>
                     </>
                   ) : (
                     <>
+                    {PREVIEWABLE_MIME_TYPES.has(file.mimeType) && (
                       <Button
-                        variant="secondary"
-                        onClick={() => handleDownload(file)}
-                        disabled={busyId === file.id}
+                        variant="secondary" onClick={() => handlePreview(file)} disabled={busyFile !== null}
                       >
-                        {busyId === file.id ? 'Téléchargement…' : 'Télécharger'}
+                        {busyFile?.id === file.id && busyFile.action === 'preview' ? 'Ouverture…' : 'Aperçu'}
                       </Button>
-                      <Button variant="ghost" onClick={() => setConfirmingId(file.id)}>
+                    )}
+                      <Button
+                        variant="secondary" onClick={() => handleDownload(file)} disabled={busyFile !== null}
+                      >
+                        {busyFile?.id === file.id && busyFile?.action === 'download' ? 'Téléchargement…' : 'Télécharger'}
+                      </Button>
+                      <Button variant="ghost" onClick={() => setConfirmingId(file.id)} disabled={busyFile !== null}>
                         Supprimer
                       </Button>
                     </>
