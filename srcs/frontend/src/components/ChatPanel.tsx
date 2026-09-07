@@ -10,6 +10,7 @@ import { useAuth } from '../auth/AuthContext'
 import Card from './ui/Card'
 import Button from './ui/Button'
 import TextField from './ui/TextField'
+import { LIMITS } from '../lib/validation'
 
 export default function ChatPanel({ organizationId }: { organizationId: string }) {
   const { user, accessToken } = useAuth()
@@ -88,11 +89,14 @@ export default function ChatPanel({ organizationId }: { organizationId: string }
 
       <form onSubmit={handleSubmit} className="flex gap-2 items-end">
         <div className="flex-1">
+          {/* Le gateway refuse au-dela de cette longueur : mieux vaut empecher
+              la saisie que laisser rediger un pave rejete a l'envoi. */}
           <TextField
             label=""
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="Écrire un message…"
+            maxLength={LIMITS.MESSAGE_CONTENT_MAX}
           />
         </div>
         <Button type="submit" variant="primary" disabled={!draft.trim() || !connected}>

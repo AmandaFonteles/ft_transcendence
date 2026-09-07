@@ -41,6 +41,7 @@ import {
   userRoom
 } from './realtime.events'
 
+import { LIMITS, RESOURCE_ID_PATTERN } from '../common/validation'
 import { UsersService } from '../users/users.service'
 import { FriendshipService } from '../friendship/friendship.service'
 
@@ -177,6 +178,18 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   // Handlers d'evenements
   // -------------------------------------------------------------------------
 
+  // [CONCEPT: les DTO ne protegent PAS le WebSocket] Le ValidationPipe global de
+  // main.ts s'applique aux requetes HTTP ; un message Socket.IO n'en voit rien.
+  // Le payload arrive tel que le client l'a serialise — n'importe quel type,
+  // n'importe quelle taille. Chaque handler doit donc valider a la main ce qu'un
+  // DTO ferait automatiquement cote HTTP.
+  // On ne branche pas de ValidationPipe sur @MessageBody() a dessein : il leverait
+  // une WsException, que Nest publie sur l'evenement "exception" — alors que le
+  // client ecoute "realtime:error" pour afficher un message lisible.
+  private isValidResourceId(value: unknown): value is string {
+    return typeof value === 'string' && RESOURCE_ID_PATTERN.test(value)
+  }
+
   // Handler de "org:join" : rejoindre la room de chat d'un projet.
   @SubscribeMessage(ClientEvents.JOIN_ORG)
   async handleJoinOrg(
@@ -186,8 +199,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const user = this.presence.getUser(client.id)
     if (!user) return
 
-    if (!payload?.organizationId) {
-      client.emit(ServerEvents.ERROR, { message: 'organizationId manquant' })
+    if (!this.isValidResourceId(payload?.organizationId)) {
+      client.emit(ServerEvents.ERROR, { message: 'organizationId manquant ou invalide' })
       return
     }
 
@@ -220,8 +233,38 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const user = this.presence.getUser(client.id)
     if (!user) return
 
-    if (!payload?.organizationId || !payload?.content?.trim()) {
-      client.emit(ServerEvents.ERROR, { message: 'payload message:send invalide' })
+    if (!this.isValidResourceId(payload?.organizationId)) {
+      client.emit(ServerEvents.ERROR, { message: 'organizationId manquant ou invalide' })
+      return
+    }
+
+    // Le contenu doit etre une CHAINE : sans ce test, un client envoyant un objet
+    // ou un nombre ferait echouer .trim() et planter le handler.
+    if (typeof payload?.content !== 'string') {
+      client.emit(ServerEvents.ERROR, { message: 'contenu de message invalide' })
+      return
+    }
+
+    // On travaille sur la version rognee, et c'est ELLE qu'on enregistre : sinon
+    // un message "   \n  " serait stocke, occuperait une ligne dans la
+    // conversation et n'afficherait rien.
+    const content = payload.content.trim()
+
+    if (content.length === 0) {
+      client.emit(ServerEvents.ERROR, { message: 'un message ne peut pas etre vide' })
+      return
+    }
+
+    // PLAFOND DE LONGUEUR : c'est la limite la plus importante du projet cote
+    // ecriture. Le champ Message.content est un "text" PostgreSQL, donc sans
+    // borne : sans ce test, une seule socket authentifiee pouvait ecrire des
+    // messages de plusieurs megaoctets en boucle et remplir la base. Le front
+    // borne aussi la saisie, mais le front ne protege personne : le message part
+    // d'un socket.emit() que n'importe qui peut appeler depuis la console.
+    if (content.length > LIMITS.MESSAGE_CONTENT_MAX) {
+      client.emit(ServerEvents.ERROR, {
+        message: `un message ne peut pas depasser ${LIMITS.MESSAGE_CONTENT_MAX} caracteres`,
+      })
       return
     }
 
@@ -234,7 +277,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const saved = await this.messages.createMessage(
       payload.organizationId,
       member.id,
-      payload.content.trim(),
+      content,
     )
 
     this.server.to(orgRoom(payload.organizationId)).emit(ServerEvents.MESSAGE_NEW, {

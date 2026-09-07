@@ -18,6 +18,7 @@ import TextField from './ui/TextField'
 import TextArea from './ui/TextArea'
 import { formatLongDate, toDateInput } from '../lib/dates'
 import { statusBadge, statusLabel, statusOrder } from '../lib/taskStatus'
+import { LIMITS } from '../lib/validation'
 
 interface TaskDetailProps {
   // Tache affichee.
@@ -124,8 +125,8 @@ export default function TaskDetail({
       {editing ? (
         // ---------------- MODE EDITION ----------------
         <form onSubmit={handleSave} className="grid gap-3">
-          <TextField label="Nom" value={name} onChange={(e) => setName(e.target.value)} required />
-          <TextArea label="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
+          <TextField label="Nom" value={name} onChange={(e) => setName(e.target.value)} maxLength={LIMITS.TASK_NAME_MAX} required />
+          <TextArea label="Description" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={LIMITS.TASK_DESCRIPTION_MAX} />
           <div className="grid gap-3 sm:grid-cols-2">
             <TextField label="Début" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             <TextField label="Échéance" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />

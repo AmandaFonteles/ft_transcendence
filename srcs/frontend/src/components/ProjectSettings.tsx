@@ -15,6 +15,7 @@ import Modal from './ui/Modal'
 import Button from './ui/Button'
 import TextField from './ui/TextField'
 import TextArea from './ui/TextArea'
+import { LIMITS } from '../lib/validation'
 
 interface ProjectSettingsProps {
   // Projet a modifier.
@@ -127,6 +128,7 @@ export default function ProjectSettings({
           label="Nom du projet"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          maxLength={LIMITS.ORGANIZATION_NAME_MAX}
           required
         />
 
@@ -134,6 +136,7 @@ export default function ProjectSettings({
           label="Description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
+          maxLength={LIMITS.ORGANIZATION_DESCRIPTION_MAX}
         />
 
         <div className="grid gap-1">

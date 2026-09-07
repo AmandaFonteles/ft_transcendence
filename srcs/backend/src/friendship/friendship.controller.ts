@@ -13,18 +13,22 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { FriendshipService } from './friendship.service';
 import { SendFriendRequestDto } from './dto/send-friend-request.dto';
+import { SearchUsersDto } from './dto/search-users.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('friendship')
 export class FriendshipController {
   constructor(private readonly friendshipService: FriendshipService) {}
 
+  // @Query() SANS nom de parametre : Nest passe TOUTE la query string dans le DTO,
+  // qui est alors valide par le ValidationPipe global (longueur, trim). Avec
+  // @Query('q'), la chaine arrivait brute, sans aucune verification.
   @Get('search')
   search(
-    @Query('q') query: string,
+    @Query() dto: SearchUsersDto,
     @CurrentUser() user: { userId: string },
   ) {
-    return this.friendshipService.searchByUsername(query, user.userId);
+    return this.friendshipService.searchByUsername(dto.q ?? '', user.userId);
   }
 
   @Post('request')

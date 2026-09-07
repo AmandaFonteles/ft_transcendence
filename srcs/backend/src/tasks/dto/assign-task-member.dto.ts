@@ -1,7 +1,6 @@
-import { IsString, IsNotEmpty } from 'class-validator'
+import { IsResourceId } from '../../common/validation'
 
 export class AssignTaskMemberDto {
-  @IsString()
-  @IsNotEmpty()
+  @IsResourceId()
   memberUserId: string
 }

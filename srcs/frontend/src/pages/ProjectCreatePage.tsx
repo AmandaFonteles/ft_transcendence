@@ -11,6 +11,7 @@ import { useAuth } from '../auth/AuthContext'
 import Card from '../components/ui/Card'
 import TextField from '../components/ui/TextField'
 import Button from '../components/ui/Button'
+import { LIMITS, isBlank } from '../lib/validation'
 
 export default function ProjectCreatePage() {
   const { accessToken } = useAuth()
@@ -30,9 +31,12 @@ export default function ProjectCreatePage() {
     setSaving(true)
     try {
       const org = await createOrganization(accessToken, {
-        name,
+        // trim() avant l'envoi : "required" laisse passer un champ rempli
+        // d'espaces, le backend le refuserait. On envoie donc ce qui sera
+        // reellement enregistre, et le bouton est desactive si c'est vide.
+        name: name.trim(),
         // Chaine vide envoyee comme "non fourni" : le DTO backend est @IsOptional.
-        description: description || undefined,
+        description: description.trim() || undefined,
         invitePolicy,
       })
       // Redirige vers le projet cree : l'utilisateur enchaine directement.
@@ -55,12 +59,14 @@ export default function ProjectCreatePage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Refonte du site"
+            maxLength={LIMITS.ORGANIZATION_NAME_MAX}
             required
           />
           <TextField
             label="Description (optionnelle)"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            maxLength={LIMITS.ORGANIZATION_DESCRIPTION_MAX}
           />
 
           <div className="grid gap-1">
@@ -81,7 +87,9 @@ export default function ProjectCreatePage() {
           {error && <p className="text-danger text-sm">{error}</p>}
 
           <div>
-            <Button type="submit" variant="primary" disabled={saving}>
+            {/* Desactive aussi sur un nom fait uniquement d'espaces : "required"
+                ne couvre que le champ VIDE, pas le champ blanc. */}
+            <Button type="submit" variant="primary" disabled={saving || isBlank(name)}>
               {saving ? 'Création…' : 'Créer le projet'}
             </Button>
           </div>

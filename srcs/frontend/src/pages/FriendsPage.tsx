@@ -20,6 +20,7 @@ import EmptyState from '../components/ui/EmptyState'
 import PageHeading from '../components/ui/PageHeading'
 import { useOnlineStatus } from '../realtime/useOnlineStatus'
 import { useFriendshipEvents } from '../realtime/useFriendshipEvents'
+import { LIMITS } from '../lib/validation'
 
 function UserRow({ user, action, isOnline }: { user: PublicUser; action?: React.ReactNode; isOnline?: boolean }) {
   // L'avatar mène au profil public. Le lien porte un intitulé explicite : une
@@ -228,6 +229,7 @@ export default function FriendsPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Username (ex: Alex#3f9c2)"
+          maxLength={LIMITS.SEARCH_QUERY_MAX}
         />
       </div>
 
