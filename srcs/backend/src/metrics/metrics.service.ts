@@ -40,7 +40,7 @@ export class MetricsService {
 			registers: [this.registry],
 		});
 
-		//we use just method label here to keepthe cardinality low
+		//we use just method label here to keep the cardinality low
 		this.httpRequestsInFlight = new Gauge({
 			name: 'http_requests_in_flight',
 			help: 'Number of HTTP requests currently being processed.',

@@ -1,8 +1,8 @@
 {
   "id": null,
-  "uid": "ftt-backend",
-  "title": "ft_transcendence — Backend",
-  "tags": ["ft_transcendence", "backend"],
+  "uid": "ftt-monitoring",
+  "title": "ft_transcendence — Monitoring",
+  "tags": ["ft_transcendence"],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
@@ -11,30 +11,8 @@
   "panels": [
     {
       "type": "stat",
-      "title": "Requetes / seconde",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": { "unit": "reqps", "decimals": 2 },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "colorMode": "value",
-        "graphMode": "area"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(rate(http_requests_total[$__rate_interval]))",
-          "legendFormat": "req/s"
-        }
-      ]
-    },
-    {
-      "type": "stat",
       "title": "Taux d'erreur 5xx",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "gridPos": { "h": 5, "w": 12, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
@@ -66,30 +44,8 @@
     },
     {
       "type": "stat",
-      "title": "Latence p95",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": { "unit": "s", "decimals": 3 },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "colorMode": "value",
-        "graphMode": "area"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[$__rate_interval])))",
-          "legendFormat": "p95"
-        }
-      ]
-    },
-    {
-      "type": "stat",
       "title": "Requetes en vol",
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "gridPos": { "h": 5, "w": 12, "x": 12, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": { "unit": "short", "decimals": 0 },
@@ -111,7 +67,7 @@
     {
       "type": "timeseries",
       "title": "Trafic par route",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
@@ -135,7 +91,7 @@
     {
       "type": "timeseries",
       "title": "Latence (p50 / p95 / p99)",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
@@ -168,68 +124,30 @@
     },
     {
       "type": "timeseries",
-      "title": "Reponses par code de statut",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "title": "Disponibilite des cibles (up)",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 13 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
-          "custom": { "lineWidth": 1, "fillOpacity": 40, "stacking": { "mode": "normal" }, "showPoints": "never" }
+          "unit": "short",
+          "min": 0,
+          "max": 1,
+          "decimals": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "showPoints": "never",
+            "lineInterpolation": "stepAfter"
+          }
         },
         "overrides": []
       },
       "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" },
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull"] },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (status) (rate(http_requests_total[$__rate_interval]))",
-          "legendFormat": "{{status}}"
-        }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "title": "Process Node.js — memoire et boucle d'evenements",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" }
-        },
-        "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "lag boucle d'evenements" },
-            "properties": [
-              { "id": "unit", "value": "s" },
-              { "id": "custom.axisPlacement", "value": "right" }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "nodejs_heap_size_used_bytes",
-          "legendFormat": "heap utilise"
-        },
-        {
-          "refId": "B",
-          "expr": "process_resident_memory_bytes{job=\"backend\"}",
-          "legendFormat": "memoire residente"
-        },
-        {
-          "refId": "C",
-          "expr": "nodejs_eventloop_lag_seconds",
-          "legendFormat": "lag boucle d'evenements"
-        }
+        { "refId": "A", "expr": "up", "legendFormat": "{{job}}" }
       ]
     }
   ]

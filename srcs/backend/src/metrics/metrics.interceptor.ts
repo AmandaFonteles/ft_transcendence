@@ -49,9 +49,6 @@ export class MetricsInterceptor implements NestInterceptor {
     return next.handle();
   }
 
-  // Returns the route PATTERN ('/api/cards/:id'), never the real URL
-  // ('/api/cards/8f3a-...'). Express fills req.route when it matches a handler.
-  // Using the real URL would create a new time series per card id, overflowing Prometheus
   private getRoute(req: Request): string {
     const pattern = req.route?.path;
     if (!pattern) {

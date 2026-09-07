@@ -31,6 +31,10 @@ RUN mkdir -p /etc/nginx/certs && \
 # Pourquoi : la config par defaut sert une page statique ; nous voulons proxifier.
 COPY nginx.conf /etc/nginx/nginx.conf
 
+# Fichier d'identifiants pour la Basic Auth des UI de monitoring.
+# Contient un hash bcrypt, jamais un mot de passe en clair.
+COPY .htpasswd /etc/nginx/.htpasswd
+
 # Documente les ports servis par le conteneur (purement informatif).
 # Pourquoi : n'ouvre rien tout seul ; la publication reelle se fait dans docker-compose.
 EXPOSE 80 443
