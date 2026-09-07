@@ -1,9 +1,9 @@
-*This project has been created as part of the 42 curriculum by afontele, ndarouec, <login3>, <login4>.*
+*This project has been created as part of the 42 curriculum by afontele, ndarouec, aibonade, qboutel.*
 
 # Aqan
 
 A collaborative project and task management web application, built as a team of four
-for the 42 `ft_transcendence` project (subject version 21.1).
+for the 42 `ft_transcendence` project.
 
 ---
 
@@ -18,23 +18,21 @@ for the 42 `ft_transcendence` project (subject version 21.1).
 - [Features List](#features-list)
 - [Modules](#modules)
 - [Individual Contributions](#individual-contributions)
-- [Known Limitations](#known-limitations)
 - [Resources](#resources)
+- [Use of AI](#use-of-ai)
+- [License](#license)
 
 ---
 
 ## Description
 
-**Aqan** is a web application for teams that need to organise work together: create a
-project, invite people into it, split the work into tasks with owners, assignees and
-deadlines, share the files the work depends on, and talk about it — all in the same
+**Aqan** is a productivity web application for teams that need to organise work together:
+create a project, invite people into it, split the work into tasks with owners, assignees
+and deadlines, share the files the work depends on, and talk about it — all in the same
 place, updated live for everyone connected.
 
-The name comes from the initials of the four people who built it.
-
-The product deliberately avoids the "game" branch of the subject: it is a productivity
-application, which matches the *Collaborative Workspace* and *Task Management System*
-combinations suggested by the subject itself.
+The name comes from the initials of the four people who built it, and it is a pun on the
+French expression *"à quand"*.
 
 ### Key features
 
@@ -67,17 +65,12 @@ The interface is in French; this README, per the subject, is in English.
 
 ## Team Information
 
-> **To complete before evaluation:** the subject requires each member's assigned
-> role (PO, PM, Tech Lead, Developer…). The technical lanes below are accurate and
-> verified against the git history; the formal role labels marked `_TO FILL_` must be
-> confirmed by the team.
-
 | Member | 42 login | Formal role | Technical lane |
 |---|---|---|---|
-| **Nayel** | `ndarouec` | _TO FILL_ | **Platform & real-time** |
-| **Quentin** | `<login3>` | _TO FILL_ | **Authentication & social** |
-| **Aileen** | `<login4>` | _TO FILL_ | **Product core & collaboration** |
-| **Amanda** | `afontele` | _TO FILL_ | **Observability & infrastructure routing** |
+| **Nayel** | `ndarouec` | Technical Lead / Architect | Platform & real-time |
+| **Quentin** | `qboutel` | Developer | Authentication & social |
+| **Aileen** | `aibonade` | PM / Developer | Product core & collaboration |
+| **Amanda** | `afontele` | PO / Developer | Observability & infrastructure routing |
 
 ### Responsibilities
 
@@ -146,18 +139,18 @@ touching, small changes, no silent edits:
 
 | Purpose | Tool |
 |---|---|
-| Source control & code review | **GitHub** — one long-lived branch per member (`Nayel`, `Quentin`, `Aileen`, `amanda`), merged into `main` through pull requests |
+| Source control & code review | **GitHub** — one long-lived branch per member (`Nayel`, `Quentin`, `Aileen`, `amanda`), merged into `main` |
 | Communication | **Discord** — day-to-day coordination, quick decisions, screen sharing |
 | Synchronous coordination | **In-person working sessions at 42** — architecture decisions, schema design, module scoping |
-| Written decisions | Markdown notes committed in `ressources/` and `notes/` (module coherence analysis, integration map, ORM and Prisma conventions, study notes) |
+| Written decisions | **Markdown notes** shared on the Discord team channel — module coherence analysis, integration map, ORM and Prisma conventions, study notes |
 
 ### Dependency discipline
 
 Because four people install dependencies on four machines, versions are **pinned
-exactly** (no `^`, no `~`) in both `package.json` files and both `package-lock.json`
+exactly** (no `^`, no `~`) in both `package.json` files, and both `package-lock.json`
 files are committed. `.npmrc` sets `save-exact=true`, `.nvmrc` pins Node 22,
 `.gitattributes` folds lockfile diffs and forbids line-by-line merging, and the
-Dockerfiles use `npm ci` rather than `npm install` so a drifting lockfile fails the
+Dockerfiles use `npm ci` rather than `npm install`, so a drifting lockfile fails the
 build loudly instead of silently producing a different tree.
 
 ---
@@ -172,7 +165,7 @@ build loudly instead of silently producing a different tree.
 | *or* **Podman + podman-compose** | Used on 42 workstations, where `docker` is a shim over Podman. Fully supported — see below. |
 | **make** | Entry point for every command |
 | **Google Chrome** | Latest stable — the browser the project is validated against |
-| Node.js 22 | Only needed to run the apps *outside* Docker; the containers provide their own |
+| **Node.js 22** | Only needed to run the apps *outside* Docker; the containers provide their own |
 
 Nothing else is installed on the host: the frontend, backend, database, reverse proxy
 and monitoring stack all run in containers.
@@ -203,7 +196,7 @@ value and provide your own OAuth credentials.**
 
 | Variable | Purpose |
 |---|---|
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Credentials the official Postgres image uses to create the role and database |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Credentials the official PostgreSQL image uses to create the role and database |
 | `DATABASE_URL` | Connection string used by Prisma — host is `database`, the Compose service name |
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | Signing keys for the access and refresh tokens — must differ from each other |
 | `JWT_ACCESS_EXPIRES` / `JWT_REFRESH_EXPIRES` | Token lifetimes (`15m` / `7d` by default) |
@@ -213,6 +206,13 @@ value and provide your own OAuth credentials.**
 | `GF_SECURITY_ADMIN_USER` / `GF_SECURITY_ADMIN_PASSWORD` | Grafana admin account, created on first boot |
 | `UPLOAD_DIR` | Where uploaded files are written inside the backend container |
 | `MAX_UPLOAD_SIZE_MB` | Application-level upload limit (nginx is set slightly higher, at 12 MB, so the refusal comes from the backend with a readable message) |
+
+Besides `.env`, two files must be filled in before `make up`:
+
+| File | What to put in it |
+|---|---|
+| `srcs/monitoring/alertmanager/discord_webhook_url` | The Discord webhook URL alerts are delivered to. Alertmanager reads the URL from this file (`webhook_url_file`) because it does not expand environment variables in its configuration. |
+| `srcs/nginx/.htpasswd` | A user and a bcrypt password hash, used by nginx to protect the monitoring endpoints. |
 
 ### Everyday commands
 
@@ -243,6 +243,25 @@ docker compose exec backend npx prisma studio     # browse the data
 
 Or simply `make re`, which does the first two at startup.
 
+### Demo and debugging commands
+
+```bash
+# Generate traffic, so the Grafana panels have something to display
+for i in $(seq 1 200); do curl -sk https://localhost:8443/api/health > /dev/null; done
+for i in $(seq 1 30);  do curl -sk https://localhost:8443/api/nope   > /dev/null; done
+
+# Trigger an alert: stopping a scrape target sends its `up` series to 0
+docker compose stop node-exporter
+
+# Inspect the stored password hashes
+docker compose exec database psql -U transcendence -d transcendence
+# then, inside psql:
+SELECT user_id, password_hash FROM credentials;
+
+# Exact size of a file, in bytes
+stat -c %s <filename>
+```
+
 ### Monitoring endpoints
 
 All behind the same HTTPS entry point:
@@ -251,8 +270,7 @@ All behind the same HTTPS entry point:
 |---|---|
 | `https://localhost:8443/grafana/` | Grafana dashboards |
 | `https://localhost:8443/prometheus/` | Prometheus, targets and alerts |
-| `https://localhost:8443/alertmanager/` | Alertmanager |
-| `https://localhost:8443/api/metrics` | Raw backend metrics, Prometheus format |
+| `https://localhost:8443/alertmanager/` | Alertmanager, active alerts and silences |
 
 ### Running on 42 workstations (Podman)
 
@@ -277,7 +295,7 @@ On school machines `docker` is a shim over Podman (`podman-docker`) delegating t
 
 **One language end to end: TypeScript.** For a team of four building a heavily
 relational, real-time application, a single language means shared types across the
-network boundary and any member can read and debug any other member's code.
+network boundary, and any member can read and debug any other member's code.
 
 ### Frontend
 
@@ -319,10 +337,10 @@ PostgreSQL also brings native enum types, which map directly onto the domain enu
 
 | Technology | Role |
 |---|---|
-| **Docker Compose / Podman** | Nine services on one private bridge network, resolving each other by service name |
+| **Docker Compose / Podman** | Ten services on one private bridge network, resolving each other by service name |
 | **nginx** | The only service exposed to the host. Terminates TLS, redirects `:80` → `:443`, serves the Vite frontend, proxies `/api` and `/socket.io` to NestJS, and mounts Prometheus, Grafana and Alertmanager under sub-paths |
 | **Prometheus 3.13** | Metric collection and alert rule evaluation, 15-day retention |
-| **Grafana 13.1** | Dashboards, provisioned from committed files rather than clicked in the UI |
+| **Grafana 13.1** | Dashboards built on the metrics Prometheus collects and stores |
 | **Alertmanager 0.33** | Alert grouping, inhibition and routing |
 | **node / postgres / nginx exporters** | Host, database and reverse-proxy metrics |
 
@@ -385,6 +403,8 @@ Frozen across the team, so four people produce one coherent schema:
   (`@updatedAt`).
 - Table names are snake_case plural (`@@map("users")`); multi-word fields are mapped to
   snake_case columns (`displayName` → `display_name`).
+- `username` is generated rather than chosen: `displayName` + `#` + the last five
+  characters of the cuid, with a character bumped on collision.
 
 ### Tables
 
@@ -409,8 +429,6 @@ a file owner, a message author and an access grant all point at a *membership*, 
 person. That is what makes "this user's role in this project" a single row rather than a
 computation, keeps a person's data in one project from leaking into another, and means
 removing someone from a project is a scoped operation instead of a global one.
-`username` is generated rather than chosen: `displayName` + `#` + the last five
-characters of the cuid, with a character bumped on collision.
 
 ---
 
@@ -418,7 +436,7 @@ characters of the cuid, with a character bumped on collision.
 
 | Feature | What it does | Built by |
 |---|---|---|
-| **Containerised deployment** | Nine services, one private network, named volumes, healthchecks, single-command startup, Docker/Podman parity | Nayel |
+| **Containerised deployment** | Ten services, one private network, named volumes, healthchecks, single-command startup, Docker/Podman parity | Nayel |
 | **HTTPS reverse proxy** | TLS termination, `:80` → `:443` redirect, `/api` and `/socket.io` proxying, upload size limits, monitoring sub-paths | Nayel, Amanda |
 | **Sign-up & login** | Email + password, Argon2 hashing, DTO validation front and back | Quentin |
 | **JWT sessions** | Short-lived access token + refresh token in an httpOnly cookie, `/auth/refresh` rotation, logout | Quentin |
@@ -459,28 +477,17 @@ module failing at defence should not drop the project below the threshold.
 | 4 | **Standard user management & authentication** | User Management | Quentin | Sign-up and login with Argon2-hashed passwords, profile editing, avatar upload with preset fallback, friends with live online status, and a profile page. Sessions use a short access token plus an httpOnly refresh cookie. |
 | 5 | **Organization system** | User Management | Aileen | Create, edit and delete organizations; add and remove members; list organizations and act inside them. Membership is a first-class model carrying the role, which is what makes project-scoped data genuinely scoped. |
 | 6 | **Advanced permissions system** | User Management | Aileen | Two roles (`ADMIN`, `MEMBER`) with distinct capabilities, promotion and demotion, last-admin protection, and authorization checked per resource in every service — a member can only read what their membership entitles them to, and files add a third layer (`PRIVATE` / `RESTRICTED` / `ALL_MEMBERS` plus explicit grants). The UI renders different actions per role, and the same rules are re-verified server-side on every request. |
-| 7 | **Monitoring with Prometheus and Grafana** | Devops | Amanda | Prometheus collects from four sources (backend `/api/metrics`, node-exporter, postgres-exporter, nginx-exporter); the backend exposes custom per-route counters, a latency histogram and an in-flight gauge; Grafana's datasource and dashboard are provisioned from committed files; alert rules fire into Alertmanager, which routes them to a receiver; and all three UIs are served under authenticated nginx sub-paths rather than exposed ports. |
+| 7 | **Monitoring with Prometheus and Grafana** | DevOps | Amanda | Prometheus collects from four sources (backend `/api/metrics`, node-exporter, postgres-exporter, nginx-exporter); the backend exposes custom per-route counters, a latency histogram and an in-flight gauge; Grafana's datasource and dashboard are provisioned from committed files; alert rules fire into Alertmanager, which routes them to a receiver; and all three UIs are served under authenticated nginx sub-paths rather than exposed ports. |
 
 ### Minor modules (1 point each)
 
 | # | Module | Category | Owner | How it was implemented |
 |---|---|---|---|---|
-| 8 | **Use an ORM** | Web | Nayel | Prisma over PostgreSQL. One declarative `schema.prisma` is the shared data contract; the generated client gives compile-time-checked queries; `PrismaService` is a `@Global` NestJS module with lifecycle hooks so the connection closes cleanly on `SIGTERM`. |
+| 8 | **Use an ORM** | Web | Nayel | Prisma over PostgreSQL. One declarative `schema.prisma` is the shared data contract; the generated client gives compile-time-checked queries; `PrismaService` is a `@Global` NestJS module with lifecycle hooks, so the connection closes cleanly on `SIGTERM`. |
 | 9 | **File upload and management** | Web | Aileen | Multiple file types; validation client-side *and* server-side, where the type is detected from the file's actual bytes via `libmagic` (WASM) rather than trusting the declared MIME type; storage in a dedicated volume under opaque cuid paths, served only through the backend so access control cannot be bypassed; preview, download, deletion, and cleanup of the disk file when the database row cannot be written. |
 | 10 | **Custom-made design system** | Web | Nayel | A committed visual direction — oat base, ink-plum text, rounded pills, tabular figures for dates — expressed as Tailwind v4 `@theme` tokens that generate both CSS variables and utility classes. 13 reusable components (`Button`, `Card`, `Badge`, `Avatar`, `AvatarGroup`, `TextField`, `TextArea`, `Modal`, `EmptyState`, `FilterChips`, `PageHeading`, `ProjectDot`, `SeamBlock`), above the 10 required. Colour is reserved for project identity; time is signalled structurally, so colour keeps one meaning when several projects appear side by side. |
 | 11 | **OAuth 2.0 remote authentication** | User Management | Quentin | Authorization-code flow against two providers, 42 and GitHub, with redirect URI configuration, callback handling, token exchange and account linking through the `OAuthAccount` model (unique on `provider` + `providerId`, so the same person can link both). |
 | 12 | **Two-factor authentication** | User Management | Quentin | TOTP via `otplib`: secret generation, QR code enrolment, confirmation step before activation, verification at login, and disabling. The secret and the enabled flag live on `Credential`, next to the password hash and away from the public identity model. |
-
-### Module dependency check
-
-The subject's dependency rules (page 11) are all satisfied by construction:
-
-| Rule | Applies? |
-|---|---|
-| Gaming modules require a game | No — no gaming module is claimed |
-| Game statistics requires a game | No |
-| Advanced chat requires the basic chat | No — only the basic chat, inside *User interaction*, is claimed |
-| SSR incompatible with ICP blockchain backend | No — neither is claimed |
 
 ### On overlapping claims
 
@@ -515,7 +522,7 @@ recovering it meant rebuilding the route map while keeping the authentication lo
 bench had introduced, which now lives in `auth/AuthContext.tsx` and the login and profile
 pages.
 
-### Quentin (`<login3>`) — Authentication & social
+### Quentin (`qboutel`) — Authentication & social
 
 Built everything identity-related: sign-up and login with Argon2, the access/refresh
 token pair with the refresh token in an httpOnly cookie, the 42 and GitHub OAuth flows,
@@ -529,7 +536,7 @@ identity at the handshake. Keeping the secret material (`passwordHash`,
 `twoFactorSecret`) in a separate `Credential` model rather than on `User` meant the
 public identity object could be broadcast over WebSockets without ever risking a leak.
 
-### Aileen (`<login4>`) — Product core & collaboration
+### Aileen (`aibonade`) — Product core & collaboration
 
 Built the domain the application is about: organizations with their membership, roles and
 invite policy; tasks with owners, assignees, statuses, dates and visibility filters; and
@@ -555,102 +562,85 @@ entry point with protected access.
 
 **Challenges.** Prometheus, Grafana and Alertmanager all assume they are served at a
 domain root. Serving them under `/prometheus/`, `/grafana/` and `/alertmanager/` required
-`--web.external-url` on two of them and `GF_SERVER_SERVE_FROM_SUB_PATH` on the third,
-plus paired nginx locations — one with a trailing slash, one without — so that a
-prefix typed without its slash does not fall through to the Vite frontend and return a
-404. Metric cardinality also had to be kept deliberately low: the in-flight gauge is
-labelled by method only, since labelling by route would multiply time series for no
-analytical gain.
-
----
-
-## Known Limitations
-
-Stated honestly, as the subject asks:
-
-- **No versioned migrations.** `prisma db push` with `--accept-data-loss` is used
-  instead; renaming a field drops the column and its data. Fine for development, not for
-  production.
-- **Presence is in-memory.** The presence registry lives in the backend process, so it
-  would not survive a restart or scale to multiple backend instances without a shared
-  store such as Redis.
-- **Self-signed TLS certificate.** Expected in local development; every browser will
-  warn on first visit.
-- **`.env.example` currently contains real OAuth credentials.** These are development
-  application credentials, but they are committed to the repository and should be
-  rotated and replaced with placeholders before the repository is shared further.
-- **Planned but not built.** Three modules from the original plan were scoped out and
-  are *not* claimed: a notification system, an analytics dashboard, and collaborative
-  editing (CRDT). The shared `activity_events` backbone they depended on was not built
-  either.
+`--web.external-url` on two of them and `GF_SERVER_ROOT_URL` together with
+`GF_SERVER_SERVE_FROM_SUB_PATH` on the third, plus paired nginx locations — one with a
+trailing slash, one without — so that a prefix typed without its slash does not fall
+through to the Vite frontend and return a 404. A second difficulty was file ownership on
+the Prometheus data volume: the image's default `nobody` user cannot write to a freshly
+created named volume, so the container runs as `user: "0:0"`, which under rootless Podman
+maps to the unprivileged host user rather than to real root. Metric cardinality also had
+to be kept deliberately low: the in-flight gauge is labelled by method only, since
+labelling by route would multiply time series for no analytical gain.
 
 ---
 
 ## Resources
 
-### Documentation
+### Official documentation
 
-- [NestJS documentation](https://docs.nestjs.com/) — modules, providers, guards, pipes, WebSocket gateways
-- [Prisma documentation](https://www.prisma.io/docs) — schema reference, relations, `db push` vs migrations
-- [React documentation](https://react.dev/) and [React Router](https://reactrouter.com/)
+**Frontend**
+
+- [React](https://react.dev/) — components, hooks (`useEffect`, `useRef`) and API reference
+- [React Router](https://reactrouter.com/) — declarative routes and the `RequireAuth` wrapper
+- [Vite](https://vite.dev/guide/) — dev server, hot reload, production build
 - [Tailwind CSS v4](https://tailwindcss.com/docs) — the `@theme` directive and the Vite plugin
-- [Socket.IO documentation](https://socket.io/docs/v4/) — rooms, namespaces, handshake authentication
-- [PostgreSQL 16 manual](https://www.postgresql.org/docs/16/)
-- [Docker Compose specification](https://docs.docker.com/compose/) and [Podman documentation](https://docs.podman.io/)
-- [nginx documentation](https://nginx.org/en/docs/) — reverse proxy, TLS, WebSocket upgrade
-- [Prometheus](https://prometheus.io/docs/), [Grafana](https://grafana.com/docs/) and [Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/)
+- [TypeScript](https://www.typescriptlang.org/docs/) — handbook and the TSConfig reference (`strict`, `noUnusedLocals`, `isolatedModules`)
+- MDN — HTTP request methods, `FormData` and `XMLHttpRequest` (the upload flow)
+
+**Backend and data**
+
+- [NestJS](https://docs.nestjs.com/) — modules, providers, guards, pipes, validation, file upload, WebSocket gateways
+- [Prisma ORM v6](https://www.prisma.io/docs) — schema reference, relations, `db push` vs migrations
+- [PostgreSQL 16](https://www.postgresql.org/docs/16/) — relations, constraints, foreign keys, indexes, cascade deletes
+- [Socket.IO v4](https://socket.io/docs/v4/) — rooms, namespaces, handshake authentication
+- [Multer](https://github.com/expressjs/multer) — `multipart/form-data`, `FileInterceptor`, `fileSize` limits
+- npm — the `package.json` reference
+
+**Infrastructure**
+
+- [Docker Compose specification](https://docs.docker.com/compose/)
+- [Podman](https://docs.podman.io/) and [rootlesscontaine.rs](https://rootlesscontaine.rs/)
+- nginx — [documentation](https://nginx.org/en/docs/), [WebSocket proxying](https://nginx.org/en/docs/http/websocket.html), [`stub_status`](https://nginx.org/en/docs/http/ngx_http_stub_status_module.html)
+
+**Monitoring**
+
+- Prometheus — [configuration](https://prometheus.io/docs/prometheus/latest/configuration/configuration/), [querying basics](https://prometheus.io/docs/prometheus/latest/querying/basics/), [metric and label naming](https://prometheus.io/docs/practices/naming/), [instrumentation practices](https://prometheus.io/docs/practices/instrumentation/)
+- [Alertmanager 0.33 configuration](https://prometheus.io/docs/alerting/0.33/configuration/) — the pinned version, receivers and routing
+- Grafana — [provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/), [dashboard JSON model](https://grafana.com/docs/grafana/latest/visualizations/dashboards/build-dashboards/view-dashboard-json-model/), [Alertmanager datasource](https://grafana.com/docs/grafana/latest/datasources/alertmanager/)
 - [prom-client](https://github.com/siimon/prom-client) — metric types and default collectors
+- [nestjs-prometheus](https://github.com/willsoto/nestjs-prometheus) — the wrapper that was evaluated and set aside in favour of using `prom-client` directly
+- [postgres_exporter](https://github.com/prometheus-community/postgres_exporter)
 
-### References and articles
+### Standards and security references
 
-- [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html) — why Argon2id, and its parameters
 - [RFC 6749 — The OAuth 2.0 Authorization Framework](https://datatracker.ietf.org/doc/html/rfc6749) and the [42 API reference](https://api.intra.42.fr/apidoc)
 - [RFC 6238 — TOTP](https://datatracker.ietf.org/doc/html/rfc6238)
+- [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html) — why Argon2id, and its parameters
 - [OWASP File Upload Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html) — content-based type validation, storage outside the web root
 - [OWASP JWT Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html) — refresh token handling and httpOnly cookies
-- [Prometheus metric and label naming](https://prometheus.io/docs/practices/naming/) and [instrumentation practices](https://prometheus.io/docs/practices/instrumentation/) — the cardinality guidance the metrics follow
+- OMG — *Unified Modeling Language (UML), Version 2.5.1* — the normative source for the class diagram notation
+- IBM — *Class diagrams in UML modeling* — the pedagogical companion to the specification
 
-### Internal documentation
+### Articles and tooling
 
-Written by the team and committed alongside the code:
+- [Martin Fowler — Inversion of Control](https://martinfowler.com/bliki/InversionOfControl.html) — the pattern behind NestJS dependency injection
+- [git-filter-repo](https://github.com/newren/git-filter-repo) and [gitleaks](https://github.com/gitleaks/gitleaks) — history rewriting and secret scanning
 
-| Document | Contents |
-|---|---|
-| `ressources/Coherence_projet.md` | Module selection analysis, point budget, dependency check, lane assignment and schedule |
-| `ressources/integration-modules-equipe.md` | How the 14 vertical 42 modules map onto the horizontal Docker layers |
-| `ressources/Code_README.md` | Detailed infrastructure notes: Podman specifics, Prisma workflow, the real-time gateway, the design system, dependency discipline, upload storage |
-| `ressources/STUDY.md` | Study notes and defence preparation |
-| `ressources/ExplicationsORM.md` | ORM concepts |
-| `srcs/backend/prisma/InstructionsPrisma.md` | Schema conventions and the NestJS module template |
-| `notes/` | Meeting notes, UI structure decisions, open questions |
+---
 
-### Use of AI
-
-> **To confirm before evaluation:** the list below reflects what is traceable in the
-> repository. Each member should verify and complete their own entry — the subject
-> requires this section to be specific about *which tasks* and *which parts* of the
-> project AI was used for.
+## Use of AI
 
 AI tools were used as an assistant, never as an author. Concretely, in this project they
 were used for:
 
-- **Module selection and project coherence analysis** — `ressources/Coherence_projet.md`
-  is an AI-assisted review of the team's initial module list: cross-checking it against
-  the subject's dependency rules, catching two modules the team was already implementing
-  without claiming (the real-time WebSocket Major and the ORM Minor), flagging
-  double-counting risk between overlapping modules, and pointing out that the product
-  core itself carried no points and therefore no owner. The team read it critically and
-  adopted part of it.
-- **Documentation and explanation** — drafting and structuring the internal notes in
-  `ressources/`, and writing the explanatory comments that run through the codebase.
-  These comments are a deliberate team practice: each file explains *why* a choice was
-  made, so any member can defend any part of the project at evaluation.
+- **Module selection and project coherence analysis** — once the group had chosen its
+  modules, the AI was asked whether any other module would have been worth adding.
 - **Debugging assistance** — investigating environment-level problems, notably the
   rootless Podman behaviours (storage driver, subordinate UID ranges, `depends_on`
-  handling) and the reverse-proxy sub-path routing for Prometheus, Grafana and
-  Alertmanager.
-- **Reviewing configuration** — sanity-checking `docker-compose.yml`, `nginx.conf` and
-  the Prometheus/Grafana provisioning against the documentation.
+  handling).
+- **Code review** — a read-only, AI-assisted audit of the repository, run late in the
+  project to identify bugs and gaps against the subject requirements before evaluation.
+- **Module and task tracking** — planning and time management across the four lanes.
 
 AI was **not** used to generate features wholesale. Every member owns their lane and can
 explain their own code without assistance — which is the standard the evaluation applies,
@@ -661,5 +651,3 @@ and the reason the practice was bounded this way.
 ## License
 
 Academic project, produced as part of the 42 curriculum. Not licensed for reuse.
-
-
