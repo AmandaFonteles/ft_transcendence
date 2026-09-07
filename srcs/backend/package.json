@@ -43,6 +43,18 @@
     "prisma": "6.19.3",
     "typescript": "5.9.3"
   },
+  "overrides": {
+    "multer": "2.3.0",
+    "body-parser": "1.20.6",
+    "qs": "6.16.0",
+    "file-type": "21.3.4",
+    "glob": "10.5.0",
+    "picomatch": "4.0.7",
+    "ajv": "8.20.0",
+    "webpack": "5.110.3",
+    "tmp": "0.2.7",
+    "deepmerge-ts": "8.0.2"
+  },
   "engines": {
     "node": ">=22 <23",
     "npm": ">=10 <11"
