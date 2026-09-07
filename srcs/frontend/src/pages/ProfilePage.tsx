@@ -15,6 +15,7 @@ import Card from '../components/ui/Card'
 import TextField from '../components/ui/TextField'
 import Button from '../components/ui/Button'
 import PageHeading from '../components/ui/PageHeading'
+import { LIMITS, isBlank } from '../lib/validation'
 import { closeSocket } from '../realtime/socket'
 
 export default function ProfilePage() {
@@ -91,12 +92,15 @@ function ProfileForm({
     <Card>
       <form onSubmit={handleSubmit} className="grid gap-3">
         <h2 className="text-base font-semibold">Informations</h2>
-        <TextField label="Adresse e-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        <TextField label="Nom affiché" value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
+        <TextField label="Adresse e-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={LIMITS.EMAIL_MAX} required />
+        <TextField label="Nom affiché" value={displayName} onChange={(e) => setDisplayName(e.target.value)} minLength={LIMITS.DISPLAY_NAME_MIN} maxLength={LIMITS.DISPLAY_NAME_MAX} required />
         {error && <p className="text-danger text-sm">{error}</p>}
         {success && <p className="text-success text-sm">Profil mis à jour.</p>}
         <div>
-          <Button type="submit" variant="primary" disabled={saving}>
+          {/* Un nom fait uniquement d'espaces passe "required" mais sera refuse
+              par le backend : on bloque l'envoi ici plutot que d'aller chercher
+              l'erreur au serveur. */}
+          <Button type="submit" variant="primary" disabled={saving || isBlank(displayName) || isBlank(email)}>
             {saving ? '…' : 'Enregistrer'}
           </Button>
         </div>
@@ -135,8 +139,8 @@ function PasswordForm({ accessToken }: { accessToken: string }) {
     <Card>
       <form onSubmit={handleSubmit} className="grid gap-3">
         <h2 className="text-base font-semibold">Mot de passe</h2>
-        <TextField label="Mot de passe actuel" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
-        <TextField label="Nouveau mot de passe" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={8} required />
+        <TextField label="Mot de passe actuel" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} maxLength={LIMITS.PASSWORD_MAX} required />
+        <TextField label="Nouveau mot de passe" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={LIMITS.PASSWORD_MIN} maxLength={LIMITS.PASSWORD_MAX} required />
         {error && <p className="text-danger text-sm">{error}</p>}
         {success && <p className="text-success text-sm">Mot de passe changé.</p>}
         <div>

@@ -1,6 +1,6 @@
 import { Injectable, InternalServerErrorException, BadRequestException, PayloadTooLargeException, OnModuleInit, NotFoundException, ForbiddenException } from '@nestjs/common'
-import { join } from 'path'
-import { mkdir,writeFile, unlink, access, rm } from 'fs/promises'
+import { join, resolve, sep } from 'path'
+import { mkdir,writeFile, unlink, access, rm, readdir } from 'fs/promises'
 import { WASMagic } from 'wasmagic'
 
 @Injectable()
@@ -15,12 +15,31 @@ export class StorageService implements OnModuleInit {
   	return this.magic.detect(buffer)
   }
 
+  // [SECURITE : traversee de chemin] Cette methode transforme un chemin RELATIF
+  // (venant de la base, ou construit a partir de parametres d'URL) en chemin
+  // absolu sur le disque. C'est exactement le point ou une valeur du type
+  // "../../../../etc/passwd" devient dangereuse : join() ne se contente pas de
+  // concatener, il NORMALISE — les ".." remontent reellement l'arborescence et le
+  // resultat sort du dossier de televersement.
+  //
+  // On verifie donc que le chemin resolu reste SOUS le dossier autorise. Le test
+  // est fait ici, au point de construction, et pas seulement chez les appelants :
+  // une garde a l'entree protege l'appelant du jour, une garde ici protege aussi
+  // celui que quelqu'un ecrira dans six mois.
   getFilePath(storagePath: string) {
   	const uploadDir = process.env.UPLOAD_DIR
   	if (uploadDir === undefined) {
       throw new InternalServerErrorException(`La variable d'environnement UPLOAD_DIR n'est pas définie`)
   	}
-  	const filePath = join(uploadDir, storagePath)
+  	// resolve() rend les deux chemins absolus et normalises, condition necessaire
+  	// pour que la comparaison de prefixe ci-dessous ait un sens.
+  	const rootDir = resolve(uploadDir)
+  	const filePath = resolve(rootDir, storagePath)
+  	// Le separateur final est indispensable : sans lui, "/var/lib/uploads-autre"
+  	// passerait le test en tant que prefixe de "/var/lib/uploads".
+  	if (filePath !== rootDir && !filePath.startsWith(rootDir + sep)) {
+      throw new ForbiddenException(`Chemin de fichier invalide`)
+  	}
   	return filePath
   }
 
@@ -88,6 +107,52 @@ export class StorageService implements OnModuleInit {
 	  throw new InternalServerErrorException(`Impossible de créer le dossier contenant les avatars des utilisateurs`)
 	}
 	return avatarPath
+  }
+
+  // [CONCEPT: invariant plutot que suivi] Ne garde dans le dossier d'avatars d'un
+  // utilisateur QUE le fichier passe en parametre, et supprime tout le reste.
+  //
+  // Pourquoi cette forme, plutot que "supprimer l'ancien fichier apres avoir
+  // enregistre le nouveau" : suivre l'ancien chemin oblige a le RECONSTRUIRE a
+  // partir de la valeur stockee en base, et c'est precisement ce qui s'etait
+  // casse — la base a commence a stocker une URL publique
+  // ("/api/users/avatars/...") alors que le code qui la relisait attendait
+  // encore un chemin de stockage ("avatars/..."). La comparaison echouait en
+  // silence, donc plus aucun ancien avatar n'etait supprime.
+  //
+  // Ici on n'a rien a suivre : on retablit un INVARIANT — "un utilisateur a au
+  // plus un fichier d'avatar sur le disque". Consequence utile : le nettoyage
+  // rattrape aussi les fichiers deja accumules par le passe, et un televersement
+  // interrompu a mi-chemin ne laisse pas de trace durable.
+  //
+  // keepFilename absent = on vide le dossier : c'est le cas du choix d'un avatar
+  // predefini, ou l'utilisateur n'a plus aucun fichier a lui.
+  async pruneAvatarFolder(userId: string, keepFilename?: string) {
+    let avatarPath: string
+    try {
+      // Passe par getFilePath : on herite de sa verification de confinement, meme
+      // si userId vient ici du jeton verifie et non d'une saisie.
+      avatarPath = this.getFilePath(join('avatars', userId))
+    } catch {
+      return
+    }
+
+    let entries: string[]
+    try {
+      entries = await readdir(avatarPath)
+    } catch {
+      // Dossier inexistant : l'utilisateur n'a jamais televerse d'avatar.
+      // Ce n'est pas une erreur, il n'y a simplement rien a nettoyer.
+      return
+    }
+
+    await Promise.all(
+      entries
+        .filter((name) => name !== keepFilename)
+        // deleteFileFromStorage n'echoue jamais : un fichier deja disparu ne doit
+        // pas faire echouer le changement d'avatar, qui, lui, a reussi.
+        .map((name) => this.deleteFileFromStorage(join(avatarPath, name))),
+    )
   }
 
   async removeAvatarFolder(userId: string) {

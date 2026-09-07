@@ -19,6 +19,7 @@ import TextField from '../components/ui/TextField'
 import EmptyState from '../components/ui/EmptyState'
 import ProjectDot from '../components/ui/ProjectDot'
 import { colorForId } from '../lib/projectColors'
+import { LIMITS, isBlank } from '../lib/validation'
 import ChatPanel from '../components/ChatPanel'
 import FilesSection from '../components/FilesSection'
 
@@ -297,7 +298,9 @@ function TaskForm({
     setSaving(true)
     try {
       const task = await createTask(accessToken, organizationId, {
-        name,
+        // trim() : un nom fait d'espaces passerait "required" et serait refuse
+        // par le backend. On envoie ce qui sera reellement enregistre.
+        name: name.trim(),
         // Champs vides envoyes comme "non fournis" plutot que comme chaines vides :
         // le DTO backend les marque @IsOptional, une chaine vide echouerait.
         description: description || undefined,
@@ -318,8 +321,8 @@ function TaskForm({
     <Card className="mb-4">
       <form onSubmit={handleSubmit} className="grid gap-3">
         <h3 className="text-base font-semibold">Nouvelle tâche</h3>
-        <TextField label="Nom" value={name} onChange={(e) => setName(e.target.value)} required />
-        <TextField label="Description (optionnelle)" value={description} onChange={(e) => setDescription(e.target.value)} />
+        <TextField label="Nom" value={name} onChange={(e) => setName(e.target.value)} maxLength={LIMITS.TASK_NAME_MAX} required />
+        <TextField label="Description (optionnelle)" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={LIMITS.TASK_DESCRIPTION_MAX} />
         <div className="grid gap-3 sm:grid-cols-2">
           <TextField label="Début" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           <TextField label="Échéance" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
@@ -330,7 +333,7 @@ function TaskForm({
         </label>
         {error && <p className="text-danger text-sm">{error}</p>}
         <div>
-          <Button type="submit" variant="primary" disabled={saving}>
+          <Button type="submit" variant="primary" disabled={saving || isBlank(name)}>
             {saving ? 'Création…' : 'Créer la tâche'}
           </Button>
         </div>

@@ -19,8 +19,27 @@ import { ChangePasswordDto } from './dto/change-password.dto'
 import { OrganizationsService } from '../organizations/organizations.service' ////pour supp orga en meme temps que user
 //AJOUTS AILEEN:
 import { StorageService } from '../files/storage.service'
+import { RESOURCE_ID_PATTERN } from '../common/validation'
 import { join, extname } from 'path'
 import { randomUUID } from 'crypto'
+
+// [CONCEPT: un seul endroit construit l'URL] La valeur stockee dans User.avatarUrl
+// est une URL PUBLIQUE, directement utilisable dans une balise <img src> cote front
+// (qui ne porte pas d'en-tete Authorization, d'ou la route de service publique).
+// Elle est construite ICI et nulle part ailleurs : c'est la dispersion de cette
+// construction qui avait laisse la base et le code de nettoyage diverger.
+const AVATAR_URL_PREFIX = '/api/users/avatars'
+
+function buildAvatarUrl(userId: string, filename: string): string {
+  return `${AVATAR_URL_PREFIX}/${userId}/${filename}`
+}
+
+// Forme EXACTE d'un nom de fichier d'avatar tel que uploadAvatar() le genere :
+// un UUID v4 suivi de ".png". Aucune saisie utilisateur n'entre dans ce nom, donc
+// on peut se permettre d'etre aussi strict — et on doit l'etre, voir
+// resolveAvatarFilePath().
+const AVATAR_FILENAME_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.png$/
 // AJOUT : constante placee ICI, HORS de la classe, juste apres les imports.
 // [CONCEPT: constante partagee] Extrait la liste des champs "publics" d'un User.
 // Utilisee par findById, updateAvatar, updateProfile ET uploadAvatar : evite
@@ -96,15 +115,18 @@ export class UsersService {
   // Change l'avatar du user connecte. Le controller aura deja verifie via
   // SelectAvatarDto (etape 3) que avatarUrl fait partie des presets autorises.
   async updateAvatar(userId: string, avatarUrl: string) {
-    const currentAvatarPath = await this.getUserAvatarStoredPath(userId)
     const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: { avatarUrl },
       select: USER_PUBLIC_SELECT
     })
-    if (currentAvatarPath) {
-      await this.storage.deleteFileFromStorage(currentAvatarPath)
-    }
+    // L'utilisateur repasse sur un avatar predefini : ses fichiers televerses ne
+    // servent plus a rien, on vide son dossier. Nettoyage APRES la mise a jour :
+    // si celle-ci echouait, la base pointerait toujours vers un fichier qu'on
+    // aurait deja supprime.
+    // Les presets, eux, ne sont pas concernes : ils sont servis en statique par le
+    // front (public/avatars/), pas depuis le volume de televersement.
+    await this.storage.pruneAvatarFolder(userId)
     return toPublicUser(updatedUser)
   }
 
@@ -191,21 +213,6 @@ export class UsersService {
     return { success: true }
   }
 
-  private async getUserAvatarStoredPath(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { avatarUrl: true }
-    })
-    if (!user || !user.avatarUrl) {
-      return null
-    }
-    const avatarStoredPath = user.avatarUrl
-    if (!avatarStoredPath.startsWith(`avatars/${userId}/`)) {
-      return null
-    }
-    return this.storage.getFilePath(avatarStoredPath)
-  }
-
   async uploadAvatar(userId: string, file: Express.Multer.File)
   {
     if (!file) {
@@ -226,27 +233,49 @@ export class UsersService {
     const avatarPath = await this.storage.createAvatarFolder(userId)
     const generatedFileName = `${randomUUID()}.png`
     const filePath = join(avatarPath, generatedFileName)
-    const currentAvatarPath = await this.getUserAvatarStoredPath(userId)
     await this.storage.writeFileToStorage(filePath, file.buffer)
     let updatedUser
     try {
         updatedUser = await this.prisma.user.update({
         where: { id: userId },
-        //data: { avatarUrl: `avatars/${userId}/${generatedFileName}` },
-        data: { avatarUrl: `/api/users/avatars/${userId}/${generatedFileName}` },
+        data: { avatarUrl: buildAvatarUrl(userId, generatedFileName) },
         select: USER_PUBLIC_SELECT
       })
     } catch {
+      // La base n'a pas ete mise a jour : elle pointe toujours vers l'avatar
+      // precedent. On retire donc le fichier qu'on vient d'ecrire, et LUI SEUL.
       await this.storage.deleteFileFromStorage(filePath)
       throw new InternalServerErrorException(`Impossible de mettre a jour l'avatar dans la base de donnees`)
     }
-    if (currentAvatarPath) {
-      await this.storage.deleteFileFromStorage(currentAvatarPath)
-    }
+    // La base pointe desormais vers le nouveau fichier : tout autre fichier du
+    // dossier est un residu. On les supprime en une passe plutot que de traquer
+    // "l'ancien" — voir StorageService.pruneAvatarFolder pour le raisonnement.
+    await this.storage.pruneAvatarFolder(userId, generatedFileName)
     return toPublicUser(updatedUser)
   }
 
+  // [SECURITE : traversee de chemin] Cette methode assemble un chemin de fichier a
+  // partir de DEUX parametres d'URL (GET /api/users/avatars/:userId/:filename), sur
+  // une route PUBLIQUE, sans garde d'authentification — une image doit pouvoir
+  // s'afficher dans une balise <img>, qui ne porte pas d'en-tete Authorization.
+  //
+  // Express decode les parametres d'URL : un client qui demande
+  // ".../avatars/x/..%2F..%2F..%2Fetc%2Fpasswd" fait arriver "../../../etc/passwd"
+  // dans "filename". Sans verification, le fichier lu sortait du dossier de
+  // televersement — n'importe qui pouvait lire n'importe quel fichier du conteneur.
+  //
+  // On valide donc la FORME des deux morceaux avant de construire quoi que ce soit.
+  // Ils ne sont pas "du texte libre" : l'un est un cuid genere par Prisma, l'autre
+  // un UUID genere par nous. Tout le reste est refuse.
+  // (StorageService.getFilePath verifie en plus que le chemin resolu reste dans le
+  // dossier autorise : deux gardes independantes, aucune ne dependant de l'autre.)
+  //
+  // Reponse volontairement uniforme en 404 : un identifiant malforme et un fichier
+  // absent donnent la meme reponse, on ne renseigne pas sur ce qui existe.
   async resolveAvatarFilePath(userId: string, filename: string) {
+    if (!RESOURCE_ID_PATTERN.test(userId) || !AVATAR_FILENAME_PATTERN.test(filename)) {
+      throw new NotFoundException(`Le fichier n'existe pas`)
+    }
     const storagePath = `avatars/${userId}/${filename}`
     const filePath = this.storage.getFilePath(storagePath)
     await this.storage.checkFileExists(filePath)

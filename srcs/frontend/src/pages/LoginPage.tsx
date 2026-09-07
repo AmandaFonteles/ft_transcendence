@@ -10,6 +10,7 @@ import { useAuth } from '../auth/AuthContext'
 import Card from '../components/ui/Card'
 import TextField from '../components/ui/TextField'
 import Button from '../components/ui/Button'
+import { LIMITS } from '../lib/validation'
 
 export default function LoginPage() {
   const { user, login, signup } = useAuth()
@@ -63,11 +64,14 @@ export default function LoginPage() {
 
       <Card className="max-w-[420px]">
         <form onSubmit={handleSubmit} className="grid gap-3">
+          {/* maxLength : les memes bornes que le backend (lib/validation.ts).
+              Le navigateur empeche d'aller au-dela ; le serveur revalide. */}
           <TextField
             label="Adresse e-mail"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            maxLength={LIMITS.EMAIL_MAX}
             required
           />
 
@@ -77,6 +81,8 @@ export default function LoginPage() {
               label="Nom affiché"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
+              minLength={LIMITS.DISPLAY_NAME_MIN}
+              maxLength={LIMITS.DISPLAY_NAME_MAX}
               required
             />
           )}
@@ -86,8 +92,10 @@ export default function LoginPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            // minLength 8 : meme regle que la validation backend.
-            minLength={8}
+            // Memes bornes que le DTO backend : 8 caracteres minimum, et un
+            // maximum, qui borne le cout du hachage argon2 cote serveur.
+            minLength={LIMITS.PASSWORD_MIN}
+            maxLength={LIMITS.PASSWORD_MAX}
             required
           />
 
