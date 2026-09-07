@@ -19,6 +19,25 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard'
 
 const REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000
 
+// Attributs communs aux deux cookies de session. Ils doivent rester identiques :
+// si le temoin survivait au jeton (ou l'inverse), le front interrogerait
+// /auth/refresh pour rien, ou cesserait de le faire alors qu'une session existe.
+const SESSION_COOKIE_OPTIONS = {
+  // 'lax' et non 'strict' : le retour d'un fournisseur OAuth arrive par une
+  // redirection intersite, a laquelle un cookie 'strict' n'est pas joint.
+  // 'lax' accompagne les navigations de premier niveau en GET tout en bloquant
+  // les POST intersites, ou se joue la protection CSRF.
+  sameSite: 'lax' as const,
+  // Toujours vrai : nginx redirige le port 80 vers HTTPS (nginx.conf), il n'y a
+  // pas de trafic applicatif en clair, pas meme en developpement.
+  secure: true,
+}
+
+// Depose a cote du jeton httpOnly, et lisible par le JS : c'est le seul moyen
+// pour le front de savoir qu'une session existe avant de la demander. Sans lui,
+// chaque chargement de page anonyme envoyait un POST /auth/refresh voue au 401.
+const SESSION_MARKER_COOKIE = 'hasSession'
+
 @Controller('auth')
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
@@ -42,16 +61,27 @@ export class AuthController {
   @Post('refresh')
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const token = req.cookies?.refreshToken
-    if (!token) throw new UnauthorizedException('refresh token manquant')
+    if (!token) {
+      // Efface le temoin : sans cela il survivrait au jeton et le front
+      // rappellerait cette route a chaque chargement, pour un 401 certain.
+      this.clearSessionCookies(res)
+      throw new UnauthorizedException('refresh token manquant')
+    }
 
-    const { accessToken, refreshToken } = await this.auth.refresh(token)
-    this.setRefreshCookie(res, refreshToken)
-    return { accessToken }
+    try {
+      const { accessToken, refreshToken } = await this.auth.refresh(token)
+      this.setRefreshCookie(res, refreshToken)
+      return { accessToken }
+    } catch (error) {
+      // Jeton expire ou revoque : meme raisonnement, la session est finie.
+      this.clearSessionCookies(res)
+      throw error
+    }
   }
 
   @Post('logout')
   logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('refreshToken')
+    this.clearSessionCookies(res)
     return { success: true }
   }
 
@@ -123,10 +153,24 @@ export class AuthController {
 
   private setRefreshCookie(res: Response, token: string) {
     res.cookie('refreshToken', token, {
+      ...SESSION_COOKIE_OPTIONS,
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
       maxAge: REFRESH_COOKIE_MAX_AGE
     })
+    res.cookie(SESSION_MARKER_COOKIE, '1', {
+      ...SESSION_COOKIE_OPTIONS,
+      // Volontairement lisible : c'est tout l'interet du temoin. Il ne contient
+      // aucun secret, seulement le fait qu'une session a ete ouverte.
+      httpOnly: false,
+      maxAge: REFRESH_COOKIE_MAX_AGE
+    })
+  }
+
+  // maxAge est volontairement absent : clearCookie pose une date d'expiration
+  // passee, qu'un maxAge ecraserait. Les autres attributs, eux, doivent
+  // correspondre a ceux de la pose, sinon le navigateur n'efface rien.
+  private clearSessionCookies(res: Response) {
+    res.clearCookie('refreshToken', { ...SESSION_COOKIE_OPTIONS, httpOnly: true })
+    res.clearCookie(SESSION_MARKER_COOKIE, { ...SESSION_COOKIE_OPTIONS, httpOnly: false })
   }
 }

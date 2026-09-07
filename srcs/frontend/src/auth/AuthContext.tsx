@@ -23,6 +23,14 @@ interface AuthState {
 // Provider (voir le garde-fou dans useAuth).
 const AuthContext = createContext<AuthState | undefined>(undefined)
 
+// Le jeton de rafraichissement est httpOnly : le JS ne peut pas savoir s'il
+// existe. Le backend depose donc a cote un temoin lisible (auth.controller.ts),
+// pose et efface exactement en meme temps que le jeton. Il ne contient aucun
+// secret : il dit seulement qu'une session a ete ouverte.
+function hasSessionCookie(): boolean {
+  return /(?:^|;\s*)hasSession=/.test(document.cookie)
+}
+
 // --- Fournisseur ------------------------------------------------------------
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -42,11 +50,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    // Sans temoin, il n'y a pas de session a restaurer : appeler /auth/refresh ne
+    // pourrait produire qu'un 401. On s'en abstient, ce qui evite une erreur
+    // rouge dans la console a chaque chargement de page anonyme.
+    if (!hasSessionCookie()) {
+      setLoading(false)
+      return
+    }
+
     // Le cookie httpOnly part tout seul avec la requete : s'il est encore valide,
     // l'utilisateur reste connecte apres un rechargement.
     refresh()
       .then(({ accessToken }) => applyToken(accessToken))
-      // Echec normal quand personne n'est connecte : on reste anonyme.
+      // Le temoin pouvait mentir malgre tout (jeton revoque cote serveur) : le
+      // backend efface alors les deux cookies, et le prochain chargement passera
+      // directement par la branche ci-dessus.
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [applyToken])
