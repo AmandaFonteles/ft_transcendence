@@ -517,7 +517,7 @@ public identity object could be broadcast over WebSockets without ever risking a
 
 ### Aileen (`aibonade`) — Product core & collaboration
 
-Built the domain the application is about, and the Prisma models underneath it: 
+Built the domain the application is about, and the Prisma models underneath it:
 organizations with their full membership lifecycle, invite policies, role promotion and
 demotion, and the cleanup that removes an organization once no active member remains;
 `ADMIN` / `MEMBER` permissions checked centrally rather than repeated; tasks with ownership,
@@ -626,6 +626,8 @@ were used for:
   handling).
 - **Code review** — a read-only, AI-assisted audit of the repository, run late in the
   project to identify bugs and gaps against the subject requirements before evaluation.
+- **Merge assistance** — checking integration points, suggesting clean conflict
+  resolutions, and validating that merges preserved the intended module boundaries.
 - **Module and task tracking** — planning and time management across the four lanes.
 
 AI was **not** used to generate features wholesale. Every member owns their lane and can
