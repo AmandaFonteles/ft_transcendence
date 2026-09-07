@@ -157,8 +157,10 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
     try {
       const uploaded = await uploadProjectFile(accessToken, organizationId, selectedFile, setUploadProgress)
       // Le plus recent en tete : c'est celui qu'on vient d'envoyer.
-      setFiles((current) => [uploaded, ...current])
-      resetSelection()
+      setFiles((current) => [uploaded, ...current])    
+      setTimeout(() => {
+        resetSelection()
+      }, 500)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur pendant l’envoi du fichier')
       resetSelection()
