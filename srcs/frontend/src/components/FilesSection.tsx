@@ -8,11 +8,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import {
-  deleteProjectFile, 
-  downloadProjectFile, 
-  listProjectFiles, 
-  uploadProjectFile, 
-  previewProjectFile, 
+  deleteProjectFile,
+  downloadProjectFile,
+  listProjectFiles,
+  uploadProjectFile,
+  previewProjectFile,
   updateProjectFile,
   listProjectFileAccesses,
   addProjectFileAccess,
@@ -52,6 +52,14 @@ const PREVIEWABLE_MIME_TYPES = new Set([
   'text/plain',
 ])
 
+const PREVIEWABLE_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+  'text/plain',
+])
+
 // Liste d'extensions pour l'attribut accept : filtre la boite de dialogue du
 // systeme, ce qui evite la plupart des refus avant meme la validation.
 const ACCEPT = Object.values(ALLOWED_FILE_TYPES).flat().join(',')
@@ -76,7 +84,7 @@ type FilesSectionProps = {
   organizationId: string
 }
 type FileAction = 'preview' | 'download' | 'delete' | 'visibility'
-  
+
 
 export default function FilesSection({ accessToken, organizationId }: FilesSectionProps) {
   const [files, setFiles] = useState<ProjectFile[]>([])
@@ -98,9 +106,9 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
   const [fileAccesses, setFileAccesses] = useState<
     Record<string, ProjectFileAccess[]>
   >({})
-  
+
   const [openAccessFileId, setOpenAccessFileId] = useState<string | null>(null)
-  
+
   const [accessLoadingId, setAccessLoadingId] = useState<string | null>(null)
   const [accessBusyMemberId, setAccessBusyMemberId] = useState<string | null>(null)
   // L'input natif est masque : le declencheur visible est un Button du systeme
@@ -191,7 +199,7 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
     try {
       const uploaded = await uploadProjectFile(accessToken, organizationId, selectedFile, setUploadProgress)
       // Le plus recent en tete : c'est celui qu'on vient d'envoyer.
-      setFiles((current) => [uploaded, ...current])    
+      setFiles((current) => [uploaded, ...current])
       setTimeout(() => {
         resetSelection()
       }, 500)
@@ -232,24 +240,24 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
     setBusyFile({ id: file.id, action: 'preview' })
 
     const previewWindow = window.open('', '_blank')
-  
+
     if (!previewWindow) {
       setBusyFile(null)
       setError('Le navigateur a bloqué l’ouverture de l’aperçu')
       return
     }
-  
+
     try {
       const blob = await previewProjectFile(
         accessToken,
         organizationId,
         file.id
       )
-  
+
       const url = URL.createObjectURL(blob)
-  
+
       previewWindow.location.href = url
-  
+
       setTimeout(() => URL.revokeObjectURL(url), 60_000)
     } catch (err) {
       previewWindow.close()
@@ -266,11 +274,11 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
   async function handleVisibilityChange(
     file: ProjectFile,
     visibilityPolicy: VisibilityPolicy
-  ) 
+  )
   {
     setError(null)
     setBusyFile({ id: file.id, action: 'visibility' })
-  
+
     try {
       const updatedFile = await updateProjectFile(
         accessToken,
@@ -278,7 +286,7 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
         file.id,
         { visibilityPolicy }
       )
-  
+
       setFiles((current) =>
         current.map((currentFile) =>
           currentFile.id === file.id ? updatedFile : currentFile
@@ -289,7 +297,7 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
         if (openAccessFileId === file.id) {
           setOpenAccessFileId(null)
         }
-      
+
         setFileAccesses((current) => {
           const updated = { ...current }
           delete updated[file.id]
@@ -329,7 +337,7 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
       organizationId,
       fileId
     )
-  
+
     setFileAccesses((current) => ({
       ...current,
       [fileId]: accesses,
@@ -341,13 +349,13 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
       setOpenAccessFileId(null)
       return
     }
-  
+
     setError(null)
     setAccessLoadingId(file.id)
-  
+
     try {
       await refreshFileAccesses(file.id)
-  
+
       setOpenAccessFileId(file.id)
     } catch (err) {
       setError(
@@ -363,7 +371,7 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
   async function handleAddFileAccess(file: ProjectFile, userId: string) {
     setError(null)
     setAccessBusyMemberId(userId)
-  
+
     try {
       await addProjectFileAccess(
         accessToken,
@@ -371,7 +379,7 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
         file.id,
         userId
       )
-  
+
       await refreshFileAccesses(file.id)
     } catch (err) {
       setError(
@@ -387,7 +395,7 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
   async function handleRemoveFileAccess(file: ProjectFile, userId: string) {
     setError(null)
     setAccessBusyMemberId(userId)
-  
+
     try {
       await removeProjectFileAccess(
         accessToken,
@@ -395,7 +403,7 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
         file.id,
         userId
       )
-  
+
       await refreshFileAccesses(file.id)
     } catch (err) {
       setError(
@@ -579,7 +587,7 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
                   <div className="text-[12.5px] text-ink-soft mb-2">
                     Gestion des accès
                   </div>
-            
+
                   <div className="grid gap-2">
   {members.map((member) => {
     const isOwner = member.id === file.ownerId
