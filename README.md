@@ -576,9 +576,6 @@ Stated honestly, as the subject asks:
   store such as Redis.
 - **Self-signed TLS certificate.** Expected in local development; every browser will
   warn on first visit.
-- **`.env.example` currently contains real OAuth credentials.** These are development
-  application credentials, but they are committed to the repository and should be
-  rotated and replaced with placeholders before the repository is shared further.
 - **Planned but not built.** Three modules from the original plan were scoped out and
   are *not* claimed: a notification system, an analytics dashboard, and collaborative
   editing (CRDT). The shared `activity_events` backbone they depended on was not built

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { login as apiLogin, logout as apiLogout, me, refresh, signup as apiSignup } from '../api'
+import { login as apiLogin, logout as apiLogout, me, refresh, setAccessTokenListener, signup as apiSignup } from '../api'
 import type { AuthUser } from '../api'
 import { closeSocket, setSocketAccessToken } from '../realtime/socket'
 
@@ -50,6 +50,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [applyToken])
+
+  // api.ts renouvelle le jeton de lui-meme quand une requete revient en 401 : il
+  // expire au bout de 15 minutes alors que le cookie de rafraichissement dure 7
+  // jours. Reste a ramener le nouveau jeton ici, sans quoi les composants
+  // continueraient a presenter l'ancien a chaque appel.
+  useEffect(() => {
+    setAccessTokenListener((token) => {
+      if (token) {
+        setAccessToken(token)
+        // Le module socket rejoue ce jeton a chaque reconnexion : le laisser
+        // perime condamnerait le temps reel des la premiere coupure reseau.
+        setSocketAccessToken(token)
+        return
+      }
+      // Renouvellement impossible : le cookie lui-meme est expire ou revoque. On
+      // termine la session proprement plutot que de laisser l'interface
+      // enchainer les messages d'erreur ; RequireAuth redirige vers /connexion.
+      closeSocket()
+      setAccessToken(null)
+      setUser(null)
+    })
+    return () => setAccessTokenListener(null)
+  }, [])
 
   useEffect(() => {
     // Retour d'un fournisseur OAuth : le backend redirige vers "/#oauth=<jeton>".

@@ -1,7 +1,7 @@
 // Page d'un projet : description, taches, membres, discussion.
 // Le backend nomme "Organization" ce que l'interface appelle "projet".
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { createTask, getOrganization, listOrganizationMembers, listTasks, updateTaskStatus } from '../api'
 import type { Organization, Task, TaskStatus } from '../api'
@@ -49,6 +49,8 @@ export default function ProjectPage() {
   // modifiee, supprimee ou (des)assignee, y compris par quelqu'un d'autre.
   const tasksRevision = useTaskEvents(projectId ?? '')
 
+  const loadedProjectId = useRef<string | null>(null)
+
   // Charge le projet et ses taches. Relance si le filtre change, car le backend
   // sait filtrer lui-meme (parametre owned), ou si un evenement temps reel
   // signale qu'une tache a change ailleurs.
@@ -57,7 +59,7 @@ export default function ProjectPage() {
     let cancelled = false
 
     async function load() {
-      setLoading(true)
+      if (loadedProjectId.current !== projectId) setLoading(true)
       try {
         const [organization, taskList] = await Promise.all([
           getOrganization(accessToken!, projectId!),
@@ -68,6 +70,7 @@ export default function ProjectPage() {
         setOrg(organization)
         setTasks(taskList)
         setError(null)
+        loadedProjectId.current = projectId!
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'erreur inconnue')
       } finally {

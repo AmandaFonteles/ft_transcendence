@@ -17,6 +17,7 @@ import {
   listOrganizationMembers,
 } from '../api'
 import type { ProjectFile, VisibilityPolicy, ProjectFileAccess, OrganizationMember } from '../api'
+import { useFileEvents } from '../realtime/useFileEvents'
 import Card from './ui/Card'
 import Button from './ui/Button'
 import Badge from './ui/Badge'
@@ -162,6 +163,33 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
     return () => { cancelled = true }
   }, [accessToken, organizationId])
 
+  // --- Temps reel -----------------------------------------------------------
+
+  const filesRevision = useFileEvents(organizationId)
+
+  useEffect(() => {
+
+    if (filesRevision === 0) return
+    let cancelled = false
+
+    // Rechargement discret : pas de setLoading ici, sinon la liste laisserait
+    // place a "Chargement..." des qu'un autre membre touche un fichier. Et pas
+    // de setError non plus : un echec de fond ne doit pas effacer une liste
+    // encore valide, l'evenement suivant reessaiera.
+    listProjectFiles(accessToken, organizationId)
+      .then((projectFiles) => { if (!cancelled) setFiles(projectFiles) })
+      .catch(() => {})
+
+    // Le panneau d'acces ouvert porte peut-etre sur le fichier qui vient de
+    // changer : ses accès explicites seraient sinon perimes a l'ecran.
+    if (openAccessFileId) {
+      refreshFileAccesses(openAccessFileId).catch(() => {})
+    }
+
+    return () => { cancelled = true }
+    // Volontairement limite au compteur : ajouter openAccessFileId relancerait
+    // ce rechargement a chaque ouverture de panneau, alors que rien n'a change.
+  }, [filesRevision])
 
   // --- Televersement --------------------------------------------------------
 

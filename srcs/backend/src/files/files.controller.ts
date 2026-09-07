@@ -6,11 +6,23 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CreateFileDto } from './dto/create-file.dto'
 import { createReadStream } from 'fs'
 import { UpdateFileDto } from './dto/update-file.dto';
+import { RealtimeGateway } from '../realtime/realtime.gateway'
+import { ServerEvents } from '../realtime/realtime.events'
+import type { FileEventPayload } from '../realtime/realtime.events'
 
 @UseGuards(JwtAuthGuard)
 @Controller('organizations/:organizationId/files')
 export class FilesController {
-  constructor(private readonly filesService: FilesService) {}
+
+  constructor(
+    private readonly filesService: FilesService,
+    private readonly realtime: RealtimeGateway,
+  ) {}
+
+  private notifyFileChange(organizationId: string, fileId: string, event: string) {
+    const payload: FileEventPayload = { organizationId, fileId }
+    this.realtime.notifyOrganization(organizationId, event, payload)
+  }
 
   @Post()
   @UseInterceptors(FileInterceptor('file',  {
@@ -18,12 +30,15 @@ export class FilesController {
   }))
   async uploadFile( @Param('organizationId') organizationId: string, @CurrentUser() user: { userId: string }, @Body() createFileDto: CreateFileDto, @UploadedFile() file: Express.Multer.File ) {
 	const uploadedFile = await this.filesService.uploadFile(createFileDto, organizationId, user.userId, file);
+	this.notifyFileChange(organizationId, uploadedFile.id, ServerEvents.FILE_CREATED);
 	return uploadedFile;
   }
 
   @Post(':fileId/access/:targetUserId')
   async addFileAccess(@Param('organizationId') organizationId: string, @Param('fileId') fileId: string, @Param('targetUserId') targetUserId: string, @CurrentUser() user: { userId: string }) {
     await this.filesService.addFileAccess(fileId, targetUserId, user.userId, organizationId);
+
+    this.notifyFileChange(organizationId, fileId, ServerEvents.FILE_UPDATED);
     return fileId;
   }
 
@@ -68,18 +83,21 @@ export class FilesController {
   @Patch(':fileId')
   async updateFile(@Param('organizationId') organizationId: string, @Param('fileId') fileId: string, @CurrentUser() user: { userId: string }, @Body() updateFileDto: UpdateFileDto) {
     const updatedFile = await this.filesService.updateFile(fileId, user.userId, organizationId, updateFileDto);
+    this.notifyFileChange(organizationId, fileId, ServerEvents.FILE_UPDATED);
     return updatedFile;
   }
 
   @Delete(':fileId/access/:targetUserId')
   async removeFileAccess(@Param('organizationId') organizationId: string, @Param('fileId') fileId: string, @Param('targetUserId') targetUserId: string, @CurrentUser() user: { userId: string }) {
     await this.filesService.removeFileAccess(fileId, targetUserId, user.userId, organizationId);
+    this.notifyFileChange(organizationId, fileId, ServerEvents.FILE_UPDATED);
     return fileId;
   }
 
   @Delete(':fileId')
   async deleteFile(@Param('organizationId') organizationId: string, @Param('fileId') fileId: string, @CurrentUser() user: { userId: string }) {
     await this.filesService.removeFile(fileId, user.userId, organizationId);
+    this.notifyFileChange(organizationId, fileId, ServerEvents.FILE_DELETED);
     return fileId;
   }
 }

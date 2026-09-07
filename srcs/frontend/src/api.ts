@@ -18,18 +18,105 @@ export type AuthUser = {
 
 type TokenResponse = { accessToken: string }
 
+// --- Renouvellement transparent du jeton d'acces ----------------------------
+
+// Le jeton d'acces vit 15 minutes (JWT_ACCESS_EXPIRES) alors que le cookie de
+// rafraichissement vit 7 jours. Sans ce qui suit, un onglet laisse ouvert
+// quinze minutes voyait TOUTES ses requetes echouer en 401 ("Unauthorized")
+// jusqu'a un rechargement manuel de la page, alors que la session etait encore
+// parfaitement valide cote serveur.
+
+// L'AuthContext s'y abonne : un jeton pour le ranger dans l'etat React et dans
+// le module socket, null quand le cookie lui-meme est expire (session finie).
+type AccessTokenListener = (accessToken: string | null) => void
+
+let accessTokenListener: AccessTokenListener | null = null
+
+export function setAccessTokenListener(listener: AccessTokenListener | null): void {
+  accessTokenListener = listener
+}
+
+// Un seul appel a /auth/refresh a la fois : une page qui lance dix requetes
+// declencherait sinon dix rotations concurrentes du cookie, dont une seule
+// survivrait.
+let pendingRenewal: Promise<string | null> | null = null
+
+function renewAccessToken(): Promise<string | null> {
+  if (!pendingRenewal) {
+    pendingRenewal = refresh()
+      .then(({ accessToken }) => {
+        accessTokenListener?.(accessToken)
+        return accessToken
+      })
+      // Cookie absent ou expire : la session est bel et bien finie, on le dit a
+      // l'AuthContext plutot que de laisser l'interface enchainer les erreurs.
+      .catch(() => {
+        accessTokenListener?.(null)
+        return null
+      })
+      .finally(() => {
+        pendingRenewal = null
+      })
+  }
+  return pendingRenewal
+}
+
+// En-tetes en objet simple et non en HeadersInit : tout le fichier les ecrit
+// deja ainsi, et send() doit pouvoir en relire un (Authorization) puis le
+// remplacer, ce qu'un Headers ou un tableau de paires rendrait penible.
+type ApiRequestInit = Omit<RequestInit, 'headers'> & { headers?: Record<string, string> }
+
+// Envoie la requete et, sur un 401 d'une requete authentifiee, renouvelle le
+// jeton puis rejoue UNE fois. Renvoie la reponse brute : les appelants qui
+// attendent autre chose que du JSON (blob, corps vide) passent aussi par ici.
+export async function send(path: string, init: ApiRequestInit = {}): Promise<Response> {
+  const headers: Record<string, string> = { ...(init.headers ?? {}) }
+
+  // Pas de Content-Type impose sur un FormData : le navigateur doit y mettre
+  // lui-meme la frontiere multipart.
+  if (!(init.body instanceof FormData) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  const call = (sent: Record<string, string>) =>
+    fetch(`/api${path}`, {
+      ...init,
+      // Sans ca, le cookie httpOnly du refresh token ne part jamais et le navigateur
+      // ignore le Set-Cookie renvoye par le backend.
+      credentials: 'include',
+      headers: sent,
+    })
+
+  const res = await call(headers)
+
+  // Un 401 sans en-tete Authorization n'a rien a voir avec un jeton expire : c'est
+  // la reponse metier de /auth/login, /auth/refresh et /auth/logout, qui n'en
+  // envoient pas. Ce test est donc aussi le garde-fou contre une recursion, en
+  // empechant de rejouer /auth/refresh sur son propre echec.
+  if (res.status !== 401 || !headers.Authorization) {
+    return res
+  }
+
+  const renewed = await renewAccessToken()
+  // Echec du renouvellement : on rend le 401 d'origine, avec son message.
+  if (!renewed) return res
+
+  return call({ ...headers, Authorization: `Bearer ${renewed}` })
+}
+
+// Erreur HTTP porteuse de son statut : uploadProjectFile a besoin de distinguer
+// un 401 (jeton expire, on rejoue) du reste, ce qu'un Error nu ne permet pas.
+type HttpError = Error & { status?: number }
+
+function httpError(status: number, message?: string): HttpError {
+  const error = new Error(message ?? `Erreur HTTP ${status}`) as HttpError
+  error.status = status
+  return error
+}
+
 // Transforme un statut d'erreur HTTP en exception exploitable par l'appelant.
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`/api${path}`, {
-    ...init,
-    // Sans ca, le cookie httpOnly du refresh token ne part jamais et le navigateur
-    // ignore le Set-Cookie renvoye par le backend.
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {})
-    }
-  })
+async function request<T>(path: string, init?: ApiRequestInit): Promise<T> {
+  const res = await send(path, init)
 
   if (!res.ok) {
     // Nest renvoie { message: "..." } sur ses exceptions.
@@ -534,35 +621,56 @@ export type ProjectFileAccess = {
   }
 }
 
+// XMLHttpRequest et non fetch : c'est le seul moyen de suivre la progression de
+// l'ENVOI, que fetch() ne sait pas rapporter. Contrepartie : ce chemin ne passe
+// pas par send(), le renouvellement du jeton sur 401 est donc refait ici.
 export function uploadProjectFile(accessToken: string, organizationId: string, file: File, onProgress?: (percent: number) => void) {
-  return new Promise<ProjectFile>((resolve, reject) => {
-    const formData = new FormData()
+  const attempt = (token: string) =>
+    new Promise<ProjectFile>((resolve, reject) => {
+      const formData = new FormData()
 
-    formData.append('file', file)
-    const xhr = new XMLHttpRequest()
-    xhr.open(`POST`, `/api/organizations/${organizationId}/files`)
-    xhr.setRequestHeader( 'Authorization', `Bearer ${accessToken}`)
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        const percent = Math.round((event.loaded / event.total) * 100)
-        onProgress?.(percent)
+      formData.append('file', file)
+      const xhr = new XMLHttpRequest()
+      xhr.open(`POST`, `/api/organizations/${organizationId}/files`)
+      xhr.setRequestHeader( 'Authorization', `Bearer ${token}`)
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100)
+          onProgress?.(percent)
+        }
       }
-    }
-    xhr.onload = () => {
-      if(xhr.status >= 200 && xhr.status < 300)
-      {
-        const uploadedFile = JSON.parse(xhr.responseText) as ProjectFile
-        resolve(uploadedFile)
-      } else
-      {
-        const body = JSON.parse(xhr.responseText)
-        reject(new Error(body?.message ?? `Erreur HTTP ${xhr.status}`))
+      xhr.onload = () => {
+        if(xhr.status >= 200 && xhr.status < 300)
+        {
+          const uploadedFile = JSON.parse(xhr.responseText) as ProjectFile
+          resolve(uploadedFile)
+        } else
+        {
+          // Le corps d'erreur n'est pas toujours du JSON (une 413 rendue par
+          // nginx est du HTML) : sans ce try, l'exception de JSON.parse partirait
+          // dans le vide et la promesse ne se resoudrait jamais.
+          let message: string | undefined
+          try {
+            message = JSON.parse(xhr.responseText)?.message
+          } catch {
+            message = undefined
+          }
+          reject(httpError(xhr.status, message))
+        }
       }
-    }
-    xhr.onerror = () => {
-      reject(new Error(`Erreur réseau pendant l’envoi du fichier`))
-    }
-    xhr.send(formData)
+      xhr.onerror = () => {
+        reject(new Error(`Erreur réseau pendant l’envoi du fichier`))
+      }
+      xhr.send(formData)
+    })
+
+  return attempt(accessToken).catch(async (error: HttpError) => {
+    if (error.status !== 401) throw error
+    const renewed = await renewAccessToken()
+    if (!renewed) throw error
+    // Le fichier repart du debut : la barre doit repartir de zero elle aussi.
+    onProgress?.(0)
+    return attempt(renewed)
   })
 }
 
@@ -574,8 +682,8 @@ export function listProjectFiles(accessToken: string, organizationId: string) {
 }
 
 export async function downloadProjectFile(accessToken: string, organizationId: string, fileId: string ) {
-  const res = await fetch(
-    `/api/organizations/${organizationId}/files/${fileId}/download`,
+  const res = await send(
+    `/organizations/${organizationId}/files/${fileId}/download`,
     {
       headers: auth(accessToken)
     }
@@ -594,9 +702,8 @@ export async function downloadProjectFile(accessToken: string, organizationId: s
 export async function deleteProjectFile(
   accessToken: string, organizationId: string, fileId: string,
 ) {
-  const res = await fetch(`/api/organizations/${organizationId}/files/${fileId}`, {
+  const res = await send(`/organizations/${organizationId}/files/${fileId}`, {
     method: 'DELETE',
-    credentials: 'include',
     headers: auth(accessToken),
   })
 
@@ -609,8 +716,8 @@ export async function deleteProjectFile(
 export async function previewProjectFile(
   accessToken: string, organizationId: string, fileId: string,
 ) {
-  const res = await fetch(
-    `/api/organizations/${organizationId}/files/${fileId}/preview`,
+  const res = await send(
+    `/organizations/${organizationId}/files/${fileId}/preview`,
     {
       headers: auth(accessToken),
     }
@@ -648,10 +755,9 @@ export async function uploadAvatar(accessToken: string, file: File) {
   const formData = new FormData()
   formData.append('file', file)
 
-  const res = await fetch('/api/users/me/avatar/upload', {
+  const res = await send('/users/me/avatar/upload', {
     method: 'PATCH',
-    credentials: 'include',
-    headers: { Authorization: `Bearer ${accessToken}` },
+    headers: auth(accessToken),
     body: formData,
   })
 
@@ -673,11 +779,10 @@ export function listProjectFileAccesses( accessToken: string, organizationId: st
 }
 
 export async function addProjectFileAccess( accessToken: string, organizationId: string, fileId: string, targetUserId: string ) {
-  const res = await fetch(
-    `/api/organizations/${organizationId}/files/${fileId}/access/${targetUserId}`,
+  const res = await send(
+    `/organizations/${organizationId}/files/${fileId}/access/${targetUserId}`,
     {
       method: 'POST',
-      credentials: 'include',
       headers: auth(accessToken),
     }
   )
@@ -689,11 +794,10 @@ export async function addProjectFileAccess( accessToken: string, organizationId:
 }
 
 export async function removeProjectFileAccess( accessToken: string, organizationId: string, fileId: string, targetUserId: string ) {
-  const res = await fetch(
-    `/api/organizations/${organizationId}/files/${fileId}/access/${targetUserId}`,
+  const res = await send(
+    `/organizations/${organizationId}/files/${fileId}/access/${targetUserId}`,
     {
       method: 'DELETE',
-      credentials: 'include',
       headers: auth(accessToken),
     }
   )

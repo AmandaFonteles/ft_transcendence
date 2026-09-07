@@ -32,6 +32,10 @@ export const ServerEvents = {
   TASK_DELETED: 'task:deleted',
   TASK_ASSIGNED: 'task:assigned',
   TASK_UNASSIGNED: 'task:unassigned',
+
+  FILE_CREATED: 'file:created',
+  FILE_UPDATED: 'file:updated',
+  FILE_DELETED: 'file:deleted',
 } as const
 
 // --- Formes des payloads ----------------------------------------------------
@@ -69,4 +73,9 @@ export interface ChatMessageEvent {
 export interface TaskEventPayload {
   organizationId: string
   taskId: string
+}
+
+export interface FileEventPayload {
+  organizationId: string
+  fileId: string
 }

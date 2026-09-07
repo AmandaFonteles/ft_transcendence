@@ -12,7 +12,10 @@ import { LIMITS } from '../lib/validation'
 export default function ChatPanel({ organizationId }: { organizationId: string }) {
   const { user, accessToken } = useAuth()
   const [draft, setDraft] = useState('')
-  const bottomRef = useRef<HTMLDivElement>(null)
+  // Le conteneur defilant lui-meme, et non un marqueur de fin : scrollIntoView()
+  const listRef = useRef<HTMLDivElement>(null)
+  // Le suivi automatique ne vaut que si l'utilisateur est deja en bas
+  const stickToBottom = useRef(true)
 
   const { connected, messages, loadingHistory, error, sendMessage } = useProjectChat(
     organizationId,
@@ -20,8 +23,17 @@ export default function ChatPanel({ organizationId }: { organizationId: string }
   )
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const list = listRef.current
+    if (!list || !stickToBottom.current) return
+    list.scrollTop = list.scrollHeight
   }, [messages.length])
+
+  // Marge de tolerance : une position au pixel pres ne survit pas aux hauteurs
+  // fractionnaires du zoom navigateur.
+  function handleScroll(e: React.UIEvent<HTMLDivElement>) {
+    const list = e.currentTarget
+    stickToBottom.current = list.scrollHeight - list.scrollTop - list.clientHeight < 40
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -50,7 +62,11 @@ export default function ChatPanel({ organizationId }: { organizationId: string }
       ) : messages.length === 0 ? (
         <p className="text-ink-soft text-sm mb-3">Aucun message pour l'instant. Lancez la discussion !</p>
       ) : (
-        <div className="max-h-[360px] overflow-y-auto pr-1 mb-3 grid gap-2">
+        <div
+          ref={listRef}
+          onScroll={handleScroll}
+          className="max-h-[360px] overflow-y-auto pr-1 mb-3 grid gap-2"
+        >
           {messages.map((m) => {
             // m.author.user.id est le vrai User.id dans les deux cas. Comparer
             // m.authorId (une cle OrganizationMember.id) marchait par coincidence
@@ -70,7 +86,6 @@ export default function ChatPanel({ organizationId }: { organizationId: string }
               </div>
             )
           })}
-          <div ref={bottomRef} />
         </div>
       )}
 

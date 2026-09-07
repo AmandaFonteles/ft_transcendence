@@ -111,7 +111,9 @@ export class FilesService {
 		return await this.prisma.file.findMany({
 		  where: {
 			organizationId: organizationId
-		  }
+		  },
+
+		  orderBy: { createdAt: 'desc' }
 		})
 	}
 	const files = await this.prisma.file.findMany({
@@ -133,7 +135,8 @@ export class FilesService {
 			]
 		  }
 		]
-	  }
+	  },
+	  orderBy: { createdAt: 'desc' }
 	})
 	return files
   }
