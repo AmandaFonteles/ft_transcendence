@@ -39,6 +39,8 @@ export default function TaskDetail({
   const [saving, setSaving] = useState(false)
   // Confirmation en deux temps : la suppression est irreversible.
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  // Passe a true des le clic, avant meme l'appel reseau : voir handleDelete.
+  const [deleting, setDeleting] = useState(false)
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -78,6 +80,13 @@ export default function TaskDetail({
   async function handleDelete() {
     setError(null)
     setSaving(true)
+    // Demonte TaskAssignees avant que le DELETE ne parte. Le backend diffuse
+    // task:deleted a toute la room, emetteur compris, et cette notification peut
+    // revenir avant la reponse HTTP : le panneau rechargerait alors ses
+    // assignations sur une tache deja detruite, d'ou un GET 404. Rendre ce 404
+    // silencieux ne suffisait pas, la requete partait quand meme ; il faut que le
+    // composant ait disparu avant qu'un evenement puisse l'atteindre.
+    setDeleting(true)
     try {
       await deleteTask(accessToken, task.organizationId, task.id)
       onDeleted(task.id)
@@ -85,6 +94,8 @@ export default function TaskDetail({
     } catch (err) {
       setError(err instanceof Error ? err.message : 'erreur inconnue')
       setSaving(false)
+      // La tache existe toujours : on remonte le panneau d'assignations.
+      setDeleting(false)
     }
   }
 
@@ -135,7 +146,7 @@ export default function TaskDetail({
             <dd className="tabular-nums">{formatLongDate(task.dueDate)}</dd>
           </dl>
 
-          {user && (
+          {user && !deleting && (
             <TaskAssignees
               accessToken={accessToken}
               organizationId={task.organizationId}

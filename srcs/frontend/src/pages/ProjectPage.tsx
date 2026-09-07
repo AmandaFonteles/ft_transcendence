@@ -69,6 +69,15 @@ export default function ProjectPage() {
         if (cancelled) return
         setOrg(organization)
         setTasks(taskList)
+        // Referme le detail quand sa tache a disparu du projet : openTask est une
+        // copie figee que rien ne reconcilie autrement avec la liste rechargee.
+        // Sans cela, une suppression faite ailleurs laisse ici une modale ouverte
+        // sur une tache fantome, dont toutes les actions echouent en 404.
+        // Reserve au cas sans filtre : sous onlyMine, une tache peut quitter la
+        // liste sans avoir ete supprimee, et la refermer serait un faux positif.
+        if (!onlyMine) {
+          setOpenTask((prev) => (prev && !taskList.some((t) => t.id === prev.id) ? null : prev))
+        }
         setError(null)
         loadedProjectId.current = projectId!
       } catch (err) {

@@ -14,6 +14,7 @@ import {
   listProjectFileAccesses,
   addProjectFileAccess,
   removeProjectFileAccess,
+  httpStatusOf,
   listOrganizationMembers,
 } from '../api'
 import type { ProjectFile, VisibilityPolicy, ProjectFileAccess, OrganizationMember } from '../api'
@@ -177,14 +178,33 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
     // de setError non plus : un echec de fond ne doit pas effacer une liste
     // encore valide, l'evenement suivant reessaiera.
     listProjectFiles(accessToken, organizationId)
-      .then((projectFiles) => { if (!cancelled) setFiles(projectFiles) })
-      .catch(() => {})
+      .then((projectFiles) => {
+        if (cancelled) return
+        setFiles(projectFiles)
 
-    // Le panneau d'acces ouvert porte peut-etre sur le fichier qui vient de
-    // changer : ses accès explicites seraient sinon perimes a l'ecran.
-    if (openAccessFileId) {
-      refreshFileAccesses(openAccessFileId).catch(() => {})
-    }
+        // Le panneau d'acces ouvert porte peut-etre sur le fichier qui vient de
+        // changer : ses acces explicites seraient sinon perimes a l'ecran.
+        if (!openAccessFileId) return
+
+        // Mais /files/:id/access repond 400 des que la visibilite n'est plus
+        // RESTRICTED, et c'est precisement le cas ou updateFile detruit toutes
+        // les lignes d'acces. Interroger l'API ici produisait donc une erreur
+        // certaine, qu'un catch silencieux masquait en laissant le cache intact :
+        // le panneau proposait encore "Retirer" pour des acces disparus, et le
+        // clic repondait 404. On purge le cache au lieu de demander.
+        const openFile = projectFiles.find((f) => f.id === openAccessFileId)
+        if (!openFile || openFile.visibilityPolicy !== 'RESTRICTED') {
+          setFileAccesses((current) => {
+            const next = { ...current }
+            delete next[openAccessFileId]
+            return next
+          })
+          return
+        }
+
+        refreshFileAccesses(openAccessFileId).catch(() => {})
+      })
+      .catch(() => {})
 
     return () => { cancelled = true }
     // Volontairement limite au compteur : ajouter openAccessFileId relancerait
@@ -442,6 +462,13 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
           ? err.message
           : `Erreur lors du retrait de l'accès`
       )
+      // Les trois 404 possibles ici (acces, membre ou fichier introuvable) disent
+      // la meme chose : l'affichage ne correspond plus a la base. Resynchroniser
+      // evite de laisser un bouton "Retirer" qui echouerait indefiniment. Si le
+      // rattrapage echoue a son tour, on s'en tient au message ci-dessus.
+      if (httpStatusOf(err) === 404) {
+        await refreshFileAccesses(file.id).catch(() => {})
+      }
     } finally {
       setAccessBusyMemberId(null)
     }

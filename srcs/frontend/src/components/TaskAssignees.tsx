@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { assignTaskMember, listOrganizationMembers, listTaskAssignments, removeTaskAssignment } from '../api'
+import { assignTaskMember, httpStatusOf, listOrganizationMembers, listTaskAssignments, removeTaskAssignment } from '../api'
 import type { OrganizationMember, TaskAssignment } from '../api'
 import { useTaskEvents } from '../realtime/useTaskEvents'
 import Button from './ui/Button'
@@ -44,6 +44,13 @@ export default function TaskAssignees({
       setMembers(m)
       setError(null)
     } catch (err) {
+      // Un 404 ne signale pas une panne mais une tache qui n'existe plus : le
+      // backend diffuse task:deleted a toute la room, emetteur compris, et cette
+      // notification peut arriver avant la reponse du DELETE. L'effet ci-dessous
+      // rejoue alors reload() sur une tache deja detruite. Afficher une erreur
+      // rouge dans un panneau qui est sur le point de disparaitre n'aiderait
+      // personne ; c'est au parent de refermer le detail (voir ProjectPage).
+      if (httpStatusOf(err) === 404) return
       setError(err instanceof Error ? err.message : 'erreur inconnue')
     } finally {
       setLoading(false)

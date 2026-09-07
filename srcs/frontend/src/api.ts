@@ -114,6 +114,13 @@ function httpError(status: number, message?: string): HttpError {
   return error
 }
 
+// Statut d'une exception levee par request(), ou null quand l'echec ne vient pas
+// d'une reponse HTTP (reseau coupe, corps illisible). Evite aux appelants de
+// deviner le probleme en lisant le message, qui est redige par le backend.
+export function httpStatusOf(error: unknown): number | null {
+  return error instanceof Error ? ((error as HttpError).status ?? null) : null
+}
+
 // Transforme un statut d'erreur HTTP en exception exploitable par l'appelant.
 async function request<T>(path: string, init?: ApiRequestInit): Promise<T> {
   const res = await send(path, init)
@@ -121,7 +128,10 @@ async function request<T>(path: string, init?: ApiRequestInit): Promise<T> {
   if (!res.ok) {
     // Nest renvoie { message: "..." } sur ses exceptions.
     const body = await res.json().catch(() => null)
-    throw new Error(body?.message ?? `Erreur HTTP ${res.status}`)
+    // httpError et non Error : le statut permet aux appelants de traiter
+    // certains echecs autrement que comme une erreur a afficher (voir
+    // TaskAssignees, qui ignore le 404 d'une tache supprimee entre-temps).
+    throw httpError(res.status, body?.message)
   }
 
   return res.json()
@@ -804,7 +814,13 @@ export async function removeProjectFileAccess( accessToken: string, organization
 
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(body?.message ?? `Erreur HTTP ${res.status}`)
+    // httpError et non Error : FilesSection distingue le 404 (affichage perime,
+    // a resynchroniser) des autres echecs, qui sont de vraies erreurs.
+    throw httpError(res.status, body?.message)
   }
-  return res.json() as Promise<AuthUser>
+  // Pas de res.json() ici : la route repond par l'identifiant du fichier en
+  // texte brut, pas en JSON, et le parser levait "JSON.parse: unexpected
+  // character" alors meme que la suppression avait reussi. Le cast en AuthUser
+  // venait d'un copier-coller depuis l'envoi d'avatar juste au-dessus.
+  // addProjectFileAccess, symetrique, ne lit deja rien.
 }

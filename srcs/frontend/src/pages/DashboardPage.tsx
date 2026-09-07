@@ -52,7 +52,15 @@ export default function DashboardPage() {
           organizations.map((o) => listTasks(accessToken!, o.id, onlyMine ? { owned: true, unassigned: false } : undefined)),
         )
         if (cancelled) return
-        setTasks(perOrg.flat())
+        const taskList = perOrg.flat()
+        setTasks(taskList)
+        // Meme reconciliation que dans ProjectPage : openTask est une copie figee,
+        // et une tache supprimee ailleurs laisserait sinon la modale ouverte sur
+        // une tache fantome. Hors filtre seulement, onlyMine pouvant retirer de la
+        // liste une tache qui existe toujours.
+        if (!onlyMine) {
+          setOpenTask((prev) => (prev && !taskList.some((t) => t.id === prev.id) ? null : prev))
+        }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'erreur inconnue')
       } finally {
