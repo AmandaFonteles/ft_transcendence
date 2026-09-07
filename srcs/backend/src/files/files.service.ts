@@ -17,7 +17,7 @@ export class FilesService {
 	if (!file) {
 		throw new BadRequestException(`Aucun fichier n'a été fourni`)
 	}
-	if (file.size > 10 * 1024 * 1024) {
+	if (file.size > 10 * 1000000) {
 		throw new PayloadTooLargeException(`Le fichier est trop lourd`)
 	}
 	const allowedFileTypes : Record<string, string[]> =  {
@@ -139,7 +139,6 @@ export class FilesService {
 	return files
   }
 
-
   async downloadFile(fileId: string, requesterId: string, organizationId: string) {
 	const file = await this.findFileById(fileId, requesterId, organizationId)
 	const filePath = this.storage.getFilePath(file.storagePath)
@@ -199,6 +198,45 @@ export class FilesService {
 	  }
 	})
   }
+
+  async findAllFileAccesses( fileId: string, requesterId: string, organizationId: string) {
+  const file = await this.findFileById( fileId, requesterId, organizationId )
+
+  if (file.visibilityPolicy !== VisibilityPolicy.RESTRICTED) {
+    throw new BadRequestException( `Le fichier n'a pas une politique de visibilité restreinte` )
+  }
+
+  const requesterMember = await this.orgaServ.requireActiveMember( organizationId, requesterId )
+  if (
+    requesterMember.role !== Role.ADMIN &&
+    file.ownerId !== requesterMember.id
+  ) {
+    throw new ForbiddenException( `Vous n'avez pas la permission de consulter les accès à ce fichier` )
+  }
+
+  return this.prisma.fileAccess.findMany({
+    where: {
+      fileId: fileId
+    },
+    select: {
+      id: true,
+      member: {
+        select: {
+          userId: true,
+          leftAt: true,
+          user: {
+            select: {
+              id: true,
+              displayName: true,
+              avatarUrl: true
+            }
+          }
+        }
+      }
+    }
+  })
+}
+
 
   async addFileAccess(fileId: string, targetUserId: string, requesterId: string, organizationId: string) {
 	const file = await this.findFileById(fileId, requesterId, organizationId)

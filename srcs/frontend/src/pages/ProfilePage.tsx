@@ -308,7 +308,7 @@ function DeleteAcc({ accessToken, logout }: { accessToken: string; logout: () =>
 // --- Avatar ------------------------------------------------------------------
 // Contraintes miroir du backend (users.service.ts) : PNG uniquement, 5 Mo max.
 // Les verifier ici evite un aller-retour reseau pour une erreur previsible.
-const AVATAR_MAX_BYTES = 5 * 1024 * 1024
+const AVATAR_MAX_BYTES = 5 * 1000000
 const AVATAR_MIME = 'image/png'
 
 function AvatarCard({

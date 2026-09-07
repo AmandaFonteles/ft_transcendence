@@ -218,7 +218,7 @@ export class UsersService {
     if (!file) {
       throw new BadRequestException(`Aucun fichier n'a été fourni`)
     }
-    if (file.size > 5 * 1024 * 1024) {
+    if (file.size > 5 * 1000000) {
       throw new PayloadTooLargeException(`Le fichier est trop lourd`)
     }
     const allowedFileType : Record<string, string[]> =  { 'image/png': ['.png'] }
