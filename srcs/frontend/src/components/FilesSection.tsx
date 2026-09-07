@@ -52,14 +52,6 @@ const PREVIEWABLE_MIME_TYPES = new Set([
   'text/plain',
 ])
 
-const PREVIEWABLE_MIME_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'application/pdf',
-  'text/plain',
-])
-
 // Liste d'extensions pour l'attribut accept : filtre la boite de dialogue du
 // systeme, ce qui evite la plupart des refus avant meme la validation.
 const ACCEPT = Object.values(ALLOWED_FILE_TYPES).flat().join(',')
