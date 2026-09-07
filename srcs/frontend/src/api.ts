@@ -1,6 +1,7 @@
-// [CONCEPT: helper API] Centralise tous les appels HTTP vers le backend.
-// Pourquoi un fichier a part : App.tsx reste concentre sur l'affichage,
-// et on evite de repeter "credentials: include" ou le header Authorization partout.
+// Centralise tous les appels HTTP vers le backend : les composants n'ont ainsi ni
+// "credentials: include" ni en-tete Authorization a repeter.
+
+// --- Authentification -------------------------------------------------------
 
 export type AuthUser = {
   id: string
@@ -10,21 +11,19 @@ export type AuthUser = {
   avatarUrl: string | null
   createdAt: string
   updatedAt: string
-  // Etat de la double authentification, aplati par le backend depuis la relation
-  // Credential (voir USER_PUBLIC_SELECT / toPublicUser cote users.service.ts).
-  // Toujours false pour un compte OAuth pur : sans mot de passe, pas de 2FA.
+  // Aplati par le backend depuis la relation Credential. Toujours false pour un
+  // compte OAuth pur : sans mot de passe, pas de 2FA.
   twoFactorEnabled: boolean
 }
 
 type TokenResponse = { accessToken: string }
 
-// Petit wrapper : lance une requete JSON et transforme un statut d'erreur HTTP
-// en exception JS exploitable avec un try/catch cote appelant.
+// Transforme un statut d'erreur HTTP en exception exploitable par l'appelant.
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
     ...init,
-    // ESSENTIEL : sans ca, le cookie httpOnly du refresh token ne part JAMAIS
-    // et le navigateur ignore aussi le Set-Cookie renvoye par le backend.
+    // Sans ca, le cookie httpOnly du refresh token ne part jamais et le navigateur
+    // ignore le Set-Cookie renvoye par le backend.
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
@@ -33,7 +32,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
 
   if (!res.ok) {
-    // Le backend Nest renvoie { message: "..." } sur les erreurs (ConflictException etc.).
+    // Nest renvoie { message: "..." } sur ses exceptions.
     const body = await res.json().catch(() => null)
     throw new Error(body?.message ?? `Erreur HTTP ${res.status}`)
   }
@@ -48,7 +47,6 @@ export function signup(data: { email: string; password: string; displayName: str
   })
 }
 
-// MODIFIE : login() accepte maintenant un totpCode optionnel.
 export function login(data: { email: string; password: string; totpCode?: string }) {
   return request<TokenResponse>('/auth/login', {
     method: 'POST',
@@ -56,8 +54,6 @@ export function login(data: { email: string; password: string; totpCode?: string
   })
 }
 
-// Utilise le cookie refreshToken (envoye automatiquement par le navigateur)
-// pour obtenir un nouvel access token, sans redemander email/password.
 export function refresh() {
   return request<TokenResponse>('/auth/refresh', { method: 'POST' })
 }
@@ -66,22 +62,19 @@ export function logout() {
   return request<{ success: boolean }>('/auth/logout', { method: 'POST' })
 }
 
-// Necessite l'access token en cours : on le passe explicitement (il vit dans le
-// state React de App.tsx, pas dans ce fichier, pour rester visible/controlable).
+// L'access token est passe explicitement : il vit dans le contexte React, pas ici.
 export function me(accessToken: string) {
   return request<AuthUser>('/users/me', {
     headers: { Authorization: `Bearer ${accessToken}` }
   })
 }
 
-// AJOUT : recupere la liste des avatars disponibles. Route publique, pas besoin
-// de token — appelable meme depuis un formulaire de signup si besoin plus tard.
+// --- Profil -----------------------------------------------------------------
+
 export function fetchAvatarPresets() {
   return request<string[]>('/users/avatar-presets')
 }
 
-// AJOUT : change l'avatar du user connecte. Necessite l'access token, comme me().
-// Renvoie le user complet mis a jour (avatarUrl inclus).
 export function selectAvatar(accessToken: string, avatarUrl: string) {
   return request<AuthUser>('/users/me/avatar', {
     method: 'PATCH',
@@ -90,8 +83,6 @@ export function selectAvatar(accessToken: string, avatarUrl: string) {
   })
 }
 
-// AJOUT : modifie displayName et/ou email. Les deux champs sont optionnels dans
-// le body : n'envoie que ce qui a reellement change.
 export function updateProfile(
   accessToken: string,
   data: { email?: string; displayName?: string }
@@ -103,7 +94,6 @@ export function updateProfile(
   })
 }
 
-// AJOUT : change le mot de passe. Renvoie juste { success: true }, pas un user.
 export function changePassword(
   accessToken: string,
   data: { currentPassword: string; newPassword: string }
@@ -115,7 +105,8 @@ export function changePassword(
   })
 }
 
-// AJOUT : lance l'activation, renvoie le QR code a afficher.
+// --- 2FA --------------------------------------------------------------------
+
 export function setupTwoFactor(accessToken: string) {
   return request<{ qrCodeDataUrl: string }>('/auth/2fa/setup', {
     method: 'POST',
@@ -123,7 +114,6 @@ export function setupTwoFactor(accessToken: string) {
   })
 }
 
-// AJOUT : confirme le premier code, active reellement la 2FA.
 export function confirmTwoFactor(accessToken: string, totpCode: string) {
   return request<{ success: boolean }>('/auth/2fa/confirm', {
     method: 'POST',
@@ -132,7 +122,6 @@ export function confirmTwoFactor(accessToken: string, totpCode: string) {
   })
 }
 
-// AJOUT : desactive la 2FA.
 export function disableTwoFactor(accessToken: string) {
   return request<{ success: boolean }>('/auth/2fa/disable', {
     method: 'POST',
@@ -140,22 +129,17 @@ export function disableTwoFactor(accessToken: string) {
   })
 }
 
+// --- Projets et taches : types ----------------------------------------------
 
-// =============================================================================
-// AJOUT NY : projets (Organization) et taches (Task).
-// VOCABULAIRE : le backend nomme "Organization" ce que l'interface appelle
-// "projet". On garde le nom backend dans les types (fidelite a l'API) et on
-// traduit uniquement a l'affichage.
-// =============================================================================
+// Le backend nomme "Organization" ce que l'interface appelle "projet" : on garde
+// le nom backend dans les types et on ne traduit qu'a l'affichage.
 
-// Politique d'invitation : qui peut ajouter un membre au projet.
 export type InvitePolicy = 'ADMIN_ONLY' | 'ANY_MEMBER'
 
-// Statut d'une tache, tel que defini par l'enum Prisma TaskStatus.
 export type TaskStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'DONE'
 
-// Forme renvoyee par l'API pour un projet (aucun include cote backend :
-// ni membres ni taches ne sont joints, il faut les demander separement).
+// Aucun include cote backend : ni membres ni taches ne sont joints, il faut les
+// demander separement.
 export type Organization = {
   id: string
   name: string
@@ -165,7 +149,6 @@ export type Organization = {
   updatedAt: string
 }
 
-// Forme renvoyee par l'API pour une tache (idem : pas d'include).
 export type Task = {
   id: string
   name: string
@@ -179,53 +162,46 @@ export type Task = {
   updatedAt: string
 }
 
-// [CONCEPT: routes protegees] Toutes les routes ci-dessous exigent le jeton
-// d'acces. On construit donc l'en-tete Authorization au meme endroit plutot que
-// de le repeter dans chaque fonction.
+// --- Routes protegees -------------------------------------------------------
+
+// Toutes les routes ci-dessous exigent le jeton d'acces : l'en-tete est construit
+// ici plutot que repete dans chaque fonction.
 function auth(accessToken: string) {
   return { Authorization: `Bearer ${accessToken}` }
 }
 
-// --- Utilisateurs ------------------------------------------------------------
+// --- Utilisateurs -----------------------------------------------------------
 
-// [SECURITE] Forme renvoyee par l'annuaire. L'ADRESSE E-MAIL EN EST ABSENTE :
-// le backend ne la renvoie plus (liste blanche de champs dans users.service.findAll).
-// C'est une donnee personnelle dont l'annuaire n'a pas besoin.
+// L'adresse e-mail est absente : le backend ne la renvoie plus dans l'annuaire.
 export type PublicUser = {
   id: string
   username: string
   displayName: string
   avatarUrl: string | null
   createdAt: string
-  isOnline?: boolean // AJOUT : présent sur les réponses /friendship/*, absent de /users
+  isOnline?: boolean
 }
 
-// Liste les utilisateurs connus (page Equipe). Route PROTEGEE : jeton obligatoire.
 export function listUsers(accessToken: string) {
   return request<PublicUser[]>('/users', { headers: auth(accessToken) })
 }
 
-// --- Projets -----------------------------------------------------------------
+// --- Projets ----------------------------------------------------------------
 
-// Projets dont l'utilisateur courant est membre actif (le backend filtre deja).
 export function listOrganizations(accessToken: string) {
   return request<Organization[]>('/organizations', { headers: auth(accessToken) })
 }
 
-// Detail d'un projet. Le backend refuse (403) si on n'en est pas membre actif.
 export function getOrganization(accessToken: string, id: string) {
   return request<Organization>(`/organizations/${id}`, { headers: auth(accessToken) })
 }
 
-// [CONCEPT: reponse-enveloppe] Plusieurs routes ne renvoient PAS l'entite mais un
-// accuse de reception : { message, xxxId }. Il faut typer ce qu'elles renvoient
-// VRAIMENT, sinon le code lit des champs inexistants (undefined silencieux).
+// Plusieurs routes ne renvoient pas l'entite mais un accuse de reception : il faut
+// typer ce qu'elles renvoient vraiment, sinon on lit des champs inexistants.
 export type CreatedOrganization = { message: string; organizationId: string }
 export type Ack = { message: string }
 export type TaskAck = { message: string; taskId: string }
 
-// Cree un projet ; le createur en devient automatiquement ADMIN.
-// Renvoie { message, organizationId } et non l'objet Organization complet.
 export function createOrganization(
   accessToken: string,
   data: { name: string; description?: string; invitePolicy?: InvitePolicy },
@@ -237,7 +213,6 @@ export function createOrganization(
   })
 }
 
-// Modifie un projet. Reserve aux ADMIN (le backend le verifie).
 export function updateOrganization(
   accessToken: string,
   id: string,
@@ -250,9 +225,8 @@ export function updateOrganization(
   })
 }
 
-// Supprime definitivement un projet. Reserve aux ADMIN (le backend le verifie).
-// CASCADE : entraine la suppression de toutes les taches, de toutes les
-// appartenances et de tous les fichiers du projet (voir schema.prisma).
+// Cascade : entraine la suppression de toutes les taches, appartenances et
+// fichiers du projet (voir schema.prisma).
 export function deleteOrganization(accessToken: string, id: string) {
   return request<Ack>(`/organizations/${id}`, {
     method: 'DELETE',
@@ -260,7 +234,6 @@ export function deleteOrganization(accessToken: string, id: string) {
   })
 }
 
-// Ajoute un membre au projet (soumis a la politique d'invitation).
 export function addOrganizationMember(accessToken: string, id: string, userId: string) {
   return request<Ack>(`/organizations/${id}/members`, {
     method: 'POST',
@@ -269,7 +242,6 @@ export function addOrganizationMember(accessToken: string, id: string, userId: s
   })
 }
 
-// Quitte un projet.
 export function leaveOrganization(accessToken: string, id: string) {
   return request<Ack>(`/organizations/${id}/members/me`, {
     method: 'DELETE',
@@ -277,22 +249,16 @@ export function leaveOrganization(accessToken: string, id: string) {
   })
 }
 
-// --- Taches ------------------------------------------------------------------
-// Les taches sont IMBRIQUEES sous un projet : /organizations/:id/tasks
+// --- Taches (imbriquees sous un projet) -------------------------------------
 
-// Liste les taches d'un projet.
-// Filtres optionnels cote backend : owned, unassigned, assignedUserIds.
-// Sans filtre, le backend renvoie ce que l'utilisateur a le droit de voir.
 export function listTasks(
   accessToken: string,
   organizationId: string,
   filters?: { owned?: boolean; unassigned?: boolean; assignedUserIds?: string[] },
 ) {
-  // URLSearchParams encode proprement les valeurs (espaces, accents...).
   const params = new URLSearchParams()
   if (filters?.owned !== undefined) params.set('owned', String(filters.owned))
   if (filters?.unassigned !== undefined) params.set('unassigned', String(filters.unassigned))
-  // Le backend attend une liste separee par des virgules (voir le @Transform du DTO).
   if (filters?.assignedUserIds) params.set('assignedUserIds', filters.assignedUserIds.join(','))
   const qs = params.toString()
   return request<Task[]>(`/organizations/${organizationId}/tasks${qs ? `?${qs}` : ''}`, {
@@ -300,9 +266,6 @@ export function listTasks(
   })
 }
 
-// Cree une tache dans un projet.
-// assignToSelf vaut true par defaut cote backend : on l'expose pour pouvoir
-// creer une tache non assignee.
 export function createTask(
   accessToken: string,
   organizationId: string,
@@ -321,7 +284,6 @@ export function createTask(
   })
 }
 
-// Change le statut d'une tache (NOT_STARTED / IN_PROGRESS / DONE).
 export function updateTaskStatus(
   accessToken: string,
   organizationId: string,
@@ -335,9 +297,7 @@ export function updateTaskStatus(
   })
 }
 
-// Modifie le contenu d'une tache (nom, description, dates).
-// ATTENTION : renvoie { message, taskId }, PAS la tache mise a jour.
-// L'appelant doit donc relire la tache avec getTask() s'il veut l'objet a jour.
+// Renvoie { message, taskId }, pas la tache : relire avec getTask() si besoin.
 export function updateTask(
   accessToken: string,
   organizationId: string,
@@ -351,12 +311,10 @@ export function updateTask(
   })
 }
 
-// --- Assignations de taches --------------------------------------------------
+// --- Assignations de taches -------------------------------------------------
 
-// Une assignation telle que renvoyee par l'API : la ligne de jointure, avec le
-// membre d'organisation associe. Attention, "member" est un OrganizationMember,
-// PAS un User : il porte userId, pas displayName. Il faut croiser avec
-// listOrganizationMembers pour afficher un nom.
+// "member" est un OrganizationMember, pas un User : il porte userId, pas
+// displayName. Croiser avec listOrganizationMembers pour afficher un nom.
 export type TaskAssignment = {
   taskId: string
   memberId: string
@@ -368,7 +326,6 @@ export type TaskAssignment = {
   }
 }
 
-// Liste les personnes assignees a une tache.
 export function listTaskAssignments(accessToken: string, organizationId: string, taskId: string) {
   return request<TaskAssignment[]>(
     `/organizations/${organizationId}/tasks/${taskId}/assignments`,
@@ -376,10 +333,9 @@ export function listTaskAssignments(accessToken: string, organizationId: string,
   )
 }
 
-// Assigne un membre a une tache.
-// REGLES BACKEND : le proprietaire de la tache et les administrateurs peuvent
-// assigner n'importe qui ; tout autre membre ne peut s'assigner LUI-MEME, et
-// seulement si la tache n'a encore AUCUN assigne.
+// Regles backend : le proprietaire de la tache et les administrateurs peuvent
+// assigner n'importe qui ; tout autre membre ne peut s'assigner que lui-meme, et
+// seulement si la tache n'a encore aucun assigne.
 export function assignTaskMember(
   accessToken: string, organizationId: string, taskId: string, memberUserId: string,
 ) {
@@ -390,8 +346,7 @@ export function assignTaskMember(
   })
 }
 
-// Retire une assignation.
-// REGLES BACKEND : le proprietaire et les administrateurs peuvent retirer
+// Regles backend : le proprietaire et les administrateurs peuvent retirer
 // n'importe qui ; les autres ne peuvent retirer qu'eux-memes.
 export function removeTaskAssignment(
   accessToken: string, organizationId: string, taskId: string, memberUserId: string,
@@ -402,7 +357,6 @@ export function removeTaskAssignment(
   )
 }
 
-// Supprime une tache.
 export function deleteTask(accessToken: string, organizationId: string, taskId: string) {
   return request<TaskAck>(`/organizations/${organizationId}/tasks/${taskId}`, {
     method: 'DELETE',
@@ -410,19 +364,17 @@ export function deleteTask(accessToken: string, organizationId: string, taskId: 
   })
 }
 
-
-// --- Amitié --------------------------------------------------------------
+// --- Amities ----------------------------------------------------------------
 
 export type FriendshipStatus = 'PENDING' | 'ACCEPTED'
 
-// Un ami tel que renvoyé par GET /friendship : le backend a déjà résolu
-// "l'autre" utilisateur (requester ou receiver selon qui a envoyé la demande).
+// Le backend a deja resolu "l'autre" utilisateur (requester ou receiver selon
+// qui a envoye la demande).
 export type Friend = {
   friendshipId: string
   user: PublicUser
 }
 
-// Une demande en attente (recue ou envoyee), avec l'autre utilisateur inclus.
 export type FriendRequest = {
   id: string
   status: FriendshipStatus
@@ -431,20 +383,16 @@ export type FriendRequest = {
   receiver?: PublicUser
 }
 
-// Recherche d'utilisateurs par nom/identifiant, pour ajouter un ami.
-// Distinct de listUsers() : celle-ci cible specifiquement /friendship/search
-// (exclut deja soi-meme cote backend).
+// Distinct de listUsers() : cible /friendship/search, qui exclut deja soi-meme.
 export function searchUsers(accessToken: string, query: string) {
   const params = new URLSearchParams({ q: query })
   return request<PublicUser[]>(`/friendship/search?${params.toString()}`, {
     headers: auth(accessToken),
   })
 }
-// --- Membres d'un projet -----------------------------------------------------
-// Cette route existe desormais cote backend (findAllMembers) : la page projet peut
-// enfin afficher les membres, leurs roles et le tag administrateur.
 
-// Forme exacte renvoyee par GET /organizations/:id/members.
+// --- Membres d'un projet ----------------------------------------------------
+
 // Le backend selectionne volontairement peu de champs : ni e-mail ni date.
 export type OrganizationMember = {
   id: string
@@ -456,29 +404,24 @@ export type OrganizationMember = {
   }
 }
 
-// Liste les membres ACTIFS d'un projet (le backend exclut ceux qui l'ont quitte).
 export function listOrganizationMembers(accessToken: string, organizationId: string) {
   return request<OrganizationMember[]>(`/organizations/${organizationId}/members`, {
     headers: auth(accessToken),
   })
 }
 
-// Liste des amis actuels (statut ACCEPTED, dans les deux sens).
 export function listFriends(accessToken: string) {
   return request<Friend[]>('/friendship', { headers: auth(accessToken) })
 }
 
-// Demandes recues en attente (quelqu'un veut m'ajouter).
 export function listPendingRequests(accessToken: string) {
   return request<FriendRequest[]>('/friendship/pending', { headers: auth(accessToken) })
 }
 
-// Demandes envoyees en attente (j'attends une reponse).
 export function listSentRequests(accessToken: string) {
   return request<FriendRequest[]>('/friendship/sent', { headers: auth(accessToken) })
 }
 
-// Envoie une demande d'ami par username.
 export function sendFriendRequest(accessToken: string, username: string) {
   return request<FriendRequest>('/friendship/request', {
     method: 'POST',
@@ -487,14 +430,12 @@ export function sendFriendRequest(accessToken: string, username: string) {
   })
 }
 
-// Accepte une demande recue.
 export function acceptFriendRequest(accessToken: string, friendshipId: string) {
   return request<FriendRequest>(`/friendship/${friendshipId}/accept`, {
     method: 'PATCH',
     headers: auth(accessToken),
   })
 }
-// Promeut un membre en administrateur. Reserve aux administrateurs.
 export function promoteMember(accessToken: string, organizationId: string, targetUserId: string) {
   return request<Ack>(`/organizations/${organizationId}/members/${targetUserId}/promote`, {
     method: 'PATCH',
@@ -502,16 +443,14 @@ export function promoteMember(accessToken: string, organizationId: string, targe
   })
 }
 
-// Meme route pour 3 usages : refuser une demande recue, annuler une demande
-// envoyee, ou retirer un ami existant — le backend verifie juste qu'on fait
-// partie de la relation.
+// Meme route pour trois usages : refuser une demande recue, annuler une demande
+// envoyee, ou retirer un ami existant.
 export function removeFriendship(accessToken: string, friendshipId: string) {
   return request<{ success: boolean }>(`/friendship/${friendshipId}`, {
     method: 'DELETE',
     headers: auth(accessToken),
   })
 }
-// Retrograde un administrateur en membre simple.
 // Le backend refuse s'il s'agit du dernier administrateur du projet.
 export function demoteMember(accessToken: string, organizationId: string, targetUserId: string) {
   return request<Ack>(`/organizations/${organizationId}/members/${targetUserId}/demote`, {
@@ -520,7 +459,6 @@ export function demoteMember(accessToken: string, organizationId: string, target
   })
 }
 
-// Exclut un membre du projet. Reserve aux administrateurs.
 // Le backend interdit a un administrateur de s'exclure lui-meme (il doit "quitter").
 export function removeMember(accessToken: string, organizationId: string, targetUserId: string) {
   return request<Ack>(`/organizations/${organizationId}/members/${targetUserId}`, {
@@ -531,8 +469,6 @@ export function removeMember(accessToken: string, organizationId: string, target
 
 // --- Chat -------------------------------------------------------------------
 
-// Forme d'un message tel que renvoyé par GET /organizations/:id/messages.
-// L'auteur est enrichi de la relation OrganizationMember -> User côté backend.
 export type ChatMessage = {
   id: string
   content: string
@@ -544,40 +480,33 @@ export type ChatMessage = {
   }
 }
 
-// Historique des messages d'un projet. `before` sert a paginer en remontant
-// dans le temps (createdAt du plus ancien message deja charge).
+// `before` pagine en remontant dans le temps (createdAt du plus ancien message
+// deja charge).
 export function listMessages(accessToken: string, organizationId: string, before?: string) {
   const params = before ? `?before=${encodeURIComponent(before)}` : ''
   return request<ChatMessage[]>(`/organizations/${organizationId}/messages${params}`, {
     headers: auth(accessToken),
   })
 }
-// --- Relecture d'une tache ---------------------------------------------------
 
-// Recharge une tache depuis l'API.
-// Necessaire apres updateTask(), qui ne renvoie qu'un accuse de reception.
+// Recharge une tache : necessaire apres updateTask(), qui ne renvoie qu'un accuse.
 export function getTask(accessToken: string, organizationId: string, taskId: string) {
   return request<Task>(`/organizations/${organizationId}/tasks/${taskId}`, {
     headers: auth(accessToken),
   })
 }
 
-export function deleteAccount(accessToken: string) { // pour supprimer un compte
+export function deleteAccount(accessToken: string) {
   return request<{ success: boolean }>('/users/me', {
     method: 'DELETE',
     headers: auth(accessToken),
   })
 }
 
-  // --- Fichiers -----------------------------------------------------------------
+// --- Fichiers de projet -----------------------------------------------------
 
-// Politique de visibilite d'un fichier, telle que definie par l'enum Prisma
-// VisibilityPolicy.
 export type VisibilityPolicy = 'PRIVATE' | 'RESTRICTED' | 'ALL_MEMBERS'
 
-// Forme renvoyee par l'API pour un fichier.
-// Un fichier appartient a un seul projet (Organization) et son proprietaire
-// est un OrganizationMember, represente ici par ownerId.
 export type ProjectFile = {
   id: string
   name: string
@@ -660,9 +589,8 @@ export async function downloadProjectFile(accessToken: string, organizationId: s
   return res.blob()
 }
 
-// Supprime un fichier. Reserve a son proprietaire et aux ADMIN du projet (le
-// backend le verifie). La route repond l'identifiant en texte brut, pas du
-// JSON : on n'essaie donc pas de parser le corps en cas de succes.
+// Reserve au proprietaire du fichier et aux ADMIN du projet. La route repond
+// l'identifiant en texte brut, pas du JSON : on ne parse pas le corps en cas de succes.
 export async function deleteProjectFile(
   accessToken: string, organizationId: string, fileId: string,
 ) {

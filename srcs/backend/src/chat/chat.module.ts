@@ -7,6 +7,6 @@ import { PrismaModule } from '../prisma/prisma.module'
   imports: [PrismaModule],
   controllers: [MessageController],
   providers: [MessageService],
-  exports: [MessageService], // pour que RealtimeModule puisse l'injecter dans la gateway
+  exports: [MessageService], // injecte dans la gateway par RealtimeModule
 })
 export class ChatModule {}

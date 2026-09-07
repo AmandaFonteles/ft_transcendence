@@ -1,8 +1,4 @@
-// =============================================================================
-// LoginPage.tsx : connexion / inscription / OAuth.
-// La LOGIQUE vient du banc de test ecrit par Qu ; elle est ici branchee sur le
-// contexte d'authentification et habillee avec le systeme de design.
-// =============================================================================
+// Connexion, inscription et OAuth.
 
 import { useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
@@ -129,7 +125,7 @@ export default function LoginPage() {
         <div className="border-t border-rule my-4" />
 
         <p className="text-[13.5px] text-ink-soft mb-2">Ou continuer avec :</p>
-        {/* [CONCEPT: OAuth par navigation complete] Ces liens ne sont PAS des appels
+        {/* Ces liens ne sont PAS des appels
             fetch : le navigateur doit quitter la page vers le fournisseur, qui
             redirige ensuite vers /#oauth=<jeton>, lu par AuthContext. Un fetch ne
             pourrait pas suivre cette redirection inter-domaines. */}

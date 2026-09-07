@@ -2,12 +2,11 @@ import { ArrayMaxSize, IsBoolean, IsOptional, Matches } from 'class-validator'
 import { Transform } from 'class-transformer'
 import { LIMITS, RESOURCE_ID_PATTERN } from '../../common/validation'
 
-// [CONCEPT: parametres de requete] Tout ce qui arrive dans une URL est une CHAINE :
-// "?owned=true" donne la chaine "true", pas le booleen. D'ou les @Transform, qui
-// s'executent avant les validateurs (transform: true dans le ValidationPipe).
+// Tout ce qui arrive dans une URL est une chaine : "?owned=true" donne "true",
+// pas le booleen. D'ou les @Transform, qui s'executent avant les validateurs.
+// Une valeur autre que "true"/"false" est laissee telle quelle et echoue alors
+// sur @IsBoolean, plutot que de passer en silence.
 export class TaskVisibilityFilterDto {
-	// Une valeur autre que "true"/"false" est laissee telle quelle et echoue alors
-	// sur @IsBoolean : "?owned=peutetre" repond 400, il ne passe pas en silence.
 	@Transform(({ value }) => value === 'true' ? true : value === 'false' ? false : value)
 	@IsOptional()
 	@IsBoolean()
@@ -24,14 +23,11 @@ export class TaskVisibilityFilterDto {
 	return value.split(',')
 	})
 	@IsOptional()
-	// PLAFOND SUR LE NOMBRE D'ELEMENTS : sans lui, "?assignedUserIds=a,b,c,..."
-	// repete des milliers de fois se traduirait en une clause SQL "IN (...)" geante,
-	// construite a la demande d'un client anonyme. La borne rend le cout previsible.
+	// Plafond sur le nombre d'elements : borne la clause SQL "IN (...)" generee.
+	// "each: true" applique la regle de forme a chaque identifiant du tableau.
 	@ArrayMaxSize(LIMITS.FILTER_IDS_MAX, {
 		message: `pas plus de ${LIMITS.FILTER_IDS_MAX} identifiants par filtre`,
 	})
-	// "each: true" applique la regle a CHAQUE element du tableau : un seul
-	// identifiant malforme suffit a refuser la requete.
 	@Matches(RESOURCE_ID_PATTERN, { each: true, message: 'identifiant invalide dans le filtre' })
 	assignedUserIds?: string[]
 

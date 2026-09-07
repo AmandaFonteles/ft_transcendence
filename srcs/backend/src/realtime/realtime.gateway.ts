@@ -1,35 +1,19 @@
-// =============================================================================
-// realtime.gateway.ts : LE point d'entree WebSocket du projet.
-// [CONCEPT: gateway NestJS] Un gateway est a WebSocket ce qu'un controller est a
-// HTTP : il declare des handlers d'evenements au lieu de routes. Meme injection de
-// dependances, meme cycle de vie.
-// =============================================================================
+// Point d'entree WebSocket du projet : un gateway est a WebSocket ce qu'un
+// controller est a HTTP (handlers d'evenements au lieu de routes).
 
-// Importe le logger de Nest (journalisation coherente avec le reste de l'app).
 import { Logger, Inject, forwardRef } from '@nestjs/common'
-// Importe les decorateurs et interfaces WebSocket de Nest.
 import {
-  // Marque une methode comme handler d'un evenement entrant.
   SubscribeMessage,
-  // Declare la classe comme gateway WebSocket.
   WebSocketGateway,
-  // Injecte l'instance serveur Socket.IO dans une propriete.
   WebSocketServer,
-  // Interfaces de cycle de vie : appelees a la connexion / deconnexion d'un client.
   OnGatewayConnection,
   OnGatewayDisconnect,
-  // Extrait la socket cliente dans un handler.
   ConnectedSocket,
-  // Extrait le payload (corps) de l'evenement recu.
   MessageBody,
 } from '@nestjs/websockets'
-// Importe les types Socket.IO (Server = le hub, Socket = une connexion cliente).
 import { Server, Socket } from 'socket.io'
-// Importe le service JWT : c'est lui qui verifie le jeton presente au handshake.
 import { JwtService } from '@nestjs/jwt'
-// Importe le registre de presence.
 import { PresenceRegistry } from './presence.registry'
-// Importe le contrat partage (noms d'evenements, helper de room, types de payloads).
 import { MessageService } from '../chat/message.service'
 import {
   ClientEvents,
@@ -45,25 +29,18 @@ import { LIMITS, RESOURCE_ID_PATTERN } from '../common/validation'
 import { UsersService } from '../users/users.service'
 import { FriendshipService } from '../friendship/friendship.service'
 
-// [CONCEPT: chemin Socket.IO] "path" doit correspondre EXACTEMENT a la regle nginx
-// qui proxifie le WebSocket. Socket.IO utilise /socket.io/ par defaut ; on l'ecrit
-// explicitement pour rendre le couplage avec nginx.conf visible et intentionnel.
-// Pas de "cors" ici : tout passe par nginx en meme origine, donc aucun CORS a gerer.
+// "path" doit correspondre exactement a la regle nginx qui proxifie le
+// WebSocket. Pas de "cors" : tout passe par nginx en meme origine.
 @WebSocketGateway({ path: '/socket.io' })
-// Implemente les deux hooks de cycle de vie pour gerer connexion et deconnexion.
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
-  // Injecte l'instance du serveur Socket.IO (permet d'emettre vers n'importe quelle room).
   @WebSocketServer()
   private server!: Server
 
-  // Logger nomme : les messages apparaitront prefixes par "RealtimeGateway".
   private readonly logger = new Logger(RealtimeGateway.name)
 
-  // Injection du registre de presence (fourni par RealtimeModule).
   constructor(
     private readonly presence: PresenceRegistry,
     private readonly messages: MessageService,
-    // Verification du jeton d'acces presente au handshake (voir handleConnection).
     private readonly jwt: JwtService,
     @Inject(forwardRef(() => UsersService))
     private readonly users: UsersService,
@@ -71,34 +48,18 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     private readonly friendship: FriendshipService,
   ) {}
 
-  // -------------------------------------------------------------------------
-  // Cycle de vie
-  // -------------------------------------------------------------------------
+  // --- Cycle de vie ---------------------------------------------------------
 
-  // Refuse une socket en expliquant pourquoi AVANT de la fermer.
-  // L'ordre compte : en appelant disconnect() d'abord, le client ne recevrait
-  // jamais le message et verrait une coupure silencieuse, impossible a
-  // diagnostiquer. Le "true" ferme la connexion sous-jacente au lieu de la
-  // laisser ouverte en attente.
+  // Emettre AVANT de fermer : dans l'autre ordre le client ne recevrait jamais
+  // le message et verrait une coupure silencieuse.
   private rejectConnection(client: Socket, message: string): void {
     client.emit(ServerEvents.ERROR, { message })
     client.disconnect(true)
   }
 
-  // [SECURITE] Le handshake est le SEUL endroit ou l'identite d'une socket est
-  // etablie : tout le reste du gateway lit ensuite cette identite dans le
-  // PresenceRegistry. Il doit donc etre aussi strict qu'un guard HTTP.
-  //
-  // AVANT, le client envoyait { userId, displayName } et on le croyait sur
-  // parole. N'importe qui pouvait alors ouvrir une socket en se declarant
-  // quelqu'un d'autre : lire le chat des projets de sa cible, y poster en son
-  // nom, et manipuler son statut en ligne. Une room n'est PAS une protection si
-  // l'identite qui y entre n'est pas verifiee.
-  //
-  // MAINTENANT, le client envoie { token } : le meme jeton d'acces que pour les
-  // routes HTTP. On le verifie ici exactement comme le fait JwtStrategy cote
-  // HTTP (meme secret, signature + expiration), et l'identite vient de la BASE,
-  // jamais du client.
+  // Le handshake est le seul endroit ou l'identite d'une socket est etablie :
+  // le reste du gateway la lit ensuite dans le PresenceRegistry. Le client
+  // envoie un jeton d'acces, jamais un userId qu'on croirait sur parole.
   async handleConnection(client: Socket): Promise<void> {
     const { token } = client.handshake.auth as { token?: string }
 
@@ -109,9 +70,6 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     let userId: string
     try {
-      // Meme secret que l'access token signe par AuthService.issueTokens().
-      // verifyAsync leve si la signature est invalide OU si le jeton a expire :
-      // un jeton perime ne donne donc pas plus de droits qu'un jeton forge.
       const payload = await this.jwt.verifyAsync<{ sub: string }>(token, {
         secret: process.env.JWT_ACCESS_SECRET,
       })
@@ -121,10 +79,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       return
     }
 
-    // Le displayName vient de la BASE, pas du handshake : le client ne choisit
-    // plus le nom sous lequel il apparait aux autres. Ca ferme au passage
-    // l'usurpation d'affichage (se connecter avec le nom de quelqu'un d'autre).
-    // Un compte supprime entre l'emission du jeton et la connexion tombe ici.
+    // Le displayName vient de la base, pas du handshake : ferme l'usurpation
+    // d'affichage et attrape un compte supprime depuis l'emission du jeton.
     const account = await this.users.findById(userId)
     if (!account) {
       this.rejectConnection(client, 'compte introuvable')
@@ -137,11 +93,10 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
 
     this.presence.register(client.id, user)
-    // Room personnelle : c'est par la que ses amis recevront son changement de statut.
+    // Room personnelle : c'est par la que ses amis recoivent son changement de statut.
     await client.join(userRoom(user.userId))
 
-    // Passe en ligne UNIQUEMENT a la premiere socket connectee (evite les
-    // ecritures redondantes si l'utilisateur a plusieurs onglets ouverts).
+    // Passe en ligne uniquement a la premiere socket (plusieurs onglets possibles).
     if (!this.presence.hasAnyOtherSocket(user.userId, client.id)) {
       await this.users.setOnlineStatus(user.userId, true)
       const friendIds = await this.friendship.getFriendIds(user.userId)
@@ -153,15 +108,10 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     this.logger.log(`connexion ${client.id} (user ${user.userId})`)
   }
 
-  // Appele automatiquement quand un client se deconnecte (fermeture, reseau, onglet ferme).
   async handleDisconnect(client: Socket): Promise<void> {
-    // Retire la socket du registre et recupere son etat pour prevenir les amis.
     const state = this.presence.unregister(client.id)
-    // Rien a faire si la socket n'etait pas enregistree (refusee a la connexion).
     if (!state) return
 
-    // Passe hors ligne seulement si aucune autre socket ne reste : fermer un
-    // onglet sur trois ne doit pas faire disparaitre l'utilisateur.
     if (!this.presence.hasAnyOtherSocket(state.user.userId, client.id)) {
       await this.users.setOnlineStatus(state.user.userId, false)
       const friendIds = await this.friendship.getFriendIds(state.user.userId)
@@ -169,28 +119,21 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
         this.server.to(userRoom(friendId)).emit(ServerEvents.USER_OFFLINE, { userId: state.user.userId, isOnline: false })
       }
     }
-    // Trace de deconnexion.
+
+    // Socket.IO retire automatiquement la socket de ses rooms a la deconnexion.
     this.logger.log(`deconnexion ${client.id}`)
-    // NB : Socket.IO retire automatiquement la socket de ses rooms a la deconnexion.
   }
 
-  // -------------------------------------------------------------------------
-  // Handlers d'evenements
-  // -------------------------------------------------------------------------
+  // --- Handlers d'evenements ------------------------------------------------
 
-  // [CONCEPT: les DTO ne protegent PAS le WebSocket] Le ValidationPipe global de
-  // main.ts s'applique aux requetes HTTP ; un message Socket.IO n'en voit rien.
-  // Le payload arrive tel que le client l'a serialise — n'importe quel type,
-  // n'importe quelle taille. Chaque handler doit donc valider a la main ce qu'un
-  // DTO ferait automatiquement cote HTTP.
-  // On ne branche pas de ValidationPipe sur @MessageBody() a dessein : il leverait
-  // une WsException, que Nest publie sur l'evenement "exception" — alors que le
-  // client ecoute "realtime:error" pour afficher un message lisible.
+  // Le ValidationPipe global ne s'applique qu'au HTTP : chaque handler valide a
+  // la main ce qu'un DTO ferait automatiquement. On ne branche pas de pipe sur
+  // @MessageBody() a dessein, il leverait une WsException sur l'evenement
+  // "exception" alors que le client ecoute "realtime:error".
   private isValidResourceId(value: unknown): value is string {
     return typeof value === 'string' && RESOURCE_ID_PATTERN.test(value)
   }
 
-  // Handler de "org:join" : rejoindre la room de chat d'un projet.
   @SubscribeMessage(ClientEvents.JOIN_ORG)
   async handleJoinOrg(
     @ConnectedSocket() client: Socket,
@@ -214,7 +157,6 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     client.emit(ServerEvents.ORG_JOINED, { organizationId: payload.organizationId })
   }
 
-  // Handler de "org:leave".
   @SubscribeMessage(ClientEvents.LEAVE_ORG)
   async handleLeaveOrg(
     @ConnectedSocket() client: Socket,
@@ -224,7 +166,6 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     await client.leave(orgRoom(payload.organizationId))
   }
 
-  // Handler de "message:send" : le coeur du chat.
   @SubscribeMessage(ClientEvents.MESSAGE_SEND)
   async handleSendMessage(
     @ConnectedSocket() client: Socket,
@@ -238,16 +179,12 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       return
     }
 
-    // Le contenu doit etre une CHAINE : sans ce test, un client envoyant un objet
-    // ou un nombre ferait echouer .trim() et planter le handler.
+    // Sans ce test, un objet ou un nombre ferait echouer .trim() plus bas.
     if (typeof payload?.content !== 'string') {
       client.emit(ServerEvents.ERROR, { message: 'contenu de message invalide' })
       return
     }
 
-    // On travaille sur la version rognee, et c'est ELLE qu'on enregistre : sinon
-    // un message "   \n  " serait stocke, occuperait une ligne dans la
-    // conversation et n'afficherait rien.
     const content = payload.content.trim()
 
     if (content.length === 0) {
@@ -255,12 +192,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       return
     }
 
-    // PLAFOND DE LONGUEUR : c'est la limite la plus importante du projet cote
-    // ecriture. Le champ Message.content est un "text" PostgreSQL, donc sans
-    // borne : sans ce test, une seule socket authentifiee pouvait ecrire des
-    // messages de plusieurs megaoctets en boucle et remplir la base. Le front
-    // borne aussi la saisie, mais le front ne protege personne : le message part
-    // d'un socket.emit() que n'importe qui peut appeler depuis la console.
+    // Message.content est un "text" PostgreSQL, donc sans borne : sans ce plafond,
+    // une socket authentifiee peut remplir la base depuis la console du navigateur.
     if (content.length > LIMITS.MESSAGE_CONTENT_MAX) {
       client.emit(ServerEvents.ERROR, {
         message: `un message ne peut pas depasser ${LIMITS.MESSAGE_CONTENT_MAX} caracteres`,
@@ -292,12 +225,10 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     })
   }
 
-  // Permet a d'autres modules (friendship) de pousser un evenement cible a UN
-  // utilisateur, sans connaitre Socket.IO : ils appellent juste cette methode.
-  // Diffuse un evenement a TOUS les membres presents dans le salon d'un projet.
-  // Pendant de notifyUser, mais a l'echelle d'une organisation.
+  // --- Diffusion depuis les autres modules ----------------------------------
+
   // Le salon n'est peuple que de sockets ayant passe le controle d'appartenance
-  // de handleJoinOrg : diffuser ici ne fuite donc rien a un non-membre.
+  // de handleJoinOrg : diffuser ici ne fuite rien a un non-membre.
   notifyOrganization(organizationId: string, event: string, payload: unknown): void {
     this.server.to(orgRoom(organizationId)).emit(event, payload)
   }

@@ -10,7 +10,6 @@ import { UpdateFileDto } from './dto/update-file.dto'
 
 @Injectable()
 export class FilesService {
-
   constructor(private readonly prisma: PrismaService, private readonly orgaServ: OrganizationsService, private readonly storage: StorageService) {}
 
   async uploadFile(data: CreateFileDto, organizationId: string, requesterId: string, file: Express.Multer.File) {
@@ -236,7 +235,6 @@ export class FilesService {
     }
   })
 }
-
 
   async addFileAccess(fileId: string, targetUserId: string, requesterId: string, organizationId: string) {
 	const file = await this.findFileById(fileId, requesterId, organizationId)

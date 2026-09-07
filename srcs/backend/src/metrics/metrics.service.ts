@@ -1,7 +1,3 @@
-// Make the backend expose a Prometheus-format /api/metrics endpoint carrying per-route HTTP metrics
-//  plus Node.js runtime metrics, and add a backend scrape job so Prometheus collects them.
-
-//import metrics
 import { Injectable } from '@nestjs/common';
 import {
 	Counter,
@@ -12,17 +8,16 @@ import {
 } from 'prom-client';
 
 @Injectable()
+// Expose les metriques HTTP par route plus les metriques runtime Node, au format
+// Prometheus, sur /api/metrics.
 export class MetricsService {
-	// Creating a Registry
 	public readonly registry = new Registry();
 
-	//init metrics
 	public readonly httpRequestsTotal: Counter<'method' | 'route' | 'status'>;
 	public readonly httpRequestDuration: Histogram<'method' | 'route' | 'status'>;
 	public readonly httpRequestsInFlight: Gauge<'method'>;
 
 	constructor() {
-		//collect metrics
 		collectDefaultMetrics({ register: this.registry });
 
 		this.httpRequestsTotal = new Counter({
@@ -40,7 +35,6 @@ export class MetricsService {
 			registers: [this.registry],
 		});
 
-		//we use just method label here to keep the cardinality low
 		this.httpRequestsInFlight = new Gauge({
 			name: 'http_requests_in_flight',
 			help: 'Number of HTTP requests currently being processed.',
@@ -49,6 +43,7 @@ export class MetricsService {
 		});
 	}
 
+	// Seul le label "method" est ajoute au vol : garde la cardinalite basse.
 	observeRequest(
 		method: string,
 		route: string,

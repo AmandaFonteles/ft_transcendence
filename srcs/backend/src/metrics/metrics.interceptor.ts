@@ -1,8 +1,3 @@
-// Interceptor - piece of code that runs before a controller does its work and 
-// can react again when the work is finished. We use this interceptor here to
-// collect the metrics of the backend, since NestJS doesn't already have the data we need (like nginx and postgres)
-// intercept does that job. We need to call next.handle() to actualy run the controller.
-
 import {
   CallHandler,
   ExecutionContext,
@@ -16,15 +11,17 @@ import { MetricsService } from './metrics.service';
 const METRICS_ROUTE = '/api/metrics';
 
 @Injectable()
+// Un interceptor s'execute avant le controller et reagit a nouveau une fois le
+// travail termine : c'est la qu'on mesure la duree d'une requete.
 export class MetricsInterceptor implements NestInterceptor {
   constructor(private readonly metrics: MetricsService) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    // Un evenement WebSocket n'a pas de reponse HTTP a mesurer.
     if (context.getType() !== 'http') {
       return next.handle();
     }
 
-	// WebSocket event don't have http response, so we need switch to http
     const req = context.switchToHttp().getRequest<Request>();
     const res = context.switchToHttp().getResponse<Response>();
 
@@ -52,7 +49,7 @@ export class MetricsInterceptor implements NestInterceptor {
   private getRoute(req: Request): string {
     const pattern = req.route?.path;
     if (!pattern) {
-      return 'unmatched'; 
+      return 'unmatched';
     }
     return req.baseUrl + pattern;
   }

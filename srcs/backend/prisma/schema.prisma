@@ -1,116 +1,65 @@
-// =============================================================================
-// schema.prisma : LA source de verite des donnees.
-// Chaque coequipier ajoutera ici SES modeles en suivant prisma/InstructionsPrisma.md.
-// C'est le fichier partage = point de coordination sensible (discipline de merge).
-// =============================================================================
+// Source de verite des donnees : fichier partage par toute l'equipe.
+// Conventions figees : cle primaire toujours "id" en String @default(cuid()),
+// champs multi-mots @map en snake_case, tables @@map en snake_case pluriel.
 
-// Bloc "generator" : configure la GENERATION du Prisma Client (le code type qu'on appelle).
 generator client {
-  // Fournisseur du client : la version JavaScript/TypeScript.
   provider      = "prisma-client-js"
-  // Cibles binaires du moteur de requetes.
-  // "native" = la machine courante ; "linux-musl-openssl-3.0.x" = l'image alpine (musl + OpenSSL 3).
-  // Pourquoi l'expliciter : garantit que le bon moteur est genere pour le conteneur.
+  // "native" pour la machine courante, l'autre pour l'image alpine du conteneur.
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
-// Bloc "datasource" : decrit la connexion a la base.
 datasource db {
-  // Type de base de donnees.
   provider = "postgresql"
-  // URL de connexion lue depuis la variable d'environnement (definie dans .env).
-  // Pourquoi env(...) : on ne code jamais les secrets dans le schema (versionne).
   url      = env("DATABASE_URL")
 }
 
-// [CONCEPT: modele partage] User est le modele CENTRAL du projet : presque tout le
-// reference (auth, membres d'organisation, cartes assignees, messages, notifications,
-// events). Il appartient a l'infra partagee ; chacun y ajoutera SES relations.
-// Voir prisma/InstructionsPrisma.md pour la marche a suivre.
-model User {
-  // --- Identite ---
+// --- Identite et authentification -------------------------------------------
 
-  // Cle primaire. Convention FIGEE : toujours "id", type String, genere via cuid().
-  // cuid() = identifiant court, unique, non devinable et sur en URL.
-  // Pourquoi pas autoincrement : evite d'exposer des ids sequentiels et facilite
-  // le distribue / le temps reel (pas de collision entre instances).
+// Modele central : presque tout le projet le reference.
+model User {
   id String @id @default(cuid())
 
-  // Email de connexion. @unique => contrainte d'unicite en base
-  // (deux utilisateurs ne peuvent pas partager le meme email).
   email String @unique
 
-  // Handle public court, unique lui aussi. Sert dans les URLs, les mentions, etc.
-  // Un seul mot => pas de @map (le nom de colonne "username" convient tel quel).
-  // Il n'est pas choisi par l'utilisateur mais est generer de la maniere suivante:
-  // [displayName] + "#" + [5 dernier chiffre de cuid]
-  // En cas de similarite avec un username deja existant le dernier chiffre du cuid
-  // est modifie +1 ou -1 dans les caractere ascii
+  // Genere par le backend, jamais choisi : displayName + "#" + les 5 derniers
+  // caracteres d'un cuid. En cas de collision, le dernier caractere est decale
+  // de +1 ou -1 en ASCII (voir AuthService.nextSuffix).
   username String @unique
 
-  // Nom affiche dans l'UI (modifiable), distinct du username.
-  // Multi-mot => @map en snake_case (convention figee sur les colonnes).
   displayName String @map("display_name")
 
-  // URL d'avatar, OPTIONNELLE. Le "?" rend le champ nullable
-  // (un utilisateur peut ne pas avoir d'avatar).
   avatarUrl String? @map("avatar_url")
 
-  // --- Horodatage (present sur toute entite mutable) ---
-
-  // Date de creation, posee par la base a l'insertion. @map car multi-mot.
   createdAt DateTime @default(now()) @map("created_at")
 
-  // Date de derniere modification, mise a jour automatiquement par Prisma a chaque update.
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // --- Identifiants de connexion : HORS de ce modele ---
-  // Le hash de mot de passe (Argon2) et les comptes OAuth relevent du domaine de Qu.
-  // Ils vivront dans un modele dedie (ex. Credential) relie a User, pas ici :
-  // ce modele reste l'IDENTITE, pas les secrets.
-  // Ajout du model credential pour le hash du mdp
+  // Relations
   credential Credential?
 
-  // ajout tableau de Oauth pour authentification extern (42, google, etc)
   oauthAccounts OAuthAccount[]
 
-  // --- Relations (ajoutees par l'equipe au fil des modules) ---
-  // NE RIEN mettre ici tant que le modele cible n'existe pas (sinon le schema ne valide pas).
-  // Exemples a venir (voir InstructionsPrisma.md > "Ajouter une relation") :
-  //   ownedBoards Board[]        // quand Ai creera Board
-  //   messages    Message[]      // quand Qu creera Message (chat)
-  //   memberships Membership[]   // quand Am creera Membership (permissions)//Note Ai : Je crois que ça correspond a mon OrganizationMember pour le coup donc a revoir avec Am
-  //Ajout Ai
   organizationMembers OrganizationMember[]
 
-  // Add friendship
   sentFriendRequests     Friendship[] @relation("FriendshipRequester")
   receivedFriendRequests Friendship[] @relation("FriendshipReceiver")
 
-  //add status online en websocket
   isOnline    Boolean  @default(false) @map("is_online")
 
-  // Convention FIGEE : table en snake_case pluriel.
   @@map("users")
 }
 
+// Secrets de connexion, separes de l'identite : User reste l'identite, pas le secret.
 model Credential {
-  // cuid du model creer convention
   id String @id @default(cuid())
 
-  // hash du mot de passe
   passwordHash String @map("password_hash")
 
-  // pointe sur le cuid du model User
   userId String @unique @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Relation Prisma avec le modele User.
-  // - fields: [userId] pointe sur la cle etrangere locale.
-  // - references: [id] cible la cle primaire du modele User.
-  // - onDelete: Cascade supprime automatiquement ce Credential si le User est supprime.
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  //Add 2FA
+  // twoFactorSecret est pose des la generation du QR code ; twoFactorEnabled ne
+  // passe a true qu'apres validation d'un premier code (voir AuthService).
   twoFactorSecret  String? @map("two_factor_secret")
   twoFactorEnabled Boolean @default(false) @map("two_factor_enabled")
 
@@ -118,11 +67,8 @@ model Credential {
 }
 
 model OAuthAccount {
-  id String @id @default(cuid())
-
-  provider String
-
-  // id utilisateur 42
+  id         String @id @default(cuid())
+  provider   String
   providerId String @map("provider_id")
 
   userId String @map("user_id")
@@ -133,6 +79,8 @@ model OAuthAccount {
   @@unique([provider, providerId])
   @@map("oauth_accounts")
 }
+
+// --- Relations sociales -----------------------------------------------------
 
 enum FriendshipStatus {
   PENDING
@@ -157,6 +105,8 @@ model Friendship {
   @@map("friendships")
 }
 
+// --- Projets et membres -----------------------------------------------------
+
 enum InvitePolicy {
   ADMIN_ONLY
   ANY_MEMBER
@@ -172,7 +122,7 @@ model Organization {
   organizationMembers OrganizationMember[]
   tasks               Task[]
   files               File[]
-  messages            Message[]   // AJOUT thcat
+  messages            Message[]
 
   @@map("organizations")
 }
@@ -189,7 +139,8 @@ model OrganizationMember {
   updatedAt      DateTime         @updatedAt @map("updated_at")
   leftAt         DateTime?        @map("left_at")
   user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  //userId pas unique parce qu'on peut appartenir a poly orga, on utilisera une unicite combinee plus bas
+  // Pas unique seul : on peut appartenir a plusieurs projets, d'ou l'unicite
+  // combinee @@unique([userId, organizationId]) plus bas.
   userId         String           @map("user_id")
   organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   organizationId String           @map("organization_id")
@@ -197,12 +148,14 @@ model OrganizationMember {
   assignedTasks  TaskAssignment[]
   ownedFiles     File[]
   fileAccesses   FileAccess[]
-  messages       Message[]   // AJOUT thcat
+  messages       Message[]
 
   @@unique([userId, organizationId])
   @@index([organizationId])
   @@map("organization_members")
 }
+
+// --- Taches -----------------------------------------------------------------
 
 enum TaskStatus {
   NOT_STARTED
@@ -244,6 +197,8 @@ model Task {
   @@map("tasks")
 }
 
+// --- Fichiers ---------------------------------------------------------------
+
 enum VisibilityPolicy {
   PRIVATE
   RESTRICTED
@@ -282,9 +237,10 @@ model File {
 
   @@index([organizationId])
   @@index([ownerId])
-  //@@index([name])
   @@map("files")
 }
+
+// --- Chat -------------------------------------------------------------------
 
 model Message {
   id             String             @id @default(cuid())

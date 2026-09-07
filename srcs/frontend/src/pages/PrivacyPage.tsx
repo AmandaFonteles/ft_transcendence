@@ -1,14 +1,6 @@
-// =============================================================================
-// PrivacyPage.tsx : politique de confidentialite.
-//
-// La grille d'evaluation exige un contenu PERTINENT, pas un placeholder : une
-// page vide ou generique entraine le rejet du projet. Le texte ci-dessous decrit
-// donc les donnees REELLEMENT stockees par l'application, telles que definies
-// dans srcs/backend/prisma/schema.prisma. A mettre a jour quand le schema evolue.
-//
-// Ton volontairement direct et lisible : on explique ce qu'on fait des donnees
-// comme on l'expliquerait a un camarade, sans jargon juridique de facade.
-// =============================================================================
+// Politique de confidentialite. Le texte decrit les donnees reellement stockees,
+// telles que definies dans srcs/backend/prisma/schema.prisma : a mettre a jour
+// quand le schema evolue.
 
 import { Link } from 'react-router-dom'
 import LegalSection from '../components/LegalSection'

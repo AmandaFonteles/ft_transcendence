@@ -1,8 +1,5 @@
-// =============================================================================
-// DashboardPage.tsx : accueil personnel = vue SEMAINE + acces aux projets.
-// C'est l'ecran qui justifie la signature visuelle : les taches de PLUSIEURS
-// projets s'y melangent, et l'arete coloree les distingue instantanement.
-// =============================================================================
+// Accueil personnel : vue semaine et acces aux projets. Les taches de plusieurs
+// projets s'y melangent, l'arete coloree de TaskRow les distingue.
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -20,8 +17,6 @@ import { colorForId } from '../lib/projectColors'
 import { dayKey, hasStartedOn, isSameDay, weekGrid } from '../lib/dates'
 
 export default function DashboardPage() {
-  // L'utilisateur courant n'est plus necessaire ici : l'identite du handshake
-  // socket vient du jeton verifie par le serveur, plus d'un objet passe au hook.
   const { accessToken } = useAuth()
   const [orgs, setOrgs] = useState<Organization[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
@@ -30,19 +25,15 @@ export default function DashboardPage() {
   // Tache ouverte dans le panneau de detail (null = aucun panneau).
   const [openTask, setOpenTask] = useState<Task | null>(null)
 
-  // JOUR SELECTIONNE. Determine quelles taches sont considerees "commencees".
-  // Le changer permet d'ANTICIPER : en avancant au jeudi, on voit ce qui sera
-  // actif jeudi, sans attendre jeudi.
+  // Jour selectionne : determine quelles taches sont considerees "commencees".
+  // Le changer permet d'anticiper les jours a venir.
   const [selectedDay, setSelectedDay] = useState(() => new Date())
-  // Filtre "mes taches" / "toutes", meme principe que sur la page d'un projet
-  // (voir ProjectPage) : le backend sait deja filtrer par projet (parametre
-  // owned), on l'applique donc a chacun des appels ci-dessous.
+  // Filtre "mes taches" / "toutes" : le backend sait deja filtrer par projet
+  // (parametre owned), on l'applique a chacun des appels ci-dessous.
   const [onlyMine, setOnlyMine] = useState(false)
 
-  // [TEMPS REEL] Cette vue melange les taches de TOUS les projets de
-  // l'utilisateur : on rejoint donc le salon de chacun (voir
-  // useTaskEventsForOrganizations) pour recharger des qu'une tache change
-  // n'importe ou, y compris depuis la page d'un projet ou par quelqu'un d'autre.
+  // Cette vue melange les taches de tous les projets : on rejoint le salon de
+  // chacun pour recharger des qu'une tache change n'importe ou.
   const tasksRevision = useTaskEventsForOrganizations(orgs.map((o) => o.id))
 
   useEffect(() => {
@@ -54,9 +45,8 @@ export default function DashboardPage() {
         const organizations = await listOrganizations(accessToken!)
         if (cancelled) return
         setOrgs(organizations)
-        // [CONCEPT: requetes en parallele] Les taches sont imbriquees sous un projet :
-        // il faut un appel PAR projet. Promise.all les lance simultanement au lieu
-        // d'attendre chaque reponse l'une apres l'autre.
+        // Les taches sont imbriquees sous un projet : un appel par projet, lances
+        // simultanement.
         const perOrg = await Promise.all(
           // owned: true limite aux taches dont l'utilisateur est proprietaire.
           organizations.map((o) => listTasks(accessToken!, o.id, onlyMine ? { owned: true, unassigned: false } : undefined)),
@@ -94,16 +84,13 @@ export default function DashboardPage() {
 
   const orgName = (id: string) => orgs.find((o) => o.id === id)?.name ?? 'Projet'
 
-  // [CHOIX] La semaine affichee est TOUJOURS la semaine courante : on ne peut plus
-  // en changer. Le bandeau sert a anticiper les jours a venir DE CETTE SEMAINE, pas
-  // a naviguer dans le calendrier — c'est le role de la page Agenda (vue mois).
-  // weekGrid(new Date()) et non weekGrid(selectedDay) : selectionner un jour ne doit
-  // pas faire glisser le bandeau.
+  // La semaine affichee est toujours la semaine courante : naviguer dans le
+  // calendrier est le role de la page Agenda. weekGrid(new Date()) et non
+  // weekGrid(selectedDay), pour que selectionner un jour ne fasse pas glisser le bandeau.
   const week = useMemo(() => weekGrid(new Date()), [])
 
-  // TACHES AFFICHEES : non terminees ET deja commencees au jour selectionne.
-  // C'est la demande centrale de cette vue : ne pas noyer l'utilisateur sous des
-  // taches qui ne le concernent pas encore.
+  // Taches affichees : non terminees et deja commencees au jour selectionne, pour
+  // ne pas noyer l'utilisateur sous ce qui ne le concerne pas encore.
   const visible = useMemo(() => {
     return tasks
       .filter((t) => t.status !== 'DONE' && hasStartedOn(t.startDate, selectedDay))
@@ -137,8 +124,7 @@ export default function DashboardPage() {
         title="Ma semaine"
         subtitle={`${visible.length} tâche${visible.length > 1 ? 's' : ''} active${visible.length > 1 ? 's' : ''} · ${orgs.length} projet${orgs.length > 1 ? 's' : ''}`}
         actions={
-          // Plus de navigation entre semaines : seul un retour rapide au jour
-          // courant subsiste, et uniquement si l'utilisateur a selectionne un autre jour.
+          // Pas de navigation entre semaines : seul un retour au jour courant.
           !isToday
             ? <Button onClick={() => setSelectedDay(new Date())}>Revenir à aujourd'hui</Button>
             : undefined
@@ -147,8 +133,7 @@ export default function DashboardPage() {
 
       {error && <p className="text-danger mb-4">{error}</p>}
 
-      {/* BANDEAU DE SEMAINE : chaque jour est SELECTIONNABLE. Filets verticaux et
-          chiffres tabulaires reprennent la rigueur de la direction "Horaire". */}
+      {/* --- Bandeau de semaine (chaque jour est selectionnable) --- */}
       <div className="grid grid-cols-7 font-data text-[12px] tabular-nums border-b border-rule mb-1" role="tablist" aria-label="Jour de la semaine">
         {week.map((d) => {
           const selected = isSameDay(d, selectedDay)
@@ -172,8 +157,8 @@ export default function DashboardPage() {
                 {d.toLocaleDateString('fr-FR', { weekday: 'short' })}
               </span>
               <span className={`block text-[15px] ${
-                // Le JOUR COURANT est marque par une pastille d'encre : structurel,
-                // jamais colore — les couleurs restent a l'identite des projets.
+                // Le jour courant est marque par une pastille d'encre : structurel,
+                // jamais colore, les couleurs restent a l'identite des projets.
                 isCurrentDay
                   ? 'inline-flex items-center justify-center size-6 rounded-full bg-ink text-white'
                   : selected ? 'text-ink font-semibold' : 'text-ink-soft'

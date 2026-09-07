@@ -1,17 +1,7 @@
-// =============================================================================
-// validation.ts : COPIE CLIENT des limites de saisie du backend.
-// Source de verite : srcs/backend/src/common/validation.ts — toute modification
-// se fait des DEUX cotes (meme raison que le contrat d'evenements temps reel :
-// front et back sont deux paquets npm distincts, dans deux conteneurs).
-//
-// [CONCEPT: role de chaque cote] Ces valeurs servent a poser des attributs
-// maxLength/minLength sur les champs. Ca RENSEIGNE l'utilisateur — le navigateur
-// l'empeche de taper au-dela plutot que de le laisser rediger 3000 caracteres
-// avant de recevoir un refus — mais ca ne PROTEGE rien : un attribut HTML se
-// retire depuis les outils de developpement en deux clics.
-// La verification qui compte est celle du backend, qui refait tout.
-// =============================================================================
-
+// Copie client des limites de saisie du backend.
+// Source de verite : srcs/backend/src/common/validation.ts, a modifier des deux
+// cotes. Ces valeurs renseignent l'utilisateur via maxLength/minLength ; elles ne
+// protegent rien, un attribut HTML se retire en deux clics. Le backend refait tout.
 export const LIMITS = {
   EMAIL_MAX: 254,
 
@@ -37,10 +27,8 @@ export const LIMITS = {
   SEARCH_QUERY_MAX: 60,
 } as const
 
-// [CONCEPT: espaces seulement] Un champ rempli de "   " n'est pas vide au sens
-// de l'attribut HTML "required" : le formulaire part, et c'est le backend qui
-// refuse. Ce petit helper permet de desactiver le bouton avant l'envoi, pour que
-// l'utilisateur comprenne tout de suite plutot que de recevoir une erreur.
+// Un champ rempli de "   " satisfait l'attribut HTML "required" : ce helper
+// permet de desactiver le bouton avant l'envoi plutot que d'attendre le refus.
 export function isBlank(value: string): boolean {
   return value.trim().length === 0
 }

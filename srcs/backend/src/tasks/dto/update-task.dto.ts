@@ -1,10 +1,9 @@
 import { IsDateString, IsOptional, ValidateIf } from 'class-validator'
 import { IsMultiLineText, IsSingleLineText, LIMITS } from '../../common/validation'
 
-// [CONCEPT: null vs undefined] Le service distingue les deux : "undefined" signifie
-// "ne touche pas a ce champ", "null" signifie "efface-le". Les champs effacables
-// utilisent donc @ValidateIf(...) pour n'appliquer les regles de forme QUE si une
-// valeur reelle est fournie — sinon @IsDateString refuserait le null explicite.
+// Le service distingue undefined ("ne touche pas a ce champ") de null
+// ("efface-le"). Les champs effacables passent par @ValidateIf pour n'appliquer
+// les regles de forme que si une valeur reelle est fournie.
 export class UpdateTaskDto {
   @IsOptional()
   @IsSingleLineText(LIMITS.TASK_NAME_MAX)

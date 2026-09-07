@@ -1,7 +1,5 @@
-// =============================================================================
-// ProjectCreatePage.tsx : creation d'un projet (Organization cote backend).
-// Le createur en devient automatiquement ADMIN.
-// =============================================================================
+// Creation d'un projet (Organization cote backend). Le createur en devient
+// automatiquement ADMIN.
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'

@@ -1,12 +1,9 @@
 import { IsOptional, MaxLength } from 'class-validator'
 import { LIMITS, Trim } from '../../common/validation'
 
-// [CONCEPT: valider aussi la query string] Un @Query('q') brut arrive dans le
-// controller sans AUCUNE verification : ni type, ni longueur. Le passer par un DTO
-// lui applique le meme ValidationPipe global que les corps de requete.
-// Ici la borne compte vraiment : la recherche fait un "contains" en base, et une
-// chaine de plusieurs megaoctets ferait travailler PostgreSQL pour un resultat
-// vide garanti (aucun username ne peut etre aussi long).
+// Passer la query string par un DTO lui applique le ValidationPipe global, ce
+// qu'un @Query('q') brut n'aurait pas. La borne compte ici : la recherche fait
+// un "contains" en base, qu'une chaine geante ferait travailler pour rien.
 export class SearchUsersDto {
   @IsOptional()
   @Trim()

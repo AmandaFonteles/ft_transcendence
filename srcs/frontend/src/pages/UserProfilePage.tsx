@@ -1,14 +1,7 @@
-// =============================================================================
-// UserProfilePage.tsx : profil PUBLIC d'un autre utilisateur.
-// Accessible depuis un avatar sur la page Amis et depuis la liste des membres
-// d'un projet.
-//
-// PERIMETRE ASSUME : le backend n'expose ni GET /users/:id ni la liste des
-// projets d'autrui. La fiche est donc reconstituee depuis l'annuaire, et la
-// liste des projets se limite a CEUX QUE NOUS PARTAGEONS — croisement de mes
-// propres projets avec leurs membres. C'est aussi la bonne semantique : on ne
-// devoile pas les projets de quelqu'un a qui n'y participe pas.
-// =============================================================================
+// Profil public d'un autre utilisateur.
+// Le backend n'expose ni GET /users/:id ni les projets d'autrui : la fiche est
+// reconstituee depuis l'annuaire, et la liste des projets se limite a ceux que
+// nous partageons. C'est aussi la bonne semantique.
 
 import { useEffect, useState } from 'react'
 import { Link, useParams, Navigate } from 'react-router-dom'

@@ -1,7 +1,4 @@
-// =============================================================================
-// NotFoundPage.tsx : page affichee pour une URL inconnue.
-// Un etat vide est une INVITATION a agir, pas une excuse.
-// =============================================================================
+// Page affichee pour une URL inconnue : une invitation a agir, pas une excuse.
 
 import { Link } from 'react-router-dom'
 import EmptyState from '../components/ui/EmptyState'

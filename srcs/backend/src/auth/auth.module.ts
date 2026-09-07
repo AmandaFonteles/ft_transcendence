@@ -1,5 +1,3 @@
-// [CONCEPT: module de feature] Assemble tout ce qui concerne l'auth.
-
 import { Module } from '@nestjs/common'
 import { JwtModule } from '@nestjs/jwt'
 import { PassportModule } from '@nestjs/passport'
@@ -10,7 +8,7 @@ import { JwtStrategy } from './strategies/jwt.strategy'
 @Module({
   imports: [
     PassportModule,
-    // registerAsync : lit process.env AU MOMENT de l'init, pas au chargement du fichier.
+    // registerAsync : lit process.env a l'init, pas au chargement du fichier.
     JwtModule.registerAsync({
       useFactory: () => ({
         secret: process.env.JWT_ACCESS_SECRET,

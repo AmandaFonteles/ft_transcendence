@@ -1,18 +1,10 @@
-// =============================================================================
-// useTaskEvents.ts : previent quand les taches d'un projet changent (creation,
-// modification, suppression, (des)assignation) - y compris par QUELQU'UN D'AUTRE.
-//
-// Meme principe que useOrganizationMembers.ts : le hook n'expose pas les taches,
-// juste un COMPTEUR qui s'incremente a chaque evenement. L'appelant s'en sert
-// comme dependance d'effet pour recharger depuis l'API plutot que de reconstituer
-// son etat a partir du payload (le backend applique des regles de visibilite que
-// le client ignore).
-// =============================================================================
-
 import { useEffect, useState } from 'react'
 import { getSocket } from './socket'
 import { ClientEvents, ServerEvents, TaskEventPayload } from './events'
 
+// Previent quand les taches d'un projet changent, y compris du fait de quelqu'un
+// d'autre. Meme principe que useOrganizationMembers : un compteur, et l'appelant
+// recharge depuis l'API plutot que de reconstituer son etat depuis le payload.
 export function useTaskEvents(organizationId: string): number {
   const [revision, setRevision] = useState(0)
 
@@ -22,9 +14,8 @@ export function useTaskEvents(organizationId: string): number {
 
     const joinOrg = () => socket.emit(ClientEvents.JOIN_ORG, { organizationId })
 
-    // Un seul handler pour les cinq evenements : dans tous les cas, la reponse
-    // est la meme — recharger. On ignore les evenements d'un autre projet : la
-    // socket est partagee par toute l'app.
+    // Un seul handler pour les cinq evenements. On ignore ceux d'un autre projet :
+    // la socket est partagee par toute l'application.
     const bump = (payload: TaskEventPayload) => {
       if (payload.organizationId !== organizationId) return
       setRevision((r) => r + 1)
@@ -37,8 +28,7 @@ export function useTaskEvents(organizationId: string): number {
     socket.on(ServerEvents.TASK_ASSIGNED, bump)
     socket.on(ServerEvents.TASK_UNASSIGNED, bump)
 
-    // Si la socket est DEJA connectee au montage, l'evenement "connect" est
-    // passe et ne se redeclenchera pas : on rejoint donc manuellement.
+    // "connect" est deja passe si la socket etait montee avant ce hook.
     if (socket.connected) joinOrg()
 
     return () => {
@@ -55,15 +45,11 @@ export function useTaskEvents(organizationId: string): number {
   return revision
 }
 
-// Variante pour les ecrans qui melangent PLUSIEURS projets (DashboardPage,
-// AgendaPage) : ceux-ci n'ont pas un organizationId unique mais une liste de
-// projets, il faut donc rejoindre une room par projet plutot qu'une seule.
-//
-// organizationIds est attendu STABLE en VALEUR mais pas forcement en
-// REFERENCE (les pages le calculent souvent via .map() a chaque rendu) : on
-// dependend donc d'une cle textuelle plutot que du tableau lui-meme, sans
-// quoi l'effet se relancerait — et rejoindrait/quitterait les rooms — a
-// chaque rendu.
+// Variante pour les ecrans qui melangent plusieurs projets (tableau de bord,
+// agenda) : une room par projet.
+// organizationIds est stable en valeur mais pas en reference (les pages le
+// calculent souvent via .map()) : on depend donc d'une cle textuelle, sans quoi
+// l'effet rejoindrait et quitterait les rooms a chaque rendu.
 export function useTaskEventsForOrganizations(organizationIds: string[]): number {
   const [revision, setRevision] = useState(0)
   const idsKey = organizationIds.join(',')

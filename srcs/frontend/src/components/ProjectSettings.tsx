@@ -1,11 +1,3 @@
-// =============================================================================
-// ProjectSettings.tsx : modification d'un projet (nom, description, droits).
-//
-// Ouvert en cliquant sur le NOM du projet, et reserve aux administrateurs. Le
-// backend refuse deja l'operation aux non-administrateurs (requireAdmin) ; on ne
-// propose simplement pas l'action a ceux qui ne peuvent pas la mener a bien.
-// =============================================================================
-
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { deleteOrganization, getOrganization, listOrganizationMembers, removeMember, updateOrganization } from '../api'
@@ -17,44 +9,39 @@ import TextField from './ui/TextField'
 import TextArea from './ui/TextArea'
 import { LIMITS } from '../lib/validation'
 
+// Modification d'un projet (nom, description, droits), ouvert en cliquant sur le
+// nom du projet. Le backend refuse deja l'operation aux non-administrateurs
+// (requireAdmin) : on ne propose simplement pas l'action a qui ne peut la mener.
 interface ProjectSettingsProps {
-  // Projet a modifier.
   organization: Organization
-  // Jeton d'acces pour les appels proteges.
   accessToken: string
-  // Fermeture du panneau.
   onClose: () => void
-  // Remonte le projet mis a jour au parent.
   onUpdated: (organization: Organization) => void
 }
 
 export default function ProjectSettings({
   organization, accessToken, onClose, onUpdated,
 }: ProjectSettingsProps) {
-  // Champs initialises depuis le projet courant.
   const [name, setName] = useState(organization.name)
   const [description, setDescription] = useState(organization.description ?? '')
   const [invitePolicy, setInvitePolicy] = useState<InvitePolicy>(organization.invitePolicy)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  // Zone de suppression depliee ? Fermee par defaut : l'action doit se chercher.
   const [showDelete, setShowDelete] = useState(false)
-  // Nom saisi pour confirmer la suppression (justification plus bas).
   const [confirmName, setConfirmName] = useState('')
   const [deleting, setDeleting] = useState(false)
 
-  // Permet de quitter la page apres suppression : le projet n'existe plus, y
-  // rester afficherait une erreur.
+  // Permet de quitter la page apres suppression : y rester afficherait une erreur.
   const navigate = useNavigate()
 
-  // --- Retrait de membres ----------------------------------------------------
+  // --- Retrait de membres ---------------------------------------------------
   // Cet utilisateur est forcement administrateur : le panneau n'est ouvert que
-  // pour lui (voir ProjectPage). removeMember() est deja garde cote backend.
+  // pour lui (voir ProjectPage), et removeMember() est garde cote backend.
+
   const { user } = useAuth()
   const [members, setMembers] = useState<OrganizationMember[]>([])
   const [membersLoading, setMembersLoading] = useState(true)
   const [membersError, setMembersError] = useState<string | null>(null)
-  // Identifiant de l'utilisateur en cours de retrait, pour desactiver son bouton.
   const [removingId, setRemovingId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -86,20 +73,16 @@ export default function ProjectSettings({
     try {
       await updateOrganization(accessToken, organization.id, {
         name,
-        // Chaine vide envoyee comme "non fourni" : le DTO backend est @IsOptional,
+        // Chaine vide envoyee comme "non fourni" : le DTO backend est @IsOptional
         // et une chaine vide echouerait sa validation.
         description: description || undefined,
         invitePolicy,
       })
-      // [IMPORTANT] PATCH /organizations/:id ne renvoie qu'un accuse de reception
-      // ({ message }), pas le projet. On le RELIT donc pour afficher ce qui a
-      // reellement ete enregistre, et non une reconstruction locale qui
-      // divergerait si le backend normalise un champ.
+      // PATCH ne renvoie qu'un accuse de reception : on relit le projet pour
+      // afficher ce qui a reellement ete enregistre.
       onUpdated(await getOrganization(accessToken, organization.id))
       onClose()
     } catch (err) {
-      // Affiche notamment le refus du backend si l'utilisateur n'est plus admin
-      // (son role a pu changer depuis l'ouverture du panneau).
       setError(err instanceof Error ? err.message : 'erreur inconnue')
     } finally {
       setSaving(false)
@@ -111,9 +94,8 @@ export default function ProjectSettings({
     setDeleting(true)
     try {
       await deleteOrganization(accessToken, organization.id)
-      // Redirige AVANT que le parent tente de recharger un projet disparu.
-      // "replace" evite d'empiler une entree d'historique vers une page morte :
-      // le bouton Retour ne ramenerait que sur cette erreur.
+      // Redirige avant que le parent tente de recharger un projet disparu.
+      // "replace" evite d'empiler une entree d'historique vers une page morte.
       navigate('/tableau-de-bord', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'erreur inconnue')
@@ -164,9 +146,7 @@ export default function ProjectSettings({
         </div>
       </form>
 
-      {/* Retrait de membres : distinct du formulaire ci-dessus (pas de PATCH
-          /organizations/:id ici, mais un DELETE /members/:targetUserId par
-          membre retire). */}
+      {/* --- Retrait de membres : hors du formulaire, chaque retrait part seul --- */}
       <div className="mt-6 pt-4 border-t border-rule">
         <h3 className="text-[13.5px] text-ink-soft mb-2">Retirer un membre</h3>
 
@@ -177,8 +157,8 @@ export default function ProjectSettings({
         ) : (
           <div className="grid gap-1.5">
             {members
-              // On ne se propose pas de s'exclure soi-meme : le backend le refuse
-              // de toute facon ("quitter le projet" est l'action prevue pour ca).
+              // On ne se propose pas de s'exclure soi-meme : le backend le refuse,
+              // "quitter le projet" est l'action prevue pour ca.
               .filter((m) => m.user.id !== user?.id)
               .map((m) => (
                 <div key={m.user.id} className="flex items-center gap-3">
@@ -203,25 +183,16 @@ export default function ProjectSettings({
         )}
       </div>
 
-      {/* ---------------------------------------------------------------------
-          ZONE DE SUPPRESSION DU PROJET. Placee en dernier et separee par un
-          filet : ce n'est pas un reglage de plus, c'est une action d'une autre
-          nature. Elle n'apparait que dans ce panneau, donc uniquement pour les
-          administrateurs.
-          --------------------------------------------------------------------- */}
+      {/* --- Suppression du projet --- */}
+      {/* Repliee par defaut : l'action destructrice doit se chercher, elle ne doit
+          pas se trouver sous le curseur de quelqu'un venu renommer. */}
       <div className="mt-5 pt-4 border-t border-rule">
         {!showDelete ? (
-          // Repliee par defaut : l'action destructrice doit se chercher, elle ne
-          // doit pas se trouver sous le curseur de quelqu'un venu renommer.
           <Button type="button" variant="ghost" onClick={() => setShowDelete(true)}>
             Supprimer le projet
           </Button>
         ) : (
           <div className="grid gap-3">
-            {/* L'avertissement enumere ce qui disparait REELLEMENT : le schema
-                declare onDelete: Cascade depuis Organization vers les membres,
-                les taches, les fichiers et les messages. Dire "irreversible"
-                sans dire QUOI ne prepare a rien. */}
             <p className="text-[13.5px] text-danger">
               Cette action est irréversible. Elle supprimera définitivement le projet,
               <strong> toutes ses tâches</strong>, <strong>tous ses fichiers</strong>,
@@ -229,10 +200,7 @@ export default function ProjectSettings({
               <strong> tous ses membres</strong>.
             </p>
 
-            {/* [CONCEPT: confirmation par saisie] Recopier le nom est plus
-                exigeant qu'un second clic, et c'est voulu : la suppression
-                detruit le travail de TOUTE une equipe, pas seulement celui de la
-                personne qui clique. Recopier oblige a lire ce qu'on supprime. */}
+            {/* Confirmation par recopie du nom : plus sur qu'un simple "Confirmer". */}
             <TextField
               label={`Tapez « ${organization.name} » pour confirmer`}
               value={confirmName}
@@ -245,7 +213,6 @@ export default function ProjectSettings({
               <Button
                 type="button"
                 onClick={handleDelete}
-                // Inactif tant que le nom ne correspond pas exactement.
                 // trim() tolere un espace colle par un copier-coller, sans plus.
                 disabled={deleting || confirmName.trim() !== organization.name}
                 className="!bg-danger !text-white !border-transparent"

@@ -1,38 +1,26 @@
-# =============================================================================
-# Image frontend : Node + notre app React/Vite, lancee en mode DEV (hot reload).
-# =============================================================================
+# Image frontend : Node + l'app React/Vite, lancee en mode dev (hot reload).
 
-# Part de l'image officielle Node 22, variante alpine (legere).
-# Pourquoi Node : Vite et l'outillage React s'executent sur Node.
 # Nom pleinement qualifie : sous Podman, un nom court declencherait une question
-# interactive sur le registre a utiliser, ce qui casserait le "une seule commande".
+# interactive sur le registre a utiliser.
 FROM docker.io/library/node:22-alpine
 
-# Definit /app comme dossier de travail : toutes les commandes suivantes s'y executent.
 WORKDIR /app
 
-# Copie d'abord SEULEMENT les manifestes (package.json et package-lock.json).
-# Pourquoi separement : Docker met en cache les couches ; tant que package.json ne
-# change pas, il reutilise le cache du "npm ci" meme si le code change (rebuild rapide).
+# Les manifestes d'abord : tant qu'ils ne changent pas, Docker reutilise le cache
+# du "npm ci" meme quand le code change.
 COPY package*.json ./
 
-# Installe les dependances declarees dans package.json.
-# Installe STRICTEMENT ce que decrit package-lock.json.
-# Pourquoi "ci" et non "install" : "install" traite le lockfile comme une SUGGESTION
-# et peut le reecrire ; "ci" le traite comme une LOI. Il supprime node_modules,
-# installe exactement l'arbre fige, et ECHOUE si le lock diverge de package.json.
-# Le build casse donc tot et bruyamment, au lieu de produire silencieusement un
-# arbre different de celui des coequipiers.
+# "ci" et non "install" : "install" traite le lockfile comme une suggestion et
+# peut le reecrire, "ci" le traite comme une loi et echoue si le lock diverge de
+# package.json.
 RUN npm ci
 
-# Copie ensuite tout le reste du code source dans l'image.
-# Pourquoi apres l'install : a l'execution, un bind mount recouvre ce code par tes
-# fichiers hote (edition a chaud), mais la copie sert au build autonome de l'image.
+# A l'execution, un bind mount recouvre ce code par les fichiers de l'hote ; la
+# copie ne sert qu'au build autonome de l'image.
 COPY . .
 
-# Documente le port du serveur de dev Vite (interne au reseau Docker).
+# Port du serveur de dev Vite, interne au reseau Docker.
 EXPOSE 5173
 
-# Commande lancee au demarrage : le serveur de dev Vite.
-# Pourquoi la forme JSON [...] : evite un shell intermediaire, arret plus propre du process.
+# Forme JSON : pas de shell intermediaire, arret plus propre du process.
 CMD ["npm", "run", "dev"]

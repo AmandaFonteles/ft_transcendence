@@ -6,10 +6,11 @@ import { StorageService } from '../files/storage.service'
 import { CreateOrganizationDto } from './dto/create-organization.dto'
 import { UpdateOrganizationDto } from './dto/update-organization.dto'
 
-
 @Injectable()
 export class OrganizationsService {
   constructor(private readonly prisma: PrismaService, private readonly friendship: FriendshipService, private readonly storage: StorageService) {}
+  // --- Projets : CRUD -------------------------------------------------------
+
   async create(data: CreateOrganizationDto, creatorId: string) {
 	return await this.prisma.organization.create({
   	  data: {
@@ -70,6 +71,8 @@ export class OrganizationsService {
 	return organization
   }
 
+  // --- Appartenance : lecture -----------------------------------------------
+
   private async findMembershipRecord(organizationId: string, userId: string) {
      const membershipRecord = await this.prisma.organizationMember.findUnique({
 	  where: {
@@ -89,7 +92,7 @@ export class OrganizationsService {
 	  throw new NotFoundException(`Cet utilisateur n'est pas un membre de ce projet`)
 	}
 	return member
-  }//utile ?
+  }
 
   async findActiveMember(organizationId: string, userId: string) {
     await this.findOne(organizationId)
@@ -107,7 +110,9 @@ export class OrganizationsService {
 	  return null
 	}
 	return member
-  }//utile ?
+  }
+
+  // --- Ajout d'un membre ----------------------------------------------------
 
   private async checkInvitePolicy(organizationId: string, requesterUserId: string) {
 	const organization = await this.findOne(organizationId)
@@ -144,6 +149,8 @@ export class OrganizationsService {
 	})
   }
 
+  // --- Comptages ------------------------------------------------------------
+
   async countActiveAdmins(organizationId: string) {
     const count = await this.prisma.organizationMember.count({
 	  where: {
@@ -165,6 +172,9 @@ export class OrganizationsService {
 	return count
   }
 
+  // --- Depart d'un membre ---------------------------------------------------
+
+  // Renvoie true si le depart a entraine la suppression du projet (dernier membre).
   async leaveOrganization(organizationId: string, userId: string) {
     const member = await this.requireActiveMember(organizationId, userId)
 	const activeMembersCount = await this.countActiveMembers(organizationId)
@@ -183,6 +193,8 @@ export class OrganizationsService {
     })
 	return false
   }
+
+  // --- Gardes de droits -----------------------------------------------------
 
   async requireActiveMember(organizationId: string, userId: string) {
 	const member = await this.findActiveMember(organizationId, userId)
@@ -216,6 +228,8 @@ export class OrganizationsService {
     }
     return member
   }
+
+  // --- Roles et expulsion ---------------------------------------------------
 
   async promoteMember(organizationId: string, targetUserId: string, requesterUserId: string) {
     await this.requireAdmin(organizationId, requesterUserId)
@@ -252,6 +266,10 @@ export class OrganizationsService {
 	return await this.leaveOrganization(organizationId, targetUserId)
   }
 
+  // --- Suppression d'un compte ----------------------------------------------
+
+  // Renvoie les projets a supprimer avec l'utilisateur, et refuse la suppression
+  // s'il est le dernier administrateur d'un projet encore peuple.
   async checkOrganizationsAtUserDeletion(userId: string) {
     const adminMemberships = await this.prisma.organizationMember.findMany({
 	  where: {
@@ -274,6 +292,8 @@ export class OrganizationsService {
 	}
 	return organizationIdsToDelete
   }
+
+  // --- Liste des membres ----------------------------------------------------
 
   async findAllMembers(organizationId: string, requesterId: string) {
 	await this.requireActiveMember(organizationId, requesterId)

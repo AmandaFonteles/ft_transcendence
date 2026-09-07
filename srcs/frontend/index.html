@@ -1,27 +1,16 @@
-<!-- Declare le document comme HTML5. -->
 <!doctype html>
-<!-- Racine du document ; lang="fr" pour l'accessibilite et le SEO. -->
 <html lang="fr">
   <head>
-    <!-- Encodage des caracteres : UTF-8 gere les accents correctement. -->
     <meta charset="UTF-8" />
-    <!-- Rend la page responsive (adaptee a la largeur de l'ecran mobile). -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Titre affiche dans l'onglet du navigateur. -->
     <title>Aqan</title>
-    <!-- Icone de l'onglet.
-         SANS cette balise, le navigateur demande AUTOMATIQUEMENT /favicon.ico a
-         la racine : requete qui n'aboutissait pas, d'ou un 404 visible dans la
-         console a chaque chargement. La declarer supprime cette requete de repli
-         (le navigateur sait desormais ou est l'icone) et fait disparaitre l'erreur.
-         type="image/svg+xml" evite au navigateur de deviner le format. -->
+    <!-- Sans cette balise, le navigateur demande /favicon.ico a la racine : une
+         requete qui n'aboutit pas, d'ou un 404 dans la console a chaque chargement. -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
   <body>
-    <!-- Div vide dans laquelle React va tout injecter (le point de montage). -->
+    <!-- Point de montage de React. -->
     <div id="root"></div>
-    <!-- Charge le point d'entree React ; type="module" active les modules ES. -->
-    <!-- Pourquoi /src/main.tsx : Vite sert ce fichier et resout ses imports. -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

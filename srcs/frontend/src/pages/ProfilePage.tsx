@@ -1,8 +1,4 @@
-// =============================================================================
-// ProfilePage.tsx : profil personnel — informations, avatar, mot de passe, 2FA.
-// La LOGIQUE vient du banc de test de Qu ; elle est ici decoupee en sections
-// lisibles et habillee avec le systeme de design.
-// =============================================================================
+// Profil personnel : informations, avatar, mot de passe, 2FA.
 
 import { useEffect, useRef, useState } from 'react'
 import {
@@ -41,7 +37,7 @@ export default function ProfilePage() {
   )
 }
 
-// --- Identite ----------------------------------------------------------------
+// --- Identite ---------------------------------------------------------------
 function IdentityCard({ user }: { user: AuthUser }) {
   return (
     <Card>
@@ -65,7 +61,7 @@ function IdentityCard({ user }: { user: AuthUser }) {
   )
 }
 
-// --- Informations ------------------------------------------------------------
+// --- Informations -----------------------------------------------------------
 function ProfileForm({
   accessToken, user, onUpdated,
 }: { accessToken: string; user: AuthUser; onUpdated: (u: AuthUser) => void }) {
@@ -109,7 +105,7 @@ function ProfileForm({
   )
 }
 
-// --- Mot de passe ------------------------------------------------------------
+// --- Mot de passe -----------------------------------------------------------
 function PasswordForm({ accessToken }: { accessToken: string }) {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -153,13 +149,10 @@ function PasswordForm({ accessToken }: { accessToken: string }) {
   )
 }
 
-// --- Double authentification -------------------------------------------------
-// [SOURCE DE VERITE] L'etat "activee ou non" n'est PAS un state local : il vient
-// de user.twoFactorEnabled, renvoye par le backend. Un state local repartait a
-// "inactif" a chaque rechargement de page, meme quand la 2FA etait bien active,
-// et proposait donc "Activer" a quelqu'un qui l'avait deja fait.
-// Apres chaque changement, on RECHARGE l'utilisateur depuis /users/me plutot que
-// de deviner le nouvel etat : le serveur reste seul juge.
+// --- Double authentification ------------------------------------------------
+// L'etat "activee ou non" vient de user.twoFactorEnabled, jamais d'un state local :
+// celui-ci repartait a "inactif" a chaque rechargement. Apres chaque changement, on
+// relit l'utilisateur depuis /users/me plutot que de deviner le nouvel etat.
 function TwoFactorCard({
   accessToken,
   user,
@@ -305,7 +298,7 @@ function DeleteAcc({ accessToken, logout }: { accessToken: string; logout: () =>
   )
 }
 
-// --- Avatar ------------------------------------------------------------------
+// --- Avatar -----------------------------------------------------------------
 // Contraintes miroir du backend (users.service.ts) : PNG uniquement, 5 Mo max.
 // Les verifier ici evite un aller-retour reseau pour une erreur previsible.
 const AVATAR_MAX_BYTES = 5 * 1000000

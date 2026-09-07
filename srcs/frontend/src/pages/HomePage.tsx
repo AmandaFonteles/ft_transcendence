@@ -1,8 +1,5 @@
-// =============================================================================
-// HomePage.tsx : page d'accueil publique (presentation du projet).
-// Affiche aussi l'etat des couches backend / base : preuve visible que la chaine
-// navigateur -> nginx -> NestJS -> PostgreSQL fonctionne.
-// =============================================================================
+// Page d'accueil publique. Affiche aussi l'etat du backend et de la base :
+// preuve visible que la chaine navigateur -> nginx -> NestJS -> PostgreSQL passe.
 
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'

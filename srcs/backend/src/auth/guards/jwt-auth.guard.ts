@@ -1,6 +1,4 @@
-// [CONCEPT: guard] Un guard decide si une requete a le droit d'entrer dans le controller.
-// Ici on delegue entierement a la strategie 'jwt' declaree au-dessus.
-
+// Delegue entierement a la strategie 'jwt' (voir strategies/jwt.strategy.ts).
 import { Injectable } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 

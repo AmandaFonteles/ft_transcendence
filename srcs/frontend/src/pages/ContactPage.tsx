@@ -1,11 +1,5 @@
-// =============================================================================
-// ContactPage.tsx : page de contact (lien du pied de page).
-//
-// La grille d'evaluation exige une page de contact REELLEMENT renseignee : un
-// simple "Contact" sans interlocuteur ni adresse est considere comme un
-// placeholder. Deux points d'entree suffisent (Product Owner et Technical Lead),
-// le reste de l'equipe est cite pour situer qui fait quoi.
-// =============================================================================
+// Page de contact, liee depuis le pied de page. La grille d'evaluation exige un
+// contenu reellement renseigne, pas un placeholder.
 
 import { Link } from 'react-router-dom'
 import LegalSection from '../components/LegalSection'

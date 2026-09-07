@@ -1,12 +1,5 @@
-// =============================================================================
-// TermsPage.tsx : conditions d'utilisation.
-//
-// La grille d'evaluation exige des pages Privacy Policy ET Terms of Service, avec
-// un contenu pertinent. Une page vide ou generique entraine le rejet du projet.
-//
-// Ton assume : des conditions lisibles, qui disent franchement ce qu'on attend
-// des utilisateurs et ce qu'un projet d'ecole peut reellement garantir.
-// =============================================================================
+// Conditions d'utilisation. Exigees par la grille d'evaluation au meme titre que
+// la politique de confidentialite, et avec un contenu pertinent.
 
 import { Link } from 'react-router-dom'
 import LegalSection from '../components/LegalSection'

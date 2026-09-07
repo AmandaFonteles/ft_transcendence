@@ -1,11 +1,5 @@
-// =============================================================================
-// AppShell.tsx : ossature commune (en-tete + contenu + pied de page).
-// Toutes les pages sont rendues a l'interieur : personne n'a a reconstruire le
-// chrome, donc il ne peut pas diverger d'un ecran a l'autre.
-// =============================================================================
-
-// [CONCEPT: route imbriquee] <Outlet/> est l'emplacement ou react-router injecte
-// la page correspondant a l'URL courante.
+// Ossature commune : toutes les pages sont rendues dans l'<Outlet/>, personne
+// n'a a reconstruire l'en-tete ni le pied de page.
 import { Outlet } from 'react-router-dom'
 import Header from './Header'
 import Footer from './Footer'
@@ -16,8 +10,7 @@ import { useEffect } from 'react'
 export default function AppShell() {
   const { user } = useAuth()
   // Ouvre la connexion temps reel des qu'une session existe. Le jeton a deja ete
-  // depose dans le module socket par AuthContext (setSocketAccessToken), donc le
-  // handshake part authentifie : c'est le serveur qui etablit l'identite.
+  // depose dans le module socket par AuthContext, donc le handshake part authentifie.
   useEffect(() => {
     if (!user) return
     getSocket()
@@ -25,9 +18,8 @@ export default function AppShell() {
   return (
     <>
       <Header />
-      {/* pt-14 / pb-11 reservent exactement la hauteur de l'en-tete (h-14) et du
-          pied de page (h-11) : sans eux, le contenu passerait dessous.
-          mx-auto max-w-[980px] centre la colonne de lecture. */}
+      {/* pt-14 / pb-11 reservent la hauteur de l'en-tete (h-14) et du pied de page
+          (h-11) : sans eux, le contenu passerait dessous. */}
       <main className="pt-14 pb-11">
         <div className="mx-auto max-w-[980px] px-4 py-8">
           <Outlet />

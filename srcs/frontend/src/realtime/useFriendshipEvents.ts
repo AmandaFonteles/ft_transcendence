@@ -2,8 +2,7 @@ import { useEffect } from 'react'
 import { getSocket } from './socket'
 import { ServerEvents } from './events'
 
-// L'identite n'est plus un parametre : le serveur la lit dans le jeton du
-// handshake. Le hook n'a donc besoin que du rappel a declencher.
+// L'identite n'est pas un parametre : le serveur la lit dans le jeton du handshake.
 export function useFriendshipEvents(onChange: () => void) {
   useEffect(() => {
     const socket = getSocket()

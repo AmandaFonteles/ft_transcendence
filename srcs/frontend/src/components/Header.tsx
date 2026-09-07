@@ -1,16 +1,10 @@
-// =============================================================================
-// Header.tsx : en-tete FIXE, present sur toutes les pages.
-// Affiche l'utilisateur connecte quand il y en a un, sinon un bouton de connexion.
-// =============================================================================
-
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 
-// Entrees du menu, declarees une fois pour eviter la repetition.
+// Libelles alignes sur les boutons d'accueil : deux noms differents pour la meme
+// page desorientaient l'utilisateur.
 const menuItems = [
-  // Libelle aligne sur le bouton d'accueil ("Ouvrir mon tableau de bord") :
-  // deux noms differents pour la meme page desorientaient l'utilisateur.
   { to: '/tableau-de-bord', label: 'Tableau de bord' },
   { to: '/agenda', label: 'Agenda' },
   { to: '/projets/nouveau', label: 'Créer un projet' },
@@ -19,16 +13,11 @@ const menuItems = [
 ]
 
 export default function Header() {
-  // Etat d'ouverture du menu deroulant.
   const [open, setOpen] = useState(false)
-  // Reference du conteneur, pour detecter les clics exterieurs.
   const menuRef = useRef<HTMLDivElement>(null)
-  // Utilisateur connecte et action de deconnexion.
   const { user, logout } = useAuth()
-  // Permet de rediriger apres deconnexion.
   const navigate = useNavigate()
 
-  // Ferme le menu au clic exterieur ou sur Echap.
   useEffect(() => {
     if (!open) return
     const onClick = (e: MouseEvent) => {
@@ -37,14 +26,13 @@ export default function Header() {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
     document.addEventListener('mousedown', onClick)
     document.addEventListener('keydown', onKey)
-    // Nettoyage : sans ce retrait, les ecouteurs s'empileraient a chaque ouverture.
+    // Sans ce retrait, les ecouteurs s'empileraient a chaque ouverture.
     return () => {
       document.removeEventListener('mousedown', onClick)
       document.removeEventListener('keydown', onKey)
     }
   }, [open])
 
-  // Deconnecte puis ramene a l'accueil.
   async function handleLogout() {
     setOpen(false)
     await logout()
@@ -61,16 +49,13 @@ export default function Header() {
       <div className="ml-auto flex items-center gap-2">
         {user ? (
           <>
-            {/* Nom affiche, masque sur tres petit ecran pour laisser la place. */}
             <span className="hidden sm:inline font-data text-[13px] text-ink-soft">
               {user.displayName}
             </span>
-            {/* [ACCES AU PROFIL] L'avatar est un LIEN vers /profil. C'est la
-                convention attendue : partout ailleurs sur le web, cliquer sur sa
-                propre photo mene a son compte. Le passer par le menu deroulant
-                obligeait a chercher.
-                Un repli sur les initiales est affiche quand aucun avatar n'a ete
-                choisi : sans lui, ces utilisateurs n'auraient aucun raccourci. */}
+            {/* L'avatar est un lien vers /profil : partout ailleurs sur le web,
+                cliquer sur sa propre photo mene a son compte. Repli sur les
+                initiales quand aucun avatar n'a ete choisi, sinon ces
+                utilisateurs n'auraient aucun raccourci. */}
             <Link
               to="/profil"
               title="Mon profil"
@@ -121,7 +106,6 @@ export default function Header() {
                 </NavLink>
               ))}
 
-              {/* Deconnexion seulement si quelqu'un est connecte. */}
               {user && (
                 <button
                   onClick={handleLogout}

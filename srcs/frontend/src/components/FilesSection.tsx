@@ -1,10 +1,7 @@
-// =============================================================================
-// FilesSection.tsx : documents d'un projet — televersement, liste, telechargement.
-// Les regles de validation dupliquent celles du backend (files.service.ts) :
-// les verifier ici evite un aller-retour reseau pour une erreur previsible,
-// mais le serveur reste la seule autorite (il verifie aussi le type REEL du
-// contenu, ce que le navigateur ne sait pas faire).
-// =============================================================================
+// Documents d'un projet : televersement, liste, telechargement.
+// Les regles de validation dupliquent celles du backend (files.service.ts) pour
+// eviter un aller-retour reseau sur une erreur previsible ; le serveur reste la
+// seule autorite, lui seul verifie le type reel du contenu.
 
 import { useEffect, useRef, useState } from 'react'
 import {
@@ -28,6 +25,8 @@ import { formatDay } from '../lib/dates'
 
 // Table des types acceptes, hors du composant : elle est constante, la recreer
 // a chaque rendu ne servirait a rien.
+// --- Regles de fichier ------------------------------------------------------
+
 const ALLOWED_FILE_TYPES: Record<string, string[]> = {
   'image/jpeg': ['.jpg', '.jpeg'],
   'image/png': ['.png'],
@@ -57,6 +56,8 @@ const PREVIEWABLE_MIME_TYPES = new Set([
 const ACCEPT = Object.values(ALLOWED_FILE_TYPES).flat().join(',')
 
 // "1,4 Mo" plutot que "1468006". Les tailles s'affichent en Ko sous 1 Mo.
+// --- Formatage d'affichage --------------------------------------------------
+
 function formatSize(bytes: number): string {
   if (bytes < 1000) return `${bytes} o`
   if (bytes < 1000 * 1000) return `${Math.round(bytes / 1000)} Ko`
@@ -77,6 +78,8 @@ type FilesSectionProps = {
 }
 type FileAction = 'preview' | 'download' | 'delete' | 'visibility'
 
+
+// --- Composant --------------------------------------------------------------
 
 export default function FilesSection({ accessToken, organizationId }: FilesSectionProps) {
   const [files, setFiles] = useState<ProjectFile[]>([])
@@ -160,6 +163,8 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
   }, [accessToken, organizationId])
 
 
+  // --- Televersement --------------------------------------------------------
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const chosen = e.target.files?.[0] ?? null
     setUploadProgress(null)
@@ -200,6 +205,8 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
       resetSelection()
     }
   }
+
+  // --- Telechargement et apercu ---------------------------------------------
 
   async function handleDownload(file: ProjectFile) {
     setError(null)
@@ -263,6 +270,8 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
     }
   }
 
+  // --- Visibilite et suppression --------------------------------------------
+
   async function handleVisibilityChange(
     file: ProjectFile,
     visibilityPolicy: VisibilityPolicy
@@ -322,6 +331,8 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
       setBusyFile(null)
     }
   }
+
+  // --- Acces individuels (visibilite RESTRICTED) ----------------------------
 
   async function refreshFileAccesses(fileId: string) {
     const accesses = await listProjectFileAccesses(

@@ -1,11 +1,3 @@
-// =============================================================================
-// MembersSection.tsx : membres d'un projet, leurs roles et les actions associees.
-//
-// Rendu possible par la route GET /organizations/:id/members, qui n'existait pas
-// jusqu'ici. Repond aux demandes de la structure du 28/08 : tag sur l'avatar de
-// l'administrateur, et actions accessibles au clic sur un membre.
-// =============================================================================
-
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { addOrganizationMember, demoteMember, listFriends, listOrganizationMembers, promoteMember, removeMember } from '../api'
@@ -15,35 +7,30 @@ import { useOrganizationMembers } from '../realtime/useOrganizationMembers'
 import Card from './ui/Card'
 import Button from './ui/Button'
 
+// Membres d'un projet, leurs roles et les actions associees.
 interface MembersSectionProps {
   organizationId: string
   accessToken: string
-  // Politique d'invitation du projet : determine, avec le role, qui peut
-  // ajouter un membre (voir checkInvitePolicy cote backend).
+  // Determine, avec le role, qui peut ajouter un membre (voir checkInvitePolicy
+  // cote backend).
   invitePolicy: InvitePolicy
 }
 
 export default function MembersSection({ organizationId, accessToken, invitePolicy }: MembersSectionProps) {
-  // Utilisateur courant : sert a savoir s'il est administrateur et a s'exclure
-  // lui-meme des actions de moderation.
   const { user } = useAuth()
   const [members, setMembers] = useState<OrganizationMember[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  // Membre dont le panneau d'actions est ouvert (identifiant utilisateur).
   const [openUserId, setOpenUserId] = useState<string | null>(null)
-  // Action en cours : desactive les boutons pour eviter les doubles clics.
   const [busy, setBusy] = useState(false)
-  // Amis de l'utilisateur courant : le backend n'autorise a inviter QUE des
-  // amis (voir OrganizationsService.addMember), c'est donc le seul vivier
-  // pertinent a proposer ici.
+  // Le backend n'autorise a inviter que des amis (OrganizationsService.addMember) :
+  // c'est le seul vivier pertinent a proposer ici.
   const [friends, setFriends] = useState<Friend[]>([])
   const [selectedFriendId, setSelectedFriendId] = useState('')
 
-  // [TEMPS REEL] S'abonne au salon du projet. Le compteur change des qu'un membre
-  // est ajoute, retire, promu ou retrograde — y compris par QUELQU'UN D'AUTRE.
-  // Sans cela, deux personnes travaillant en meme temps voyaient des listes
-  // divergentes jusqu'au prochain rechargement manuel.
+  // S'abonne au salon du projet : le compteur change des qu'un membre est ajoute,
+  // retire, promu ou retrograde, y compris par quelqu'un d'autre. Sans cela, deux
+  // personnes travaillant en meme temps voyaient des listes divergentes.
   const membersRevision = useOrganizationMembers(organizationId)
 
   useEffect(() => {
@@ -53,9 +40,8 @@ export default function MembersSection({ organizationId, accessToken, invitePoli
       .catch(() => {})
   }, [accessToken])
 
-  // Recharge la liste depuis l'API. Appelee au montage et apres chaque action :
-  // le backend est la source de verite (il peut refuser une retrogradation, par
-  // exemple s'il ne reste qu'un administrateur).
+  // Le backend est la source de verite : il peut refuser une retrogradation, par
+  // exemple s'il ne reste qu'un administrateur.
   async function reload() {
     try {
       setMembers(await listOrganizationMembers(accessToken, organizationId))
@@ -69,24 +55,22 @@ export default function MembersSection({ organizationId, accessToken, invitePoli
 
   useEffect(() => {
     reload()
-    // membersRevision en dependance : chaque evenement temps reel incremente ce
-    // compteur, ce qui relance le chargement. On RECHARGE plutot que d'appliquer
-    // le payload, car le backend applique des regles que le client ignore
-    // (dernier administrateur, suppression du projet au depart du dernier membre).
-    // accessToken n'y figure pas : il ne change pas pendant la vie de la page.
+    // On recharge plutot que d'appliquer le payload : le backend applique des
+    // regles que le client ignore. accessToken n'est pas en dependance, il ne
+    // change pas pendant la vie de la page.
   }, [organizationId, membersRevision])
 
-  // Le rôle de l'utilisateur courant determine les actions proposees.
+  // --- Droits ---------------------------------------------------------------
+
   const me = members.find((m) => m.user.id === user?.id)
   const iAmAdmin = me?.role === 'ADMIN'
 
-  // Peut inviter : administrateur (toujours autorise), ou membre simple si la
-  // politique du projet l'autorise. Reflete checkInvitePolicy cote backend ;
-  // celui-ci reste le seul garant reel du droit.
+  // Reflete checkInvitePolicy cote backend, qui reste le seul garant reel.
   const canInvite = iAmAdmin || invitePolicy === 'ANY_MEMBER'
-  // Amis pas encore membres actifs : seuls eux ont un sens a proposer.
   const memberIds = new Set(members.map((m) => m.user.id))
   const eligibleFriends = friends.filter((f) => !memberIds.has(f.user.id))
+
+  // --- Actions --------------------------------------------------------------
 
   // Enveloppe commune aux trois actions : etat occupe, erreurs, rechargement.
   async function run(action: () => Promise<unknown>) {
@@ -97,15 +81,14 @@ export default function MembersSection({ organizationId, accessToken, invitePoli
       await reload()
       setOpenUserId(null)
     } catch (err) {
-      // Le backend renvoie des messages explicites ("dernier administrateur", etc.) :
-      // on les affiche tels quels plutot que de les reformuler approximativement.
+      // Le backend renvoie des messages explicites ("dernier administrateur"...) :
+      // on les affiche tels quels.
       setError(err instanceof Error ? err.message : 'erreur inconnue')
     } finally {
       setBusy(false)
     }
   }
 
-  // Ajoute l'ami selectionne comme membre du projet.
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedFriendId) return
@@ -119,6 +102,7 @@ export default function MembersSection({ organizationId, accessToken, invitePoli
     <>
       {error && <p className="text-danger text-sm mb-3">{error}</p>}
 
+      {/* --- Ajout d'un membre --- */}
       {canInvite && (
         <Card className="mb-3">
           <form onSubmit={handleAdd} className="flex items-center gap-2">
@@ -148,6 +132,7 @@ export default function MembersSection({ organizationId, accessToken, invitePoli
         </Card>
       )}
 
+      {/* --- Liste des membres --- */}
       <div className="grid gap-2">
         {members.map((m) => {
           const isMe = m.user.id === user?.id
@@ -158,9 +143,6 @@ export default function MembersSection({ organizationId, accessToken, invitePoli
           return (
             <Card key={m.user.id}>
               <div className="flex items-center gap-3">
-                {/* Avatar avec TAG administrateur : relative + absolute posent la
-                    pastille sur le coin de l'image. L'ensemble est un lien vers
-                    le profil public. */}
                 <Link
                   to={`/profil/${m.user.id}`}
                   className="relative shrink-0 rounded-full"
@@ -173,11 +155,10 @@ export default function MembersSection({ organizationId, accessToken, invitePoli
                       {m.user.displayName.charAt(0).toUpperCase()}
                     </span>
                   )}
+                  {/* Tag administrateur : relative sur le lien + absolute ici. */}
                   {m.role === 'ADMIN' && (
                     <span
-                      // ring-surface detache la pastille de l'avatar.
                       className="absolute -bottom-0.5 -right-0.5 grid place-items-center size-4 rounded-full bg-ink text-white text-[9px] font-bold ring-2 ring-surface"
-                      // La pastille seule n'est pas accessible : on la nomme.
                       title="Administrateur"
                       aria-label="Administrateur"
                     >
@@ -229,8 +210,6 @@ export default function MembersSection({ organizationId, accessToken, invitePoli
         })}
       </div>
 
-      {/* Information utile : sans elle, un membre simple pourrait croire a un bug
-          en ne voyant aucun bouton de gestion. */}
       {!iAmAdmin && (
         <p className="font-data text-[12.5px] text-ink-soft mt-3">
           Seuls les administrateurs peuvent gérer les membres.

@@ -13,6 +13,8 @@ import { TaskVisibilityFilterDto } from './dto/task-visibility-filter.dto'
 export class TasksService {
   constructor(private readonly prisma: PrismaService, private readonly orgaServ: OrganizationsService) {}
 
+  // --- Lecture --------------------------------------------------------------
+
   async findOne(taskId: string) {
 	const task = await this.prisma.task.findUnique({ where: { id: taskId } })
 	if (!task) {
@@ -23,9 +25,6 @@ export class TasksService {
 
   async requireTaskVisibleToMember(	taskId: string,	organizationId: string,	requesterId: string) {
 	const task = await this.requireTaskInOrganization(taskId, organizationId)
-	// Tout membre actif du projet peut consulter n'importe quelle tache du projet
-	// (alignement avec findAllForOrganization, qui liste desormais toutes les
-	// taches par defaut) : seule l'appartenance au projet est requise ici.
 	await this.orgaServ.requireActiveMember(organizationId, requesterId)
 	return task
 }
@@ -37,10 +36,8 @@ export class TasksService {
   async findAllForOrganization(organizationId: string, requesterId: string, filters: TaskVisibilityFilterDto) {
 	const activeMember = await this.orgaServ.requireActiveMember(organizationId, requesterId)
 
-	// Aucun filtre demande (case "Mes taches uniquement" decochee cote front) :
-	// tout membre du projet voit TOUTES ses taches, quel que soit son role.
-	// Avant ce cas particulier, un membre non-admin ne voyait jamais les taches
-	// assignees exclusivement a quelqu'un d'autre, meme sans filtre actif.
+	// Aucun filtre demande : tout membre du projet voit toutes les taches, quel
+	// que soit son role.
 	const noFilterRequested = filters.owned === undefined && filters.assignedUserIds === undefined && filters.unassigned === undefined
 	if (noFilterRequested) {
 		return await this.prisma.task.findMany({
@@ -60,6 +57,9 @@ export class TasksService {
 	if (filters.unassigned === false) {
 		showUnassigned = false
 	}
+	// Pour un administrateur sans assignedUserIds explicite, on retombe sur SES
+	// propres taches assignees, comme pour un membre normal : sinon "Mes taches
+	// uniquement" ne filtrait rien.
 	if (activeMember.role === Role.ADMIN) {
 		if (!filters.assignedUserIds || filters.assignedUserIds.length === 0) {
 			showAssignedTasks = false
@@ -68,11 +68,6 @@ export class TasksService {
 	 	where: { organizationId: organizationId,
 			OR: [
 				showOwned ? { ownerId: activeMember.id } : undefined,
-				// Si aucun assignedUserIds explicite n'a ete demande, on retombe sur
-				// LES TACHES ASSIGNEES A L'ADMIN LUI-MEME (comme pour un membre
-				// normal, voir la branche non-admin plus bas) — et non plus sur
-				// "n'importe quelle tache assignee a n'importe qui", qui faisait que
-				// "Mes taches uniquement" ne filtrait rien pour un administrateur.
 				showAssignedTasks ? { taskAssignments: { some: { memberId: { in: activeMemberIdsToShow } } } } : filters.assignedUserIds === undefined ? { taskAssignments: { some: { memberId: activeMember.id } } } : undefined,
 				showUnassigned ? { taskAssignments: { none: {} } } : undefined
 			].filter(condition => condition !== undefined)
@@ -84,7 +79,7 @@ export class TasksService {
 		showAssignedTasks = false
 	}
 	return await this.prisma.task.findMany({
-	  where: { 
+	  where: {
 		organizationId: organizationId,
 		OR: [
 			showOwned ? { ownerId: activeMember.id } : undefined,
@@ -95,6 +90,8 @@ export class TasksService {
 	  orderBy: { name: 'asc' }
 	})
   }
+
+  // --- Creation -------------------------------------------------------------
 
   async create(data: CreateTaskDto, organizationId: string, creatorId: string) {
 	const activeMember = await this.orgaServ.requireActiveMember(organizationId, creatorId)
@@ -121,6 +118,8 @@ export class TasksService {
 	})
   }
 
+  // --- Gardes de droits -----------------------------------------------------
+
   async requireTaskInOrganization(taskId: string, organizationId: string) {
 	const task = await this.findOne(taskId)
 	if (task.organizationId !== organizationId) {
@@ -137,6 +136,8 @@ export class TasksService {
 	}
 	return task
   }
+
+  // --- Modification ---------------------------------------------------------
 
   async update(taskId: string, data: UpdateTaskDto, organizationId: string, requesterId: string) {
 	if (data.name === undefined && data.description === undefined && data.startDate === undefined && data.dueDate === undefined) {
@@ -186,6 +187,8 @@ export class TasksService {
 	  }
 	})
   }
+
+  // --- Assignations ---------------------------------------------------------
 
   async findAssignments(taskId: string, organizationId: string, requesterId: string) {
 	await this.requireTaskVisibleToMember(taskId, organizationId, requesterId)
@@ -252,6 +255,8 @@ export class TasksService {
 	  }
 	})
   }
+
+  // --- Suppression ----------------------------------------------------------
 
   async delete(taskId: string, organizationId: string, requesterId: string) {
 	await this.requireTaskOwnerOrAdmin(taskId, organizationId, requesterId)

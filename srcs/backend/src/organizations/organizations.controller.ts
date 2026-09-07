@@ -1,5 +1,3 @@
-
-// Importe les decorateurs de routage : @Body (corps de requete), @Controller, @Get, @Post.
 import {
 	Body,
 	Controller,
@@ -13,7 +11,6 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import { OrganizationsService } from './organizations.service'
-// AJOUT NY : diffusion temps reel des changements de membres.
 import { RealtimeGateway } from '../realtime/realtime.gateway'
 import { ServerEvents } from '../realtime/realtime.events'
 import type { MemberEventPayload } from '../realtime/realtime.events'
@@ -24,10 +21,9 @@ import { AddMemberDto } from './dto/add-member-organization.dto'
 @UseGuards(JwtAuthGuard)
 @Controller('organizations')
 export class OrganizationsController {
-  // Le gateway est injecte ICI, dans le controller, et non dans le service :
-  // organizations.service.ts fait autorite sur les regles metier et ne doit pas
-  // dependre de la couche transport. Le controller, lui, est un point terminal —
-  // rien ne l'importe, donc aucun risque de dependance circulaire.
+  // Le gateway est injecte ici et non dans le service : celui-ci fait autorite sur
+  // les regles metier et ne doit pas dependre de la couche transport. Le controller
+  // est un point terminal, donc sans risque de dependance circulaire.
   constructor(
     private readonly organizations: OrganizationsService,
     private readonly realtime: RealtimeGateway,
@@ -45,8 +41,8 @@ export class OrganizationsController {
   @Post(':id/members')
   async addMember(@Param('id') id: string, @CurrentUser() user: { userId: string }, @Body() dto: AddMemberDto) {
 	await this.organizations.addMember(id, dto.userId, user.userId)
-	// Diffuse APRES le succes du service : si celui-ci leve (droit refuse, membre
-	// deja present), l'exception remonte et l'evenement n'est jamais emis.
+	// Diffuse apres le succes du service : s'il leve (droit refuse, membre deja
+	// present), l'exception remonte et l'evenement n'est jamais emis.
 	const added: MemberEventPayload = { organizationId: id, userId: dto.userId }
 	this.realtime.notifyOrganization(id, ServerEvents.MEMBER_ADDED, added)
 	return { message: `Membre ajouté avec succès !` }
@@ -92,8 +88,7 @@ export class OrganizationsController {
   @Delete(':id/members/me')
   async leaveOrganization(@Param('id') id: string, @CurrentUser() user: { userId: string }) {
 	const isOrgaDeleted = await this.organizations.leaveOrganization(id, user.userId)
-	// Si le depart a entraine la suppression du projet, il n'y a plus de salon ni
-	// de membres a prevenir : on n'emet que dans le cas contraire.
+	// Si le depart a supprime le projet, il n'y a plus de salon a prevenir.
 	if (!isOrgaDeleted) {
 	  const left: MemberEventPayload = { organizationId: id, userId: user.userId }
 	  this.realtime.notifyOrganization(id, ServerEvents.MEMBER_REMOVED, left)
@@ -103,7 +98,6 @@ export class OrganizationsController {
 	}
 	return { message: `Vous avez bien quitté le projet !` }
   }
-
 
   @Delete(':id/members/:targetUserId')
   async removeMember(@Param('id') id: string, @Param('targetUserId') targetUserId: string, @CurrentUser() user: { userId: string }) {

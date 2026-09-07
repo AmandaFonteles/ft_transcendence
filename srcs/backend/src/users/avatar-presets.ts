@@ -1,5 +1,3 @@
-// [CONCEPT: liste fixe] Un simple tableau : pas besoin de table DB pour une liste
-// qui ne change quasiment jamais. "as const" fige les valeurs pour IsIn() ci-dessous.
 export const AVATAR_PRESETS = [
   '/avatars/preset-01.png',
   '/avatars/preset-02.png',

@@ -1,9 +1,3 @@
-// =============================================================================
-// TextArea.tsx : champ de saisie multiligne, pour les descriptions.
-// Le TextField existant ne gere qu'une ligne ; une description de tache merite
-// plusieurs lignes visibles.
-// =============================================================================
-
 import type { TextareaHTMLAttributes } from 'react'
 import { useId } from 'react'
 
@@ -12,7 +6,6 @@ interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
 }
 
 export default function TextArea({ label, className = '', ...rest }: TextAreaProps) {
-  // Identifiant unique reliant le libelle au champ (voir TextField).
   const id = useId()
   return (
     <div className="grid gap-1">
@@ -20,8 +13,8 @@ export default function TextArea({ label, className = '', ...rest }: TextAreaPro
       <textarea
         id={id}
         rows={3}
-        // resize-y : l'utilisateur peut agrandir verticalement, mais pas casser
-        // la largeur de la mise en page en tirant horizontalement.
+        // resize-y : agrandissement vertical possible, sans casser la largeur de la
+        // mise en page.
         className={`w-full bg-surface border border-rule rounded-lg px-3 py-2 text-[15px] resize-y placeholder:text-ink-faint disabled:bg-sunk ${className}`}
         {...rest}
       />

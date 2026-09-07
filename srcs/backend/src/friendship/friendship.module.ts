@@ -2,7 +2,7 @@ import { Module, forwardRef } from '@nestjs/common'
 import { FriendshipController } from './friendship.controller';
 import { FriendshipService } from './friendship.service';
 import { PrismaModule } from '../prisma/prisma.module';
-import { RealtimeModule } from '../realtime/realtime.module' // AJOUT
+import { RealtimeModule } from '../realtime/realtime.module'
 
 @Module({
   imports: [PrismaModule, forwardRef(() => RealtimeModule)],

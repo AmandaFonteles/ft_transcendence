@@ -1,11 +1,11 @@
-import { 
-	Body, 
-	Controller, 
-	Get, 
-	Post, 
-	Param, 
-	Patch, 
-	Delete, 
+import {
+	Body,
+	Controller,
+	Get,
+	Post,
+	Param,
+	Patch,
+	Delete,
 	Query,
 	UseGuards
 } from '@nestjs/common'
@@ -25,8 +25,8 @@ import { TaskVisibilityFilterDto } from './dto/task-visibility-filter.dto'
 @UseGuards(JwtAuthGuard)
 @Controller('organizations/:organizationId/tasks')
 export class TasksController {
-  // Le gateway est injecte ICI, dans le controller, et non dans le service :
-  // meme convention que OrganizationsController (voir organizations.controller.ts).
+  // Le gateway est injecte dans le controller et non dans le service : meme
+  // convention que OrganizationsController.
   constructor(
 	private readonly tasksService: TasksService,
 	private readonly realtime: RealtimeGateway,
@@ -48,7 +48,7 @@ export class TasksController {
 	return {
 		message: `Membre assigné avec succès !`,
 		taskId: taskId
-	}//Faudra probablement faire le meme retour que pour la creation de tache, avec l'objet complet de l'assignation.
+	}
   }
 
   @Get(':taskId')
@@ -61,12 +61,10 @@ export class TasksController {
 	return await this.tasksService.findAssignments(taskId, organizationId, user.userId)
   }
 
-
   @Get()
   async findAllForOrganization(@Param('organizationId') organizationId: string, @CurrentUser() user: { userId: string }, @Query() filters: TaskVisibilityFilterDto) {
 	return await this.tasksService.findAllForOrganization(organizationId, user.userId, filters)
   }
-  
 
   @Patch(':taskId')
   async update(@Param('organizationId') organizationId: string, @Param('taskId') taskId: string, @CurrentUser() user: { userId: string }, @Body() data: UpdateTaskDto) {
@@ -76,7 +74,7 @@ export class TasksController {
 	return {
 		message: `Mise à jour réussie !`,
 		taskId: taskId
-	}//idem
+	}
   }
 
   @Patch(':taskId/status')
@@ -96,7 +94,7 @@ export class TasksController {
 		message: `Propriété transférée avec succès !`,
 		taskId: taskId
 	}
-  }//idem
+  }
 
   @Delete(':taskId/assignments/:memberUserId')
   async removeAssignment(@Param('organizationId') organizationId: string, @Param('taskId') taskId: string, @Param('memberUserId') memberUserId: string, @CurrentUser() user: { userId: string }) {
@@ -106,7 +104,7 @@ export class TasksController {
 	return {
 		message: `Assignation supprimée avec succès !`,
 		taskId: taskId
-	}//idem
+	}
   }
 
   @Delete(':taskId')
@@ -117,6 +115,6 @@ export class TasksController {
 	return {
 		message: `Tâche supprimée avec succès !`,
 		taskId: taskId
-	}//idem
+	}
   }
 }

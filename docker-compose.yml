@@ -1,139 +1,75 @@
-# =============================================================================
-# docker-compose.yml : l'orchestrateur.
-# Il decrit QUELS conteneurs lancer, comment ils se connectent, ce qui persiste.
-# "docker compose up" lit ce fichier et met toute la pile en route.
-# Regle d'or : tous les services rejoignent le meme reseau prive et se joignent
-# PAR LEUR NOM grace au DNS interne de Docker (backend, frontend, database...).
-# =============================================================================
+# Orchestrateur : quels conteneurs lancer, comment ils se connectent, ce qui
+# persiste. Tous les services rejoignent le meme reseau prive et se joignent par
+# leur nom grace au DNS interne de Docker.
+# Les images portent un nom pleinement qualifie (docker.io/...) : Podman, lui, ne
+# suppose pas Docker Hub par defaut et demanderait interactivement de choisir un
+# registre, ce qui casserait le deploiement en une commande.
 
-# Bloc racine listant tous les conteneurs a lancer.
 services:
 
-  # ---------------------------------------------------------------------------
-  # DATABASE : PostgreSQL, via l'image OFFICIELLE (aucun Dockerfile a ecrire).
-  # ---------------------------------------------------------------------------
+  # --- Application -----------------------------------------------------------
+
   database:
-    # Image officielle Postgres, variante alpine (Linux minimal = leger).
-    # Pourquoi l'image officielle : maintenue, sure, rien a construire nous-memes.
-    # NOM PLEINEMENT QUALIFIE ("docker.io/library/...") : indispensable sous Podman,
-    # qui — contrairement a Docker — ne suppose pas Docker Hub par defaut et
-    # demanderait interactivement de choisir un registre. Or le sujet exige un
-    # deploiement en UNE commande, SANS intervention manuelle. Docker accepte aussi
-    # cette forme : un seul fichier fonctionne donc dans les deux environnements.
     image: docker.io/library/postgres:16-alpine
-    # Injecte le contenu de .env (POSTGRES_USER/PASSWORD/DB) comme variables d'env.
-    # Pourquoi : l'image officielle cree la base et l'utilisateur a partir de ces variables.
     env_file: .env
-    # Bloc des volumes montes dans ce conteneur.
     volumes:
-      # Volume NOMME : stocke les donnees HORS du conteneur, dans un espace gere par Docker.
-      # Pourquoi : sans lui, chaque "down" effacerait toute la base ; la il survit aux redemarrages.
       - postgres_data:/var/lib/postgresql/data
-    # Rattache ce service au reseau prive commun (defini tout en bas).
     networks: [transcendence]
-    # Bloc "healthcheck" : Docker teste periodiquement si le service repond VRAIMENT.
     healthcheck:
-      # Commande executee DANS le conteneur ; le service devient "healthy" quand Postgres repond.
-      # Le double $$ empeche compose d'interpreter la variable : c'est le SHELL du conteneur
-      # qui la lit a l'execution, dans ses propres variables d'environnement.
+      # Le double $$ empeche compose d'interpreter la variable : c'est le shell du
+      # conteneur qui la lit a l'execution.
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      # Intervalle entre deux tests.
       interval: 5s
-      # Duree au-dela de laquelle un test est considere en echec.
       timeout: 3s
-      # Nombre d'echecs consecutifs avant de marquer le service "unhealthy".
       retries: 5
-    # Redemarre automatiquement le conteneur s'il plante (sauf arret manuel).
     restart: unless-stopped
 
-  # ---------------------------------------------------------------------------
-  # BACKEND : API NestJS, construite depuis ./srcs/backend/Dockerfile.
-  # ---------------------------------------------------------------------------
   backend:
-    # Construit l'image a partir du Dockerfile present dans ce dossier.
-    # Pourquoi "build" et pas "image" : c'est notre code, il faut le compiler dans une image.
     build: ./srcs/backend
-    # Fournit aussi les variables .env au backend (il en aura besoin pour la base plus tard).
     env_file: .env
-    # Bloc de variables d'environnement supplementaires, propres a ce service.
     environment:
-      # Force la detection de changements de fichiers par "polling".
-      # Pourquoi : depuis un bind mount, la detection d'evenements est peu fiable sur
-      # macOS/Windows ; le polling rend le rechargement a chaud fiable partout (leger cout CPU).
+      # Detection par polling : depuis un bind mount, la detection d'evenements est
+      # peu fiable sur macOS/Windows.
       - CHOKIDAR_USEPOLLING=true
-    # Bloc des volumes.
     volumes:
-      # BIND MOUNT : relie le dossier source de l'hote au /app du conteneur.
-      # Pourquoi : editer un fichier sur ta machine se reflete immediatement dans le conteneur.
       - ./srcs/backend:/app
-      # Volume ANONYME sur /app/node_modules : LE piege classique Docker + Node.
-      # Pourquoi : sans lui, le bind mount ci-dessus masquerait les node_modules installes
-      # dans l'image par ceux (vides/incompatibles) de l'hote ; l'app planterait ("module not found").
+      # Volume anonyme sur node_modules : sans lui, le bind mount ci-dessus
+      # masquerait les modules installes dans l'image par ceux de l'hote.
       - /app/node_modules
-      # Volume NOMME pour les FICHIERS TELEVERSES (modele File du schema Prisma).
-      # Monte HORS de /app, volontairement : /app contient le CODE (bind mount, versionne),
-      # ici on stocke des DONNEES UTILISATEUR. Separer les deux rend la frontiere physique
-      # et evite que des televersements atterrissent dans le depot git.
-      # Volume nomme et non bind mount, pour la meme raison que postgres_data : les fichiers
-      # doivent survivre a "make down" sans jamais etre committes.
+      # Hors de /app volontairement : /app contient le code versionne, ici ce sont
+      # des donnees utilisateur. Volume nomme, pour qu'elles survivent a "make down"
+      # sans jamais etre committees.
       - uploads_data:/var/lib/transcendence/uploads
-    # Reseau prive commun.
     networks: [transcendence]
-    # Bloc des dependances de demarrage.
     depends_on:
-      # Attend que la base soit reellement prete (grace au healthcheck), pas juste "demarree".
-      # Pourquoi : le backend qui se connectera a la base ne doit pas partir trop tot.
+      # Attend que la base reponde vraiment, pas juste qu'elle soit demarree.
       database:
         condition: service_healthy
-    # Auto-redemarrage en cas de crash.
     restart: unless-stopped
 
-  # ---------------------------------------------------------------------------
-  # FRONTEND : serveur de dev React + Vite, depuis ./srcs/frontend/Dockerfile.
-  # ---------------------------------------------------------------------------
   frontend:
-    # Construit l'image depuis le Dockerfile du dossier frontend.
     build: ./srcs/frontend
-    # Bloc des volumes (meme logique que le backend).
     volumes:
-      # Bind mount du code source pour l'edition a chaud.
       - ./srcs/frontend:/app
-      # Meme "bouclier" node_modules que le backend.
       - /app/node_modules
-    # Reseau prive commun.
     networks: [transcendence]
-    # Auto-redemarrage.
     restart: unless-stopped
 
-  # ---------------------------------------------------------------------------
-  # NGINX : le SEUL service expose a l'hote. Terminaison TLS + reverse proxy.
-  # ---------------------------------------------------------------------------
+  # Le seul service expose a l'hote : terminaison TLS et reverse proxy.
   nginx:
-    # Construit l'image nginx (avec certificat + config) depuis son Dockerfile.
     build: ./srcs/nginx
-    # Bloc des ports publies "hote:conteneur".
-    # PORTS NON PRIVILEGIES (>= 1024) : obligatoire en Docker ROOTLESS, car un
-    # process non-root ne peut pas se lier aux ports < 1024. On les utilise TOUJOURS
-    # (ils marchent aussi en Docker classique) pour garder un comportement unique
-    # sur toutes les machines de l'equipe.
+    # Ports non privilegies (>= 1024) : obligatoire en Docker rootless, ou un
+    # process non-root ne peut pas se lier aux ports < 1024. nginx continue
+    # d'ecouter 80 et 443 a l'interieur du conteneur.
     ports:
-      # 8080 sur l'hote -> 80 dans le conteneur : ne sert qu'a rediriger vers HTTPS.
       - "8080:80"
-      # 8443 sur l'hote -> 443 dans le conteneur : la vraie porte d'entree, en HTTPS.
-      # nginx continue d'ecouter 443 A L'INTERIEUR du conteneur (seul le port HOTE est contraint).
-      # Pourquoi seul nginx publie des ports : front/back/db restent injoignables depuis
-      # l'exterieur ; seul le HTTPS via nginx est public (l'isolation voulue par le sujet).
       - "8443:443"
-    # Reseau prive commun.
     networks: [transcendence]
-    # Demarre apres que les conteneurs front et back existent (pour que le DNS les resolve).
     depends_on: [frontend, backend]
-    # Auto-redemarrage.
     restart: unless-stopped
 
-  # ---------------------------------------------------------------------------
-  # PROMETHEUS: Le serveur pour le monitoring des services.
-  # ---------------------------------------------------------------------------
+  # --- Monitoring ------------------------------------------------------------
+
   prometheus:
     image: docker.io/prom/prometheus:v3.13.2
     user: "0:0"
@@ -145,35 +81,27 @@ services:
       - --web.external-url=https://localhost:8443/prometheus/
       - --web.enable-lifecycle
     volumes:
-      # ':ro' — Prometheus ne doit pas ecrire dans des fichiers versionnes.
+      # ':ro' : Prometheus ne doit pas ecrire dans des fichiers versionnes.
       - ./srcs/monitoring/prometheus:/etc/prometheus:ro
-      # Les permissions sont reglees par 'user: "0:0"' ci-dessus
       - prometheus_data:/prometheus
     networks: [transcendence]
 
-  # ---------------------------------------------------------------------------
-  # NODE-EXPORTER: host metrics exporter
-  # ---------------------------------------------------------------------------
   node-exporter:
     image: docker.io/prom/node-exporter:v1.12.1
     restart: unless-stopped
     command:
-      # Ces 3 flags redirigent node-exporter vers les systemes de fichiers de
-      # l'HOTE, montes ci-dessous. Sans eux, il mesurerait son propre conteneur.
+      # Redirigent node-exporter vers les systemes de fichiers de l'hote, montes
+      # ci-dessous en lecture seule. Sans eux, il mesurerait son propre conteneur.
       - --path.procfs=/host/proc
       - --path.sysfs=/host/sys
       - --path.rootfs=/host/root
     volumes:
-      # Lecture seule : on monte le noyau de l'hote, jamais en ecriture.
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/host/root:ro,rslave
     networks: [transcendence]
 
-  # ---------------------------------------------------------------------------
-  # POSTGRES-EXPORTER : traduit les statistiques internes de PostgreSQL
-  # (vues pg_stat_*) au format Prometheus.
-  # ---------------------------------------------------------------------------
+  # Traduit les vues pg_stat_* de PostgreSQL au format Prometheus.
   postgres-exporter:
     image: docker.io/prometheuscommunity/postgres-exporter:v0.20.1
     env_file:
@@ -186,73 +114,53 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # ---------------------------------------------------------------------------
-  # NGINX-EXPORTER : lit la page stub_status de nginx et la traduit
-  # au format Prometheus.
-  # ---------------------------------------------------------------------------
   nginx-exporter:
     image: docker.io/nginx/nginx-prometheus-exporter:1.5.1
     command:
-      # URL INTERNE : 'nginx' est resolu par le DNS Docker, 8081 est le port
-      # du serveur virtuel de monitoring ajoute dans nginx.conf.
+      # URL interne : 'nginx' est resolu par le DNS Docker, 8081 est le serveur
+      # virtuel de monitoring declare dans nginx.conf.
       - --nginx.scrape-uri=http://nginx:8081/stub_status
     networks: [transcendence]
     depends_on: [nginx]
     restart: unless-stopped
 
-  # ---------------------------------------------------------------------------
-  # GRAFANA : l'interface de visualisation.
-  # Ne stocke AUCUNE metrique : a chaque rafraichissement de panneau, il envoie
-  # une requete a Prometheus et dessine la reponse. La base de donnees
-  # de series temporelles reste Prometheus.
-  # ---------------------------------------------------------------------------
+  # Interface de visualisation. Ne stocke aucune metrique : a chaque
+  # rafraichissement, il interroge Prometheus et dessine la reponse.
   grafana:
     image: docker.io/grafana/grafana:13.1.5
     user: "0:0"
     env_file:
       - .env
     environment:
-      # URL PUBLIQUE complete. Grafana s'en sert pour construire ses
-      # redirections et les liens absolus qu'il renvoie au navigateur.
+      # URL publique complete : Grafana s'en sert pour ses redirections et les
+      # liens absolus renvoyes au navigateur.
       - GF_SERVER_ROOT_URL=https://localhost:8443/grafana/
-      # Indique a Grafana de servir ses propres routes SOUS ce prefixe.
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
       - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER}
       - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
-      # Pas de creation de compte libre : l'admin cree les comptes.
       - GF_USERS_ALLOW_SIGN_UP=false
-      # On n'a pas besoin des updates
       - GF_ANALYTICS_REPORTING_ENABLED=false
       - GF_ANALYTICS_CHECK_FOR_UPDATES=false
       - GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false
     volumes:
-      # Provisioning : datasources et dashboards decrits par des FICHIERS
-      # versionnes, lus au demarrage. ':ro' — Grafana ne doit jamais reecrire
-      # ce qui est dans le depot.
-      - ./srcs/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-      # Les JSON de dashboards, hors du dossier provisioning pour que le
+      # Provisioning : datasources et dashboards decrits par des fichiers versionnes,
+      # lus au demarrage. Les JSON de dashboards sont hors de ce dossier pour que le
       # fournisseur ne rencontre que des dashboards dans le chemin qu'il scanne.
+      - ./srcs/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./srcs/monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     networks: [transcendence]
     restart: unless-stopped
 
-  # ---------------------------------------------------------------------------
-  # ALERTMANAGER : recoit les alertes emises par Prometheus, les regroupe,
-  # applique les inhibitions et les envoie au recepteur configure.
-  # Prometheus decide QUAND alerter ; Alertmanager decide A QUI et
-  # COMBIEN DE FOIS.
-  # ---------------------------------------------------------------------------
+  # Prometheus decide QUAND alerter ; Alertmanager decide A QUI et COMBIEN DE FOIS.
   alertmanager:
     image: docker.io/prom/alertmanager:v0.33.1
     user: "0:0"
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
-      # Silences et journal des notifications : doivent survivre a un
-      # redemarrage, sinon toute alerte serait renotifiee.
+      # Silences et journal des notifications : doivent survivre a un redemarrage,
+      # sinon toute alerte serait renotifiee.
       - --storage.path=/alertmanager
-      # Meme mecanisme que Prometheus : deplace TOUTES les routes sous
-      # /alertmanager/, y compris /metrics et l'API.
       - --web.external-url=https://localhost:8443/alertmanager/
     volumes:
       - ./srcs/monitoring/alertmanager:/etc/alertmanager:ro
@@ -260,25 +168,22 @@ services:
     networks: [transcendence]
     restart: unless-stopped
 
-# Bloc racine des reseaux.
+# Un unique reseau prive partage : les services communiquent par nom, isoles du
+# reste de la machine.
 networks:
-  # Un unique reseau prive de type "bridge" partage par tous les services.
-  # Pourquoi : ils communiquent entre eux par nom, isoles du reste de la machine.
   transcendence:
     driver: bridge
 
-# Bloc racine des volumes nommes.
 volumes:
-  # Declare le volume utilise par la base ci-dessus (sa duree de vie est geree par Docker).
   postgres_data:
-  # Fichiers televerses par les utilisateurs (modele File). Sa duree de vie est
-  # independante des conteneurs : un "make down" ne l'efface pas, seul "make clean" le fait.
+  # Fichiers televerses par les utilisateurs : "make down" ne les efface pas, seul
+  # "make clean" le fait.
   uploads_data:
   prometheus_data:
   grafana_data:
   alertmanager_data:
 
-#### pour mac
+# Variante node-exporter pour le vieux mac de Quentin (sans l'option rslave).
 
     # node-exporter:
     # image: docker.io/prom/node-exporter:v1.12.1

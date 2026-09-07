@@ -1,16 +1,11 @@
-// =============================================================================
-// useProjectChat.ts : connecte un composant au chat temps reel d'un projet.
-// Structure commune a tous les hooks temps reel : rejoindre la room, ecouter,
-// nettoyer. Difference cle : l'historique vient du REST (GET .../messages) au montage,
-// le temps reel ne fait qu'AJOUTER les nouveaux messages par-dessus.
-// =============================================================================
-
 import { useEffect, useState } from 'react'
 import { getSocket } from './socket'
 import { ClientEvents, ServerEvents, ChatMessageEvent } from './events'
 import { listMessages } from '../api'
 import type { ChatMessage } from '../api'
 
+// Connecte un composant au chat temps reel d'un projet. L'historique vient du
+// REST au montage ; le temps reel ne fait qu'ajouter les nouveaux messages.
 interface ProjectChatState {
   connected: boolean
   messages: ChatMessage[]
@@ -28,16 +23,16 @@ export function useProjectChat(
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Charge l'historique via REST au montage (independant du websocket : on veut
-  // les messages meme si la socket met du temps a se (re)connecter).
+  // Historique via REST, independamment du websocket : on veut les messages meme
+  // si la socket met du temps a se (re)connecter.
   useEffect(() => {
     let cancelled = false
     setLoadingHistory(true)
     listMessages(accessToken, organizationId)
       .then((history) => {
         if (cancelled) return
-        // Le backend renvoie desc (plus recent d'abord) pour la pagination ;
-        // l'UI veut l'ordre chronologique (plus ancien en haut).
+        // Le backend renvoie desc pour la pagination ; l'UI veut l'ordre
+        // chronologique.
         setMessages([...history].reverse())
       })
       .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'erreur inconnue') })
@@ -58,9 +53,7 @@ export function useProjectChat(
     const onDisconnect = () => setConnected(false)
 
     const onMessageNew = (event: ChatMessageEvent) => {
-      // Ignore les messages d'autres projets : la socket est partagee par
-      // toute l'app, elle peut recevoir des evenements d'une room a laquelle
-      // ce composant particulier n'est plus interesse (ex. navigation rapide).
+      // La socket est partagee : elle recoit aussi les evenements d'autres projets.
       if (event.organizationId !== organizationId) return
       setMessages((prev) => [
         ...prev,
@@ -70,8 +63,7 @@ export function useProjectChat(
           createdAt: event.createdAt,
           organizationId: event.organizationId,
           authorId: event.author.userId,
-          // Forme minimale : le temps reel n'a que userId/displayName, pas
-          // l'avatar. On le complete a null plutot que de refaire un fetch.
+          // Forme minimale : le temps reel n'a que userId/displayName, pas l'avatar.
           author: {
             user: {
               id: event.author.userId,
@@ -106,11 +98,9 @@ export function useProjectChat(
   function sendMessage(content: string) {
     if (!content.trim()) return
     const socket = getSocket()
+    // Pas d'ajout optimiste : le gateway diffuse a tout le salon, emetteur inclus.
+    // Le message revient par onMessageNew avec son vrai id et son horodatage de base.
     socket.emit(ClientEvents.MESSAGE_SEND, { organizationId, content: content.trim() })
-    // Pas d'ajout optimiste ici : le gateway diffuse le message a TOUT le salon,
-    // emetteur inclus (this.server.to, et non client.to qui l'exclurait). Il
-    // apparaitra donc via onMessageNew une fois le serveur l'ayant persiste —
-    // avec son vrai id et son vrai horodatage, ceux de la base.
   }
 
   return { connected, messages, loadingHistory, error, sendMessage }

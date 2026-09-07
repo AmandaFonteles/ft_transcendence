@@ -1,9 +1,4 @@
-// =============================================================================
-// FriendsPage.tsx : ses amis, les demandes en attente, et la recherche.
-// La liste vient de GET /api/users. Les fonctions "amis" et "chat" prevues par
-// la structure n'ont pas encore de route backend : elles sont signalees comme
-// emplacements a construire.
-// =============================================================================
+// Ses amis, les demandes en attente et la recherche d'utilisateurs.
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -62,8 +57,6 @@ function UserRow({ user, action, isOnline }: { user: PublicUser; action?: React.
 }
 
 export default function FriendsPage() {
-  // Plus besoin de l'utilisateur courant ici : l'identite du handshake socket
-  // vient desormais du jeton verifie cote serveur, pas d'un objet passe au hook.
   const { accessToken } = useAuth()
   const onlineStatuses = useOnlineStatus()
 

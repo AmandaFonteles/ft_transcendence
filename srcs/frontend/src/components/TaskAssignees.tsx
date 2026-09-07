@@ -1,34 +1,21 @@
-// =============================================================================
-// TaskAssignees.tsx : qui est assigne a une tache, et gestion des assignations.
-//
-// REGLES DE DROIT (appliquees par le backend, reproduites ici pour ne proposer
-// que ce qui aboutira) :
-//   - le PROPRIETAIRE de la tache et les ADMINISTRATEURS du projet assignent et
-//     retirent n'importe qui ;
-//   - tout autre membre peut PRENDRE une tache, mais seulement si elle n'a
-//     encore aucun assigne ;
-//   - tout membre peut se retirer LUI-MEME.
-//
-// Masquer une action est un confort, pas une securite : le backend refuse de
-// toute facon (assignMember / removeAssignment verifient tout cela).
-// =============================================================================
-
 import { useCallback, useEffect, useState } from 'react'
 import { assignTaskMember, listOrganizationMembers, listTaskAssignments, removeTaskAssignment } from '../api'
 import type { OrganizationMember, TaskAssignment } from '../api'
 import { useTaskEvents } from '../realtime/useTaskEvents'
 import Button from './ui/Button'
 
+// Qui est assigne a une tache, et gestion des assignations.
+// Regles appliquees par le backend, reproduites ici pour ne proposer que ce qui
+// aboutira : le proprietaire de la tache et les administrateurs assignent et
+// retirent n'importe qui ; tout autre membre peut prendre une tache libre ; tout
+// membre peut se retirer lui-meme. Masquer une action reste un confort, pas une
+// securite — le backend refuse de toute facon.
 interface TaskAssigneesProps {
   accessToken: string
   organizationId: string
   taskId: string
-  // Identifiant du MEMBRE (OrganizationMember.id) proprietaire de la tache.
-  // Peut etre null : une tache peut n'avoir aucun proprietaire.
   ownerId: string | null
-  // Identifiant UTILISATEUR de la personne connectee.
   currentUserId: string
-  // La personne connectee est-elle administratrice du projet ?
   isAdmin: boolean
 }
 
@@ -36,19 +23,19 @@ export default function TaskAssignees({
   accessToken, organizationId, taskId, ownerId, currentUserId, isAdmin,
 }: TaskAssigneesProps) {
   const [assignments, setAssignments] = useState<TaskAssignment[]>([])
-  // Membres du projet : necessaires pour afficher des NOMS. L'API d'assignation
-  // ne renvoie que des OrganizationMember (userId), jamais le displayName.
   const [members, setMembers] = useState<OrganizationMember[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  // Action en cours : desactive les boutons pour eviter les doubles envois.
   const [busy, setBusy] = useState(false)
 
-  // Recharge depuis l'API. useCallback fige l'identite de la fonction, ce qui
-  // permet de la mettre en dependance de l'effet sans le relancer en boucle.
+  // --- Chargement -----------------------------------------------------------
+
+  // useCallback fige l'identite de la fonction : elle peut servir de dependance
+  // d'effet sans le relancer en boucle.
   const reload = useCallback(async () => {
     try {
-      // Les deux appels sont independants : on les lance en parallele.
+      // Les membres sont necessaires pour afficher des noms : l'API d'assignation
+      // ne renvoie que des OrganizationMember (userId), jamais le displayName.
       const [a, m] = await Promise.all([
         listTaskAssignments(accessToken, organizationId, taskId),
         listOrganizationMembers(accessToken, organizationId),
@@ -63,33 +50,31 @@ export default function TaskAssignees({
     }
   }, [accessToken, organizationId, taskId])
 
-  // [TEMPS REEL] Recharge quand une assignation change sur ce projet — y compris
-  // celles faites par quelqu'un d'autre pendant que ce panneau est ouvert.
+  // Recharge quand une assignation change sur ce projet, y compris du fait de
+  // quelqu'un d'autre pendant que ce panneau est ouvert.
   const taskEventsRevision = useTaskEvents(organizationId)
 
   useEffect(() => { reload() }, [reload, taskEventsRevision])
 
-  // Nom affichable d'un utilisateur, via la liste des membres.
   const nameOf = (userId: string) =>
     members.find((m) => m.user.id === userId)?.user.displayName ?? 'Membre inconnu'
 
-  // Le membre connecte, pour comparer son OrganizationMember.id au ownerId.
+  // --- Droits ---------------------------------------------------------------
+
+  // ownerId est un OrganizationMember.id, pas un userId : on ne peut trancher que
+  // si l'on retrouve notre propre memberId quelque part.
   const myMemberId = assignments.find((a) => a.member.userId === currentUserId)?.member.id
-  // Proprietaire de la tache ? ownerId est un OrganizationMember.id, pas un userId.
-  // On ne peut donc trancher que si l'on trouve notre propre memberId quelque part.
   const iAmOwner = ownerId !== null && myMemberId === ownerId
 
-  // Droits complets : assigner et retirer n'importe qui.
   const canManageAll = isAdmin || iAmOwner
-  // Deja assigne a cette tache ?
   const iAmAssigned = assignments.some((a) => a.member.userId === currentUserId)
-  // Tache libre : personne dessus, donc n'importe quel membre peut la prendre.
   const isUnclaimed = assignments.length === 0
 
-  // Membres du projet pas encore assignes : candidats a l'assignation.
   const assignable = members.filter(
     (m) => !assignments.some((a) => a.member.userId === m.user.id),
   )
+
+  // --- Actions --------------------------------------------------------------
 
   // Execute une action puis recharge, en neutralisant les boutons entre-temps.
   async function run(action: () => Promise<unknown>) {
@@ -118,8 +103,7 @@ export default function TaskAssignees({
       ) : (
         <ul className="grid gap-1 mb-2">
           {assignments.map((a) => {
-            // On peut retirer quelqu'un si l'on a les droits complets, ou s'il
-            // s'agit de soi-meme.
+            // Retirer quelqu'un demande les droits complets, sauf sur soi-meme.
             const canRemove = canManageAll || a.member.userId === currentUserId
             return (
               <li key={a.memberId} className="flex items-center gap-2 text-[13.5px]">
@@ -144,8 +128,7 @@ export default function TaskAssignees({
         </ul>
       )}
 
-      {/* PRENDRE LA TACHE : proposee a tout membre quand elle est libre. C'est la
-          regle "si une tache n'est pas affiliee, tout le monde peut la prendre". */}
+      {/* Prendre la tache : propose a tout membre quand elle est libre. */}
       {isUnclaimed && !canManageAll && (
         <Button
           onClick={() => run(() => assignTaskMember(accessToken, organizationId, taskId, currentUserId))}
@@ -155,15 +138,15 @@ export default function TaskAssignees({
         </Button>
       )}
 
-      {/* ASSIGNER QUELQU'UN : reserve au proprietaire et aux administrateurs. */}
+      {/* Assigner quelqu'un : reserve au proprietaire et aux administrateurs. */}
       {canManageAll && assignable.length > 0 && (
         <div className="flex items-center gap-2">
           <label htmlFor="assign-member" className="text-[13.5px] text-ink-soft">Assigner</label>
           <select
             id="assign-member"
-            // Valeur toujours vide : le select sert de declencheur d'action, pas
-            // de champ d'etat. Sans cette remise a zero, il resterait bloque sur
-            // le dernier choix et on ne pourrait pas reassigner la meme personne.
+            // Valeur toujours vide : le select declenche une action, il ne porte pas
+            // d'etat. Sans cette remise a zero il resterait bloque sur le dernier
+            // choix, empechant de reassigner la meme personne.
             value=""
             disabled={busy}
             onChange={(e) => {

@@ -1,21 +1,9 @@
-// =============================================================================
-// AgendaPage.tsx : agenda en VUE MOIS.
-//
-// Une tache apparait a sa DATE DE DEBUT et a son ECHEANCE, sous forme d'une
-// pastille coloree par son projet. Les deux reperes se distinguent par leur
-// marqueur : ▸ pour le debut, ◆ pour l'echeance — le meme langage visuel que les
-// lignes de taches, pour qu'il n'y ait rien de nouveau a apprendre.
-//
-// Une tache dont les deux dates tombent le meme jour n'apparait qu'UNE fois, avec
-// les deux marqueurs : la dupliquer dans la meme case n'apprendrait rien.
-//
-// Une tache SANS AUCUNE DATE est placee sur le jour courant : sans cela elle
-// n'apparaissait nulle part dans l'agenda, donc restait invisible a qui travaille
-// depuis cette page.
-//
-// Les taches TERMINEES ne sont plus affichees : l'agenda sert a voir ce qui reste
-// a faire, pas a archiver ce qui est fait.
-// =============================================================================
+// Agenda en vue mois. Une tache apparait a sa date de debut et a son echeance,
+// sous forme d'une pastille coloree par son projet ; les marqueurs ▸ (debut) et
+// ◆ (echeance) sont ceux des lignes de taches, rien de nouveau a apprendre.
+// Cas particuliers : les deux dates le meme jour donnent une seule entree a deux
+// marqueurs ; une tache sans aucune date est rangee sur le jour courant, sinon
+// elle serait invisible ici ; les taches terminees ne sont pas affichees.
 
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -66,15 +54,11 @@ const kindLabel: Record<EntryKind, string> = {
   undated: 'sans date',
 }
 
-// Ordre de tri dans une case : le debut avant l'echeance.
-// Ordre de tri dans une case : le debut avant l'echeance. Les taches sans date
-// passent en dernier : elles n'ont pas de rendez-vous ce jour-la, elles y sont
-// juste rangees faute de mieux.
+// Ordre de tri dans une case : le debut avant l'echeance, les taches sans date en
+// dernier.
 const kindOrder: Record<EntryKind, number> = { start: 0, both: 1, due: 2, undated: 3 }
 
 export default function AgendaPage() {
-  // L'utilisateur courant n'est plus necessaire ici : l'identite du handshake
-  // socket vient du jeton verifie par le serveur, plus d'un objet passe au hook.
   const { accessToken } = useAuth()
   // Permet d'ouvrir la page d'un projet au clic sur une de ses taches.
   const navigate = useNavigate()
@@ -90,10 +74,8 @@ export default function AgendaPage() {
   // Filtre par projet ; null = tous les projets.
   const [filterOrg, setFilterOrg] = useState<string | null>(null)
 
-  // [TEMPS REEL] Cette vue melange les taches de TOUS les projets de
-  // l'utilisateur : on rejoint donc le salon de chacun (voir
-  // useTaskEventsForOrganizations) pour recharger des qu'une tache change
-  // n'importe ou, y compris depuis la page d'un projet ou par quelqu'un d'autre.
+  // Cette vue melange les taches de tous les projets : on rejoint le salon de
+  // chacun pour recharger des qu'une tache change n'importe ou.
   const tasksRevision = useTaskEventsForOrganizations(orgs.map((o) => o.id))
 
   // Charge projets et taches (et les recharge sur evenement temps reel) ; la
@@ -135,11 +117,9 @@ export default function AgendaPage() {
     })),
   ], [orgs])
 
-  // [CONCEPT: useMemo] Regroupe les taches par jour. Le calcul ne se refait que si
-  // les taches ou le filtre changent, pas a chaque rendu.
-  //
-  // Une meme tache peut produire DEUX entrees : une a son debut, une a son
-  // echeance. On les distingue par "kind" pour pouvoir afficher le bon marqueur.
+  // Regroupe les taches par jour, recalcule seulement quand les taches ou le filtre
+  // changent. Une meme tache peut produire deux entrees (debut et echeance),
+  // distinguees par "kind".
   const byDay = useMemo(() => {
     const map = new Map<string, DayEntry[]>()
 
@@ -157,8 +137,8 @@ export default function AgendaPage() {
       // Applique le filtre projet.
       if (filterOrg && t.organizationId !== filterOrg) continue
 
-      // Une tache TERMINEE ne figure plus dans l'agenda : celui-ci sert a voir ce
-      // qui reste a faire. La garder encombrerait la grille sans rien apprendre.
+      // Une tache terminee ne figure plus dans l'agenda : il sert a voir ce qui
+      // reste a faire.
       if (t.status === 'DONE') continue
 
       const startKey = t.startDate ? dayKey(t.startDate) : null
@@ -172,7 +152,6 @@ export default function AgendaPage() {
       }
 
       // Debut et echeance le meme jour : une seule entree, deux marqueurs.
-      // Sans ce cas, la tache apparaitrait deux fois dans la meme case.
       if (startKey && dueKey && startKey === dueKey) {
         push(startKey, { task: t, kind: 'both' })
         continue
@@ -222,7 +201,8 @@ export default function AgendaPage() {
         }
       />
 
-      {/* FILTRE PAR PROJET. Composant dedie (FilterChips) et non des boutons
+      {/* --- Filtre par projet --- */}
+      {/* Composant dedie (FilterChips) et non des boutons
           arrondis : "Tous les projets" ressemblait a une action de creation. */}
       <div className="mb-4">
         <FilterChips
@@ -267,8 +247,8 @@ export default function AgendaPage() {
 
               {/* Jusqu'a trois entrees affichees, puis un compteur. */}
               {dayEntries.slice(0, MAX_PER_DAY).map((e) => (
-                // CLIC SUR UNE TACHE -> page de son projet. C'est le chemin le plus
-                // court entre "je vois quelque chose dans l'agenda" et "j'agis dessus".
+                // Un clic mene a la page du projet : le chemin le plus court entre
+                // voir une tache et agir dessus.
                 <button
                   // La cle combine tache ET nature : une meme tache apparait a deux
                   // dates, deux entrees distinctes ne peuvent pas partager une cle.

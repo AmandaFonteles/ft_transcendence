@@ -1,7 +1,5 @@
-// =============================================================================
-// ProjectPage.tsx : page d'un projet = description, taches, membres, discussion.
+// Page d'un projet : description, taches, membres, discussion.
 // Le backend nomme "Organization" ce que l'interface appelle "projet".
-// =============================================================================
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
@@ -32,10 +30,9 @@ export default function ProjectPage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  // Ouverture du formulaire de creation (la structure prevoit une pop-up ;
-  // un panneau depliant remplit le meme role sans piege d'accessibilite).
+  // Un panneau depliant plutot qu'une pop-up : meme role, sans piege d'accessibilite.
   const [creating, setCreating] = useState(false)
-  // Filtre "mes tâches" / "toutes" prevu par la structure.
+  // Filtre "mes taches" / "toutes".
   const [onlyMine, setOnlyMine] = useState(false)
   // Tache ouverte dans le panneau de detail (null = aucun panneau).
   const [openTask, setOpenTask] = useState<Task | null>(null)
@@ -48,10 +45,8 @@ export default function ProjectPage() {
   // retirer depuis ce panneau, voir ProjectSettings).
   const [membersRefreshKey, setMembersRefreshKey] = useState(0)
 
-  // [TEMPS REEL] S'abonne au salon du projet. Le compteur change des qu'une
-  // tache est creee, modifiee, supprimee ou (des)assignee — y compris par
-  // QUELQU'UN D'AUTRE. Sans cela, deux personnes travaillant en meme temps
-  // voyaient des listes divergentes jusqu'au prochain rechargement manuel.
+  // S'abonne au salon du projet : le compteur change des qu'une tache est creee,
+  // modifiee, supprimee ou (des)assignee, y compris par quelqu'un d'autre.
   const tasksRevision = useTaskEvents(projectId ?? '')
 
   // Charge le projet et ses taches. Relance si le filtre change, car le backend
@@ -84,10 +79,8 @@ export default function ProjectPage() {
     return () => { cancelled = true }
   }, [accessToken, projectId, onlyMine, tasksRevision])
 
-  // Determine si l'utilisateur courant est administrateur du projet.
-  // [CONCEPT: effet distinct] On ne le range pas dans le chargement principal :
-  // celui-ci se relance a chaque changement du filtre "mes taches", alors que le
-  // role, lui, ne bouge pas. Deux effets, deux rythmes.
+  // Hors du chargement principal, qui se relance a chaque changement de filtre
+  // alors que le role, lui, ne bouge pas. Deux effets, deux rythmes.
   useEffect(() => {
     if (!accessToken || !projectId || !user) return
     let cancelled = false
@@ -177,7 +170,7 @@ export default function ProjectPage() {
         </div>
       </div>
 
-      {/* Description optionnelle du projet (demandee dans la structure du 28/08). */}
+      {/* Description optionnelle du projet. */}
       {org.description && <p className="text-ink-soft max-w-[62ch] mb-6">{org.description}</p>}
 
       {error && <p className="text-danger mb-4">{error}</p>}
@@ -189,7 +182,7 @@ export default function ProjectPage() {
 
       <div className="flex items-center gap-3 mt-6 mb-3">
         <h2 className="text-xl font-semibold">Tâches</h2>
-        {/* Bascule "mes tâches / toutes", prevue par la structure. */}
+        {/* Bascule "mes taches" / "toutes". */}
         <label className="ml-auto flex items-center gap-2 text-[13.5px] text-ink-soft cursor-pointer">
           <input
             type="checkbox"
@@ -208,8 +201,7 @@ export default function ProjectPage() {
           illustration="tasks"
         />
       ) : (
-        // max-h + overflow : la liste defile au lieu d'allonger la page a l'infini
-        // (demande du 28/08 : "nombre de taches affichees, a faire defiler").
+        // max-h + overflow : la liste defile au lieu d'allonger la page a l'infini.
         <div className="max-h-[420px] overflow-y-auto pr-1">
           {tasks.map((t) => (
             <TaskRow key={t.id} task={t} projectColor={color} onStatusChange={handleStatus} onOpen={setOpenTask} />
@@ -217,10 +209,9 @@ export default function ProjectPage() {
         </div>
       )}
 
-      {/* --- Modules non encore disponibles ---------------------------------- */}
+      {/* --- Membres et discussion --- */}
 
       <h2 className="text-xl font-semibold mt-8 mb-3">Membres et rôles</h2>
-      {/* Section reelle : la route GET /organizations/:id/members existe desormais. */}
       {projectId && accessToken && (
         <MembersSection
           key={membersRefreshKey}
@@ -270,9 +261,7 @@ export default function ProjectPage() {
   )
 }
 
-// -----------------------------------------------------------------------------
-// Formulaire de creation d'une tache : "quoi, quand, qui" (structure du projet).
-// -----------------------------------------------------------------------------
+// --- Formulaire de creation d'une tache -------------------------------------
 function TaskForm({
   accessToken,
   organizationId,

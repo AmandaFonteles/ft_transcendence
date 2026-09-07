@@ -7,7 +7,6 @@ import { CreateFileDto } from './dto/create-file.dto'
 import { createReadStream } from 'fs'
 import { UpdateFileDto } from './dto/update-file.dto';
 
-
 @UseGuards(JwtAuthGuard)
 @Controller('organizations/:organizationId/files')
 export class FilesController {
@@ -21,7 +20,7 @@ export class FilesController {
 	const uploadedFile = await this.filesService.uploadFile(createFileDto, organizationId, user.userId, file);
 	return uploadedFile;
   }
-  
+
   @Post(':fileId/access/:targetUserId')
   async addFileAccess(@Param('organizationId') organizationId: string, @Param('fileId') fileId: string, @Param('targetUserId') targetUserId: string, @CurrentUser() user: { userId: string }) {
     await this.filesService.addFileAccess(fileId, targetUserId, user.userId, organizationId);
@@ -51,7 +50,7 @@ export class FilesController {
   @Get(':fileId/access')
   async findAllFileAccesses(@Param('organizationId') organizationId: string, @Param('fileId') fileId: string, @CurrentUser() user: { userId: string }) {
     const fileAccesses = await this.filesService.findAllFileAccesses(fileId, user.userId, organizationId)
-  
+
     return fileAccesses
   }
 

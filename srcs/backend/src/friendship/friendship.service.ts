@@ -27,6 +27,8 @@ export class FriendshipService {
     private readonly realtime: RealtimeGateway,
   ) {}
 
+  // --- Recherche ------------------------------------------------------------
+
   async searchByUsername(query: string, currentUserId: string) {
     if (!query || query.trim().length === 0) {
       return [];
@@ -41,6 +43,8 @@ export class FriendshipService {
       take: 10,
     });
   }
+
+  // --- Demandes d'ami -------------------------------------------------------
 
   async sendFriendRequest(requesterId: string, receiverUsername: string) {
     const receiver = await this.prisma.user.findUnique({
@@ -150,6 +154,8 @@ export class FriendshipService {
     return { success: true };
   }
 
+  // --- Listes ---------------------------------------------------------------
+
   async getFriends(userId: string) {
     const friendships = await this.prisma.friendship.findMany({
       where: {
@@ -185,6 +191,8 @@ export class FriendshipService {
       },
     });
   }
+
+  // --- Verifications utilisees par les autres modules -----------------------
 
   async areFriends(userAId: string, userBId: string): Promise<boolean> {
     const friendship = await this.prisma.friendship.findFirst({

@@ -1,20 +1,10 @@
-// =============================================================================
-// projectColors.ts : traduit un numero de projet (1 a 6) en classe Tailwind.
-// =============================================================================
+// Traduit un numero de projet (1 a 6) en classe Tailwind.
+// Tailwind ne genere que les classes ecrites en toutes lettres dans le source :
+// une classe construite dynamiquement (`bg-project-${n}`) n'est jamais detectee
+// et la couleur manque au rendu, sans la moindre erreur. D'ou la table explicite.
 
-// [CONCEPT: le piege du scan de classes Tailwind]
-// Tailwind ne genere que les classes qu'il TROUVE ECRITES EN TOUTES LETTRES dans
-// le code source. Une classe construite dynamiquement, comme :
-//     `bg-project-${n}`          <-- NE MARCHE PAS
-// n'est jamais detectee : la couleur sera simplement absente au rendu, sans la
-// moindre erreur. C'est le piege Tailwind le plus courant.
-// La parade : une table de correspondance ou chaque classe est ECRITE ENTIEREMENT.
-
-// Type des numeros de projet acceptes. Restreindre le type evite qu'un appelant
-// passe 7 et obtienne une couleur manquante silencieusement.
 export type ProjectColor = 1 | 2 | 3 | 4 | 5 | 6
 
-// Classes de FOND (arete de tache, pastilles, avatars).
 export const projectBg: Record<ProjectColor, string> = {
   1: 'bg-project-1',
   2: 'bg-project-2',
@@ -24,18 +14,12 @@ export const projectBg: Record<ProjectColor, string> = {
   6: 'bg-project-6',
 }
 
-// Liste des numeros disponibles, pratique pour afficher un selecteur de couleur.
 export const projectColors: ProjectColor[] = [1, 2, 3, 4, 5, 6]
 
-// [CONCEPT: couleur derivee de l'identifiant] Le backend ne stocke PAS de couleur
-// de projet. On en derive donc une, de facon deterministe, a partir du cuid : le
-// meme projet garde toujours la meme couleur, sur toutes les machines, sans
-// aucun stockage. Quand Ai ajoutera un champ "color" au modele Organization, il
-// suffira de remplacer l'appel a cette fonction.
+// Le backend ne stocke pas de couleur de projet : on la derive du cuid de facon
+// deterministe, donc identique sur toutes les machines et sans stockage.
 export function colorForId(id: string): ProjectColor {
-  // Somme des codes de caracteres : suffisant et stable pour une repartition simple.
   let sum = 0
   for (let i = 0; i < id.length; i++) sum += id.charCodeAt(i)
-  // Modulo 6 puis +1 pour tomber dans la plage 1..6 des couleurs definies.
   return ((sum % 6) + 1) as ProjectColor
 }

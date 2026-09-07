@@ -1,12 +1,3 @@
-// =============================================================================
-// TaskDetail.tsx : detail d'une tache, consultable puis modifiable.
-//
-// Deux modes dans un seul composant : LECTURE par defaut, EDITION a la demande.
-// Pourquoi pas un formulaire d'emblee : ouvrir une tache sert le plus souvent a
-// la consulter. Afficher directement des champs de saisie donne l'impression que
-// tout est en cours de modification, et expose a des changements accidentels.
-// =============================================================================
-
 import { useState } from 'react'
 import { deleteTask, getTask, updateTask, updateTaskStatus } from '../api'
 import type { Task, TaskStatus } from '../api'
@@ -20,43 +11,35 @@ import { formatLongDate, toDateInput } from '../lib/dates'
 import { statusBadge, statusLabel, statusOrder } from '../lib/taskStatus'
 import { LIMITS } from '../lib/validation'
 
+// Detail d'une tache, en deux modes dans un seul composant : lecture par defaut,
+// edition a la demande. Ouvrir une tache sert le plus souvent a la consulter ;
+// afficher d'emblee des champs de saisie exposerait a des changements accidentels.
 interface TaskDetailProps {
-  // Tache affichee.
   task: Task
-  // Jeton d'acces pour les appels proteges.
   accessToken: string
-  // Fermeture du panneau.
   onClose: () => void
-  // Remonte la tache modifiee au parent, qui met sa liste a jour.
   onUpdated: (task: Task) => void
-  // Remonte la suppression au parent.
   onDeleted: (taskId: string) => void
-  // La personne connectee est-elle administratrice du projet ? Sert a savoir si
-  // elle peut assigner n'importe qui. Optionnelle : depuis le tableau de bord,
-  // qui melange plusieurs projets, on ne connait pas ce role — on retombe alors
-  // sur les droits du proprietaire de la tache uniquement.
+  // Sert a savoir si la personne peut assigner n'importe qui. Optionnel : depuis
+  // le tableau de bord, qui melange plusieurs projets, ce role est inconnu et on
+  // retombe sur les seuls droits du proprietaire de la tache.
   isAdmin?: boolean
 }
 
 export default function TaskDetail({
   task, accessToken, onClose, onUpdated, onDeleted, isAdmin = false,
 }: TaskDetailProps) {
-  // Identifiant de la personne connectee : necessaire pour savoir ce qu'elle a
-  // le droit de faire sur les assignations.
   const { user } = useAuth()
-  // Bascule lecture / edition.
   const [editing, setEditing] = useState(false)
-  // Champs du formulaire, initialises depuis la tache courante.
   const [name, setName] = useState(task.name)
   const [description, setDescription] = useState(task.description ?? '')
   const [startDate, setStartDate] = useState(toDateInput(task.startDate))
   const [dueDate, setDueDate] = useState(toDateInput(task.dueDate))
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  // Confirmation de suppression : deux temps, pour eviter un clic irreversible.
+  // Confirmation en deux temps : la suppression est irreversible.
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
-  // Enregistre les modifications.
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
@@ -67,13 +50,12 @@ export default function TaskDetail({
         // Chaine vide -> null : le backend distingue "champ absent" de "vide".
         // Envoyer "" enregistrerait une description vide au lieu de l'effacer.
         description: description || null,
-        // <input type="date"> donne "2026-03-12" ; le backend attend de l'ISO.
         startDate: startDate ? new Date(startDate).toISOString() : null,
         dueDate: dueDate ? new Date(dueDate).toISOString() : null,
       })
-      // [IMPORTANT] PATCH /tasks/:id renvoie seulement { message, taskId }, pas la
-      // tache. On la RELIT donc pour obtenir l'objet reellement enregistre — et non
-      // une reconstruction locale, qui divergerait si le backend normalise un champ.
+      // PATCH ne renvoie que { message, taskId } : on relit la tache pour obtenir
+      // ce qui a reellement ete enregistre, et non une reconstruction locale qui
+      // divergerait si le backend normalise un champ.
       const fresh = await getTask(accessToken, task.organizationId, task.id)
       onUpdated(fresh)
       setEditing(false)
@@ -84,7 +66,6 @@ export default function TaskDetail({
     }
   }
 
-  // Change le statut sans passer par le mode edition.
   async function handleStatus(status: TaskStatus) {
     setError(null)
     try {
@@ -94,7 +75,6 @@ export default function TaskDetail({
     }
   }
 
-  // Supprime definitivement la tache.
   async function handleDelete() {
     setError(null)
     setSaving(true)
@@ -108,7 +88,6 @@ export default function TaskDetail({
     }
   }
 
-  // Annule l'edition et restaure les valeurs d'origine.
   function cancelEdit() {
     setName(task.name)
     setDescription(task.description ?? '')
@@ -122,8 +101,8 @@ export default function TaskDetail({
     <Modal title={editing ? 'Modifier la tâche' : task.name} onClose={onClose}>
       {error && <p className="text-danger text-sm mb-3">{error}</p>}
 
+      {/* --- Mode edition --- */}
       {editing ? (
-        // ---------------- MODE EDITION ----------------
         <form onSubmit={handleSave} className="grid gap-3">
           <TextField label="Nom" value={name} onChange={(e) => setName(e.target.value)} maxLength={LIMITS.TASK_NAME_MAX} required />
           <TextArea label="Description" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={LIMITS.TASK_DESCRIPTION_MAX} />
@@ -139,17 +118,16 @@ export default function TaskDetail({
           </div>
         </form>
       ) : (
-        // ---------------- MODE LECTURE ----------------
+        /* --- Mode lecture --- */
         <>
           {task.description ? (
-            // whitespace-pre-line preserve les retours a la ligne saisis par
-            // l'utilisateur, que le HTML replierait sinon en un seul paragraphe.
+            /* whitespace-pre-line preserve les retours a la ligne saisis, que le
+               HTML replierait sinon en un seul paragraphe. */
             <p className="text-ink-soft whitespace-pre-line mb-4">{task.description}</p>
           ) : (
             <p className="text-ink-faint italic mb-4">Aucune description.</p>
           )}
 
-          {/* Dates en toutes lettres : la place ne manque pas dans un detail. */}
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 font-data text-[13px] mb-4">
             <dt className="text-ink-soft">▸ Début</dt>
             <dd className="tabular-nums">{formatLongDate(task.startDate)}</dd>
@@ -157,7 +135,6 @@ export default function TaskDetail({
             <dd className="tabular-nums">{formatLongDate(task.dueDate)}</dd>
           </dl>
 
-          {/* Assignations : qui travaille sur cette tache, et actions associees. */}
           {user && (
             <TaskAssignees
               accessToken={accessToken}
@@ -169,8 +146,7 @@ export default function TaskDetail({
             />
           )}
 
-          {/* Changement de statut direct, sans entrer en edition : c'est l'action
-              la plus frequente sur une tache. */}
+          {/* Changement de statut direct, sans entrer en edition. */}
           <div className="flex flex-wrap items-center gap-2 mb-4">
             <span className="text-[13.5px] text-ink-soft">Statut</span>
             {statusOrder.map((s) => (
@@ -189,9 +165,9 @@ export default function TaskDetail({
 
           <div className="flex gap-2 pt-3 border-t border-rule">
             <Button variant="primary" onClick={() => setEditing(true)}>Modifier</Button>
+            {/* Confirmation en deux temps : la suppression est irreversible. */}
             {confirmingDelete ? (
               <>
-                {/* Confirmation en deux temps : la suppression est irreversible. */}
                 <Button
                   onClick={handleDelete}
                   disabled={saving}

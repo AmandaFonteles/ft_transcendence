@@ -20,10 +20,9 @@ import { SearchUsersDto } from './dto/search-users.dto';
 export class FriendshipController {
   constructor(private readonly friendshipService: FriendshipService) {}
 
-  // @Query() SANS nom de parametre : Nest passe TOUTE la query string dans le DTO,
-  // qui est alors valide par le ValidationPipe global (longueur, trim). Avec
-  // @Query('q'), la chaine arrivait brute, sans aucune verification.
   @Get('search')
+  // @Query() sans nom de parametre : Nest passe toute la query string dans le
+  // DTO, qui est alors valide par le ValidationPipe global.
   search(
     @Query() dto: SearchUsersDto,
     @CurrentUser() user: { userId: string },

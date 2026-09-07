@@ -1,10 +1,6 @@
-// =============================================================================
-// EmptyIllustration.tsx : petit dessin pour les etats vides.
-// Un etat vide accompagne d'un visuel se lit comme un espace en attente, pas
-// comme une panne.
-// =============================================================================
+// Petit dessin pour les etats vides : un etat vide accompagne d'un visuel se lit
+// comme un espace en attente, pas comme une panne.
 
-// Deux motifs disponibles selon le contexte.
 type Variant = 'tasks' | 'projects' | 'search'
 
 export default function EmptyIllustration({
