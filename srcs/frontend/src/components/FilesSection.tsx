@@ -14,8 +14,12 @@ import {
   uploadProjectFile, 
   previewProjectFile, 
   updateProjectFile,
+  listProjectFileAccesses,
+  addProjectFileAccess,
+  removeProjectFileAccess,
+  listOrganizationMembers,
 } from '../api'
-import type { ProjectFile, VisibilityPolicy } from '../api'
+import type { ProjectFile, VisibilityPolicy, ProjectFileAccess, OrganizationMember } from '../api'
 import Card from './ui/Card'
 import Button from './ui/Button'
 import Badge from './ui/Badge'
@@ -38,7 +42,7 @@ const ALLOWED_FILE_TYPES: Record<string, string[]> = {
   'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
 }
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024
+const MAX_FILE_BYTES = 10 * 1000000
 
 const PREVIEWABLE_MIME_TYPES = new Set([
   'image/jpeg',
@@ -54,9 +58,9 @@ const ACCEPT = Object.values(ALLOWED_FILE_TYPES).flat().join(',')
 
 // "1,4 Mo" plutot que "1468006". Les tailles s'affichent en Ko sous 1 Mo.
 function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} o`
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} Ko`
-  return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} Mo`
+  if (bytes < 1000) return `${bytes} o`
+  if (bytes < 1000 * 1000) return `${Math.round(bytes / 1000)} Ko`
+  return `${(bytes / (1000 * 1000)).toFixed(1).replace('.', ',')} Mo`
 }
 
 // Etiquette courte pour la pastille : l'extension suffit a identifier le type,
@@ -89,6 +93,16 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
   } | null>(null)
   // Fichier dont la suppression attend une confirmation.
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
+  const [members, setMembers] = useState<OrganizationMember[]>([])
+
+  const [fileAccesses, setFileAccesses] = useState<
+    Record<string, ProjectFileAccess[]>
+  >({})
+  
+  const [openAccessFileId, setOpenAccessFileId] = useState<string | null>(null)
+  
+  const [accessLoadingId, setAccessLoadingId] = useState<string | null>(null)
+  const [accessBusyMemberId, setAccessBusyMemberId] = useState<string | null>(null)
   // L'input natif est masque : le declencheur visible est un Button du systeme
   // de design, pour ne pas laisser un widget navigateur brut dans la page.
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -108,6 +122,11 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
     setLoading(true)
     resetSelection()
     setConfirmingId(null)
+    setMembers([])
+    setFileAccesses({})
+    setOpenAccessFileId(null)
+    setAccessLoadingId(null)
+    setAccessBusyMemberId(null)
 
     // Le projet peut changer pendant la requete : sans ce drapeau, une reponse
     // tardive ecraserait la liste du projet suivant.
@@ -123,8 +142,23 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
         if (!cancelled) setLoading(false)
       })
 
+    listOrganizationMembers(accessToken, organizationId)
+    .then((organizationMembers) => {
+      if (!cancelled) setMembers(organizationMembers)
+    })
+    .catch((err) => {
+      if (!cancelled) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Erreur lors du chargement des membres'
+        )
+      }
+    })
+
     return () => { cancelled = true }
   }, [accessToken, organizationId])
+
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const chosen = e.target.files?.[0] ?? null
@@ -250,6 +284,18 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
           currentFile.id === file.id ? updatedFile : currentFile
         )
       )
+
+      if (visibilityPolicy !== 'RESTRICTED') {
+        if (openAccessFileId === file.id) {
+          setOpenAccessFileId(null)
+        }
+      
+        setFileAccesses((current) => {
+          const updated = { ...current }
+          delete updated[file.id]
+          return updated
+        })
+      }
     } catch (err) {
       setError(
         err instanceof Error
@@ -274,6 +320,91 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
       setError(err instanceof Error ? err.message : 'Erreur pendant la suppression')
     } finally {
       setBusyFile(null)
+    }
+  }
+
+  async function refreshFileAccesses(fileId: string) {
+    const accesses = await listProjectFileAccesses(
+      accessToken,
+      organizationId,
+      fileId
+    )
+  
+    setFileAccesses((current) => ({
+      ...current,
+      [fileId]: accesses,
+    }))
+  }
+
+  async function handleAccessPanel(file: ProjectFile) {
+    if (openAccessFileId === file.id) {
+      setOpenAccessFileId(null)
+      return
+    }
+  
+    setError(null)
+    setAccessLoadingId(file.id)
+  
+    try {
+      await refreshFileAccesses(file.id)
+  
+      setOpenAccessFileId(file.id)
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Erreur lors du chargement des accès'
+      )
+    } finally {
+      setAccessLoadingId(null)
+    }
+  }
+
+  async function handleAddFileAccess(file: ProjectFile, userId: string) {
+    setError(null)
+    setAccessBusyMemberId(userId)
+  
+    try {
+      await addProjectFileAccess(
+        accessToken,
+        organizationId,
+        file.id,
+        userId
+      )
+  
+      await refreshFileAccesses(file.id)
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : `Erreur lors de l'ajout de l'accès`
+      )
+    } finally {
+      setAccessBusyMemberId(null)
+    }
+  }
+
+  async function handleRemoveFileAccess(file: ProjectFile, userId: string) {
+    setError(null)
+    setAccessBusyMemberId(userId)
+  
+    try {
+      await removeProjectFileAccess(
+        accessToken,
+        organizationId,
+        file.id,
+        userId
+      )
+  
+      await refreshFileAccesses(file.id)
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : `Erreur lors du retrait de l'accès`
+      )
+    } finally {
+      setAccessBusyMemberId(null)
     }
   }
 
@@ -392,6 +523,19 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
                     <option value="RESTRICTED">Accès restreint</option>
                     <option value="PRIVATE">Privé</option>
                   </select>
+                  {file.visibilityPolicy === 'RESTRICTED' && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleAccessPanel(file)}
+                    disabled={accessLoadingId !== null || busyFile !== null}
+                  >
+                    {accessLoadingId === file.id
+                      ? 'Chargement…'
+                      : openAccessFileId === file.id
+                        ? 'Fermer les accès'
+                        : 'Gérer les accès'}
+                  </Button>
+                )}
                   {confirmingId === file.id ? (
                     // Second clic obligatoire : la suppression est definitive et
                     // le fichier disparait aussi du stockage.
@@ -429,6 +573,71 @@ export default function FilesSection({ accessToken, organizationId }: FilesSecti
                   )}
                 </div>
               </div>
+              {openAccessFileId === file.id &&
+                file.visibilityPolicy === 'RESTRICTED' && (
+                <div className="mt-3 pt-3 border-t border-ink/10">
+                  <div className="text-[12.5px] text-ink-soft mb-2">
+                    Gestion des accès
+                  </div>
+            
+                  <div className="grid gap-2">
+  {members.map((member) => {
+    const isOwner = member.id === file.ownerId
+
+    const hasExplicitAccess = (fileAccesses[file.id] ?? []).some(
+      (access) => access.member.userId === member.user.id
+    )
+
+    return (
+      <div
+        key={member.user.id}
+        className="flex items-center justify-between gap-3"
+      >
+        <span className="text-[13.5px]">
+          {member.user.displayName}
+        </span>
+
+        <div className="flex items-center gap-2">
+          <Badge>
+            {isOwner? 'Propriétaire · accès implicite' : hasExplicitAccess? 'Accès explicite' : `Pas d’accès explicite`}
+          </Badge>
+
+          {!isOwner && (
+            hasExplicitAccess ? (
+              <Button
+                variant="ghost"
+                onClick={() =>
+                  handleRemoveFileAccess(file, member.user.id)
+                }
+                disabled={accessBusyMemberId !== null}
+              >
+                {accessBusyMemberId === member.user.id
+                  ? 'Retrait…'
+                  : 'Retirer'}
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  handleAddFileAccess(file, member.user.id)
+                }
+                disabled={accessBusyMemberId !== null}
+              >
+                {accessBusyMemberId === member.user.id ? 'Ajout…' : 'Ajouter'}
+              </Button>
+            )
+          )}
+        </div>
+      </div>
+    )
+  })}
+</div>
+
+<p className="text-[12px] text-ink-soft mt-2">
+  Le propriétaire du fichier et les administrateurs disposent aussi d’un accès implicite.
+</p>
+</div>
+)}
             </Card>
           ))}
         </div>

@@ -71,7 +71,7 @@ export class UsersController {
 
   @Patch('me/avatar/upload')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('file', {limits: { fileSize: 5 * 1024 * 1024 }})) // 5 Mo max
+  @UseInterceptors(FileInterceptor('file', {limits: { fileSize: 5 * 1000000 + 1 }})) // 5 Mo max
   uploadAvatar(@CurrentUser() user: { userId: string }, @UploadedFile() file: Express.Multer.File) {
     return this.users.uploadAvatar(user.userId, file)
   }

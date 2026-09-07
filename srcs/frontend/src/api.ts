@@ -447,6 +447,7 @@ export function searchUsers(accessToken: string, query: string) {
 // Forme exacte renvoyee par GET /organizations/:id/members.
 // Le backend selectionne volontairement peu de champs : ni e-mail ni date.
 export type OrganizationMember = {
+  id: string
   role: 'ADMIN' | 'MEMBER'
   user: {
     id: string
@@ -591,6 +592,19 @@ export type ProjectFile = {
   ownerId: string | null
 }
 
+export type ProjectFileAccess = {
+  id: string
+  member: {
+    userId: string
+    leftAt: string | null
+    user: {
+      id: string
+      displayName: string
+      avatarUrl: string | null
+    }
+  }
+}
+
 export function uploadProjectFile(accessToken: string, organizationId: string, file: File, onProgress?: (percent: number) => void) {
   return new Promise<ProjectFile>((resolve, reject) => {
     const formData = new FormData()
@@ -700,4 +714,64 @@ export function updateProjectFile(
       body: JSON.stringify(data),
     }
   )
+}
+
+export async function uploadAvatar(accessToken: string, file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch('/api/users/me/avatar/upload', {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
+  })
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error(body?.message ?? `Erreur HTTP ${res.status}`)
+  }
+
+  return res.json() as Promise<AuthUser>
+}
+
+export function listProjectFileAccesses( accessToken: string, organizationId: string, fileId: string, ) {
+  return request<ProjectFileAccess[]>(
+    `/organizations/${organizationId}/files/${fileId}/access`,
+    {
+      headers: auth(accessToken),
+    }
+  )
+}
+
+export async function addProjectFileAccess( accessToken: string, organizationId: string, fileId: string, targetUserId: string ) {
+  const res = await fetch(
+    `/api/organizations/${organizationId}/files/${fileId}/access/${targetUserId}`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: auth(accessToken),
+    }
+  )
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error(body?.message ?? `Erreur HTTP ${res.status}`)
+  }
+}
+
+export async function removeProjectFileAccess( accessToken: string, organizationId: string, fileId: string, targetUserId: string ) {
+  const res = await fetch(
+    `/api/organizations/${organizationId}/files/${fileId}/access/${targetUserId}`,
+    {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: auth(accessToken),
+    }
+  )
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error(body?.message ?? `Erreur HTTP ${res.status}`)
+  }
 }

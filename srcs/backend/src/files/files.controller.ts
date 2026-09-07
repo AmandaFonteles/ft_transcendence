@@ -15,9 +15,7 @@ export class FilesController {
 
   @Post()
   @UseInterceptors(FileInterceptor('file',  {
-    limits: {
-      fileSize: 10 * 1024 * 1024,
-    }
+    limits: { fileSize: 10 * 1000000 + 1 }
   }))
   async uploadFile( @Param('organizationId') organizationId: string, @CurrentUser() user: { userId: string }, @Body() createFileDto: CreateFileDto, @UploadedFile() file: Express.Multer.File ) {
 	const uploadedFile = await this.filesService.uploadFile(createFileDto, organizationId, user.userId, file);
@@ -50,6 +48,12 @@ export class FilesController {
     return new StreamableFile(fileStream, { type: mimeType, disposition: `attachment; filename*=UTF-8''${encodedFileName}` });
   }
 
+  @Get(':fileId/access')
+  async findAllFileAccesses(@Param('organizationId') organizationId: string, @Param('fileId') fileId: string, @CurrentUser() user: { userId: string }) {
+    const fileAccesses = await this.filesService.findAllFileAccesses(fileId, user.userId, organizationId)
+  
+    return fileAccesses
+  }
 
   private encodeFileName(fileName: string) {
   return encodeURIComponent(fileName).replace(/['()*]/g, char => `%${char.charCodeAt(0).toString(16).toUpperCase()}` )
